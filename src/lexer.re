@@ -13,7 +13,7 @@
 
 /*!rules:re2c
 
-[ \t] { SKIP }
+[ \t\n\r] { SKIP }
 
 "as" { TOKEN(AS) }
 "bool" { TOKEN(BOOL) }
