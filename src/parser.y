@@ -161,9 +161,9 @@ var_def:
 
 
 func_def:
-    "func" copying_decl NAME "(" func_param_seq ")" return_type "{" func_body "}"
+    "func" optional_copying NAME "(" func_param_seq ")" optional_return_type "{" func_body "}"
 
-copying_decl:
+optional_copying:
     %empty
     | "@"
 
@@ -178,7 +178,7 @@ func_param_seq_nempty:
     func_param
     | func_param_seq_nempty "," func_param
 
-return_type:
+optional_return_type:
     %empty
     | "->" type
 
@@ -188,9 +188,9 @@ func_body:
 
 
 struct_def:
-    "struct" NAME copyable_decl "{" struct_field_seq "}"
+    "struct" NAME optional_copyable "{" struct_field_seq "}"
 
-copyable_decl:
+optional_copyable:
     %empty
     | "copyable"
 
@@ -199,7 +199,7 @@ struct_field:
 
 struct_field_seq:
     struct_field_seq_inner
-    | struct_field_seq_inner struct_field 
+    | struct_field_seq_inner struct_field
 
 struct_field_seq_inner:
     %empty
@@ -207,11 +207,11 @@ struct_field_seq_inner:
 
 
 enum_def:
-    "enum" NAME copyable_decl "{" enum_variant_seq "}"
+    "enum" NAME optional_copyable "{" enum_variant_seq "}"
 
 enum_variant:
     NAME
-    | NAME "(" type ")"
+    | NAME "(" type_seq ")"
 
 enum_variant_seq:
     enum_variant_seq_inner
@@ -249,25 +249,25 @@ stmt_seq:
     | stmt_seq stmt
 
 if_stmt:
-    "if" condition_expr "{" stmt_seq "}" elif_seq_in_stmt optional_else_in_stmt
+    "if" condition "{" stmt_seq "}" elif_seq optional_else
 
-condition_expr:
+condition:
     expr
     | expr "in" expr
 
-elif_seq_in_stmt:
-    %empty
-    | elif_seq_in_stmt "elif" condition_expr "{" stmt_seq "}"
+elif:
+    "elif" condition "{" stmt_seq "}"
 
-else_in_stmt:
-    "else" "{" stmt_seq "}"
-
-optional_else_in_stmt:
+elif_seq:
     %empty
-    | else_in_stmt
+    | elif_seq elif
+
+optional_else:
+    %empty
+    | "else" "{" stmt_seq "}"
 
 while_stmt:
-    "while" condition_expr "{" stmt_seq "}" optional_else_in_stmt
+    "while" condition "{" stmt_seq "}" optional_else
 
 for_stmt:
     "for" expr "in" expr ".." expr for_stmt_tail
@@ -277,31 +277,30 @@ for_stmt:
     | "for" expr "," expr "ref" expr for_stmt_tail
 
 for_stmt_tail:
-    optional_reversed "{" stmt_seq "}" optional_else_in_stmt
+    optional_reversed "{" stmt_seq "}" optional_else
 
 optional_reversed:
     %empty
     | "reversed"
 
 match_stmt:
-    "match" expr with_seq_in_stmt
-    | "match" expr with_seq_in_stmt else_in_stmt
+    "match" expr with_seq_nempty optional_else
 
-with_in_stmt:
+with:
     "with" expr "{" stmt_seq "}"
 
-with_seq_in_stmt:
-    with_in_stmt
-    | with_seq_in_stmt with_in_stmt
+with_seq_nempty:
+    with
+    | with_seq_nempty with
 
 locally_stmt:
     "locally" expr_seq "{" stmt_seq "}"
 
 
 expr:
-    "(" expr_int_indexed_seq ")"
-    | "[" expr_int_indexed_seq "]"
-    | expr "(" expr_name_indexed_seq ")"
+    "(" expr_indexed_seq ")"
+    | "[" expr_indexed_seq "]"
+    | expr "(" expr_indexed_seq ")"
 
     | NAME
     | NAME "::" NAME
@@ -362,15 +361,7 @@ expr:
 
     | if_expr
     | match_expr
-    | closure_expr
-
-expr_int_indexed:
-    expr
-    | INTEGER ":" expr
-
-expr_name_indexed:
-    expr
-    | NAME ":" expr
+    | lambda_expr
 
 expr_seq:
     %empty
@@ -380,46 +371,49 @@ expr_seq_nempty:
     expr
     | expr_seq_nempty "," expr
 
-expr_int_indexed_seq:
+expr_indexed:
+    expr
+    | NAME ":" expr
+    | INTEGER ":" expr
+
+expr_indexed_seq:
     %empty
-    | expr_int_indexed_seq_nempty
+    | expr_indexed_seq_nempty
 
-expr_int_indexed_seq_nempty:
-    expr_int_indexed
-    | expr_int_indexed_seq_nempty "," expr_int_indexed
-
-expr_name_indexed_seq:
-    %empty
-    | expr_name_indexed_seq_nempty
-
-expr_name_indexed_seq_nempty:
-    expr_name_indexed
-    | expr_name_indexed_seq_nempty "," expr_name_indexed
+expr_indexed_seq_nempty:
+    expr_indexed
+    | expr_indexed_seq_nempty "," expr_indexed
 
 var_decl_expr:
     "var" NAME ":" mtype
     | "var" NAME
 
 if_expr:
-    "if" condition_expr "then" expr elif_seq_in_expr "else" expr "end"
+    "if" condition "then" expr elif_in_expr_seq "else" expr "end"
 
-elif_seq_in_expr:
+elif_in_expr:
+    "elif" condition "then" expr
+
+elif_in_expr_seq:
     %empty
-    | elif_seq_in_expr "elif" condition_expr "then" expr
+    | elif_in_expr_seq elif_in_expr
 
 match_expr:
-    "match" expr with_expr_seq "end"
-    | "match" expr with_expr_seq "else" expr "end"
+    "match" expr with_in_expr_seq_nempty optional_else_in_expr "end"
 
-with_expr:
+with_in_expr:
     "with" expr "then" expr
 
-with_expr_seq:
-    with_expr
-    | with_expr_seq with_expr
+with_in_expr_seq_nempty:
+    with_in_expr
+    | with_in_expr_seq_nempty with_in_expr
 
-closure_expr:
-    "func" copying_decl "(" func_param_seq ")" return_type "{" func_body "}"
+optional_else_in_expr:
+    %empty
+    | "else" expr
+
+lambda_expr:
+    "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}"
 
 
 type:
