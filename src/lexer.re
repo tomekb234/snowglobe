@@ -28,7 +28,7 @@ static optional<string> parse_string(const string& text);
 [ \t\n\r] { SKIP }
 
 "//" .* { SKIP }
-"/*" "/"* "*"* ([^/*]+ "/"* "*"*)* "*/" { SKIP }
+"/" "*" "/"* "*"* (([^/]\[*])+ "/"* "*"*)* "*" "/" { SKIP }
 
 "as" { TOKEN(AS) }
 "bool" { TOKEN(BOOL) }
@@ -71,14 +71,15 @@ static optional<string> parse_string(const string& text);
 
 [a-zA-Z_][a-zA-Z_0-9]* { TOKEN_WITH(NAME, make_optional(TEXT)) }
 
-[0-9][0-9_]*([iu]("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_dec(TEXT)) }
-"0b"[01][01_]*([iu]("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_bin(TEXT)) }
-"0o"[0-7][0-7_]*([iu]("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_oct(TEXT)) }
-"0x"[0-9a-fA-F][0-9a-fA-F_]*([iu]("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_hex(TEXT)) }
-[0-9][0-9_]*[.][0-9][0-9_]*([f]("32"|"64"))? { TOKEN_WITH(INTEGER, parse_float(TEXT)) }
+[0-9][0-9_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_dec(TEXT)) }
+"0b" [01][01_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_bin(TEXT)) }
+"0o" [0-7][0-7_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_oct(TEXT)) }
+"0x" [0-9a-fA-F][0-9a-fA-F_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_hex(TEXT)) }
 
-[']([\\].|[^'\\])['] { TOKEN_WITH(CHAR, parse_char(TEXT)) }
-["]([\\].|[^"\\])*["] { TOKEN_WITH(STRING, parse_string(TEXT)) }
+[0-9][0-9_]* "." [0-9][0-9_]* ("e"("+"|"-")?[0-9][0-9_]*)? ("f"("32"|"64")?)? { TOKEN_WITH(FLOAT, parse_float(TEXT)) }
+
+['] ([\\].|[^'\\]) ['] { TOKEN_WITH(CHAR, parse_char(TEXT)) }
+["] ([\\].|[^"\\])* ["] { TOKEN_WITH(STRING, parse_string(TEXT)) }
 
 "<<=" { TOKEN(LSHIFT_ASSIGN) }
 ">>=" { TOKEN(RSHIFT_ASSIGN) }
