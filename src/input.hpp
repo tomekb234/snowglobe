@@ -4,7 +4,7 @@
 #include <istream>
 #include <string>
 
-namespace snow {
+namespace sg {
     using std::istream;
     using std::string;
 

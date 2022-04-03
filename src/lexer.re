@@ -1,8 +1,20 @@
 #include "input.hpp"
 #include "parser.hpp"
-#include <string>
 #include <optional>
+#include <string>
 #include <cstdint>
+
+using std::optional;
+using std::make_optional;
+using std::string;
+
+static optional<uint64_t> parse_dec(const string& text);
+static optional<uint64_t> parse_bin(const string& text);
+static optional<uint64_t> parse_oct(const string& text);
+static optional<uint64_t> parse_hex(const string& text);
+static optional<double> parse_float(const string& text);
+static optional<char> parse_char(const string& text);
+static optional<string> parse_string(const string& text);
 
 #define SKIP { continue; }
 #define TOKEN(token) { return yy::parser::make_##token(); }
@@ -54,7 +66,7 @@
 "while" { TOKEN(WHILE) }
 "with" { TOKEN(WITH) }
 
-[a-zA-Z_][a-zA-Z_0-9]* { TOKEN_WITH(NAME, optional<string>(TEXT)) }
+[a-zA-Z_][a-zA-Z_0-9]* { TOKEN_WITH(NAME, make_optional(TEXT)) }
 
 [0-9][0-9_]*([iu]("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_dec(TEXT)) }
 "0b"[01][01_]*([iu]("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_bin(TEXT)) }
@@ -65,32 +77,28 @@
 [']([\\].|[^'\\])['] { TOKEN_WITH(CHAR, parse_char(TEXT)) }
 ["]([\\].|[^"\\])*["] { TOKEN_WITH(STRING, parse_string(TEXT)) }
 
-"->" { TOKEN(ARROW) }
-".." { TOKEN(RANGE) }
-"::" { TOKEN(SCOPE) }
+"<<=" { TOKEN(LSHIFT_ASSIGN) }
+">>=" { TOKEN(RSHIFT_ASSIGN) }
 
+"&&" { TOKEN(AND) }
+"||" { TOKEN(OR) }
+"<<" { TOKEN(LSHIFT) }
+">>" { TOKEN(RSHIFT) }
 "==" { TOKEN(EQ) }
 "!=" { TOKEN(NEQ) }
 "<=" { TOKEN(LSEQ) }
 ">=" { TOKEN(GTEQ) }
-
-"&&" { TOKEN(AND) }
-"||" { TOKEN(OR) }
-
-"<<" { TOKEN(LSHIFT) }
-">>" { TOKEN(RSHIFT) }
-
 "+=" { TOKEN(PLUS_ASSIGN) }
 "-=" { TOKEN(MINUS_ASSIGN) }
 "*=" { TOKEN(STAR_ASSIGN) }
 "/=" { TOKEN(SLASH_ASSIGN) }
 "%=" { TOKEN(PERC_ASSIGN) }
-
 "&=" { TOKEN(AMP_ASSIGN) }
 "|=" { TOKEN(BAR_ASSIGN) }
 "^=" { TOKEN(CARET_ASSIGN) }
-"<<=" { TOKEN(LSHIFT_ASSIGN) }
-">>=" { TOKEN(RSHIFT_ASSIGN) }
+"->" { TOKEN(ARROW) }
+".." { TOKEN(RANGE) }
+"::" { TOKEN(SCOPE) }
 
 "(" { TOKEN(LPAREN) }
 ")" { TOKEN(RPAREN) }
@@ -98,32 +106,26 @@
 "]" { TOKEN(RBRACK) }
 "{" { TOKEN(LBRACE) }
 "}" { TOKEN(RBRACE) }
-
-"=" { TOKEN(ASSIGN) }
-
+"." { TOKEN(DOT) }
+"," { TOKEN(COMMA) }
+";" { TOKEN(SCOLON) }
+"!" { TOKEN(EXCL) }
+":" { TOKEN(COLON) }
 "+" { TOKEN(PLUS) }
 "-" { TOKEN(MINUS) }
 "*" { TOKEN(STAR) }
 "/" { TOKEN(SLASH) }
 "%" { TOKEN(PERC) }
-
-"<" { TOKEN(LS) }
-">" { TOKEN(GT) }
-
-"!" { TOKEN(EXCL) }
-
 "~" { TOKEN(TILDE) }
 "&" { TOKEN(AMP) }
 "|" { TOKEN(BAR) }
 "^" { TOKEN(CARET) }
-
+"<" { TOKEN(LS) }
+">" { TOKEN(GT) }
+"=" { TOKEN(ASSIGN) }
 "@" { TOKEN(AT) }
-"$" { TOKEN(DOLLAR) }
 "#" { TOKEN(HASH) }
-"." { TOKEN(DOT) }
-"," { TOKEN(COMMA) }
-";" { TOKEN(SCOLON) }
-":" { TOKEN(COLON) }
+"$" { TOKEN(DOLLAR) }
 "?" { TOKEN(QMARK) }
 
 $ { END }
@@ -131,98 +133,7 @@ $ { END }
 
 */
 
-using std::string;
-using std::optional;
-using std::stoull;
-using std::stod;
-
-string clean_number(const string& s, int base = 10) {
-    string res;
-    int start = 0;
-    if(base != 10) {
-        start = 2;
-    }
-    for (int i = start; i < s.size(); i++) {
-        if (s[i] != '_') {
-            res += s[i];
-        }
-    }
-    return res;
-}
-
-optional<uint64_t> parse_dec(const string& s) {
-    try {
-        return stoull(clean_number(s, 10));
-    } catch(...) {
-        return { };
-    }
-}
-
-optional<uint64_t> parse_bin(const string& s) {
-    try {
-        return stoull(clean_number(s, 2), nullptr, 2);
-    } catch(...) {
-        return { };
-    }
-}
-
-optional<uint64_t> parse_oct(const string& s) {
-    try {
-        return stoull(clean_number(s, 8), nullptr, 8);
-    } catch(...) {
-        return { };
-    }
-}
-
-optional<uint64_t> parse_hex(const string& s) {
-    try {
-        return stoull(clean_number(s, 16), nullptr, 16);
-    } catch(...) {
-        return { };
-    }
-}
-
-optional<double> parse_float(const string& s) {
-    try {
-        return stod(clean_number(s));
-    } catch(...) {
-        return { };
-    }
-}
-
-optional<char> resolve_escape_sequence(char c) {
-    switch(c) {
-        case '\'': return '\'';
-        case '"': return '"';
-        case '0': return '\0';
-        case 'n': return '\n';
-        case 'r': return '\r';
-        case 't': return '\t';
-        case '\\': return '\\';
-        default: return { };
-    }
-}
-
-optional<char> parse_char(const string& s) {
-    return (s[1] == '\\') ? resolve_escape_sequence(s[2]) : s[1];
-}
-
-optional<string> parse_string(const string& s) {
-    string result;
-    for (int i = 1; i < s.length() - 1; )
-        if (s[i] == '\\') {
-            auto esc_seq = resolve_escape_sequence(s[i+1]);
-            if (!esc_seq)
-                return { };
-            result.push_back(esc_seq.value());
-            i += 2;
-        }
-        else
-            result.push_back(s[i++]);
-    return result;
-}
-
-yy::parser::symbol_type yylex(snow::lexer_input& input) {
+yy::parser::symbol_type yylex(sg::lexer_input& input) {
     while (true) {
         input.start();
 
@@ -243,4 +154,93 @@ yy::parser::symbol_type yylex(snow::lexer_input& input) {
 
         */
     }
+}
+
+using std::stoull;
+using std::stod;
+
+static string clean_number(const string& s, int base = 10) {
+    string res;
+    int start = 0;
+    if(base != 10) {
+        start = 2;
+    }
+    for (int i = start; i < s.size(); i++) {
+        if (s[i] != '_') {
+            res += s[i];
+        }
+    }
+    return res;
+}
+
+static optional<uint64_t> parse_dec(const string& s) {
+    try {
+        return stoull(clean_number(s, 10));
+    } catch(...) {
+        return { };
+    }
+}
+
+static optional<uint64_t> parse_bin(const string& s) {
+    try {
+        return stoull(clean_number(s, 2), nullptr, 2);
+    } catch(...) {
+        return { };
+    }
+}
+
+static optional<uint64_t> parse_oct(const string& s) {
+    try {
+        return stoull(clean_number(s, 8), nullptr, 8);
+    } catch(...) {
+        return { };
+    }
+}
+
+static optional<uint64_t> parse_hex(const string& s) {
+    try {
+        return stoull(clean_number(s, 16), nullptr, 16);
+    } catch(...) {
+        return { };
+    }
+}
+
+static optional<double> parse_float(const string& s) {
+    try {
+        return stod(clean_number(s));
+    } catch(...) {
+        return { };
+    }
+}
+
+static optional<char> resolve_escape_sequence(char c) {
+    switch(c) {
+        case '\'': return '\'';
+        case '"': return '"';
+        case '0': return '\0';
+        case 'n': return '\n';
+        case 'r': return '\r';
+        case 't': return '\t';
+        case '\\': return '\\';
+        default: return { };
+    }
+}
+
+static optional<char> parse_char(const string& s) {
+    return (s[1] == '\\') ? resolve_escape_sequence(s[2]) : s[1];
+}
+
+static optional<string> parse_string(const string& s) {
+    string result;
+    for (int i = 1; i < s.length() - 1; )
+        if (s[i] == '\\') {
+            auto esc_seq = resolve_escape_sequence(s[i+1]);
+            if (!esc_seq)
+                return { };
+            result.push_back(esc_seq.value());
+            i += 2;
+        }
+        else
+            result.push_back(s[i++]);
+    return result;
 }

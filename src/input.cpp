@@ -3,7 +3,7 @@
 
 using std::move;
 
-namespace snow {
+namespace sg {
     lexer_input::lexer_input(istream& stream) : stream(stream) { }
 
     void lexer_input::start() {

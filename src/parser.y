@@ -14,10 +14,10 @@
     }
 }
 
-%param {snow::lexer_input& input}
+%param {sg::lexer_input& input}
 
 %code provides {
-    yy::parser::symbol_type yylex(snow::lexer_input& input);
+    yy::parser::symbol_type yylex(sg::lexer_input& input);
 }
 
 %token <string> NAME

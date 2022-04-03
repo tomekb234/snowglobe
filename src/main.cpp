@@ -15,7 +15,7 @@ int main(int argc, const char** argv) {
         return 1;
 
     ifstream file(argv[1]);
-    snow::lexer_input input(file);
+    sg::lexer_input input(file);
 
     yy::parser parser(input);
     parser.parse();
