@@ -27,6 +27,9 @@ static optional<string> parse_string(const string& text);
 
 [ \t\n\r] { SKIP }
 
+"//" .* { SKIP }
+"/*" "/"* "*"* ([^/*]+ "/"* "*"*)* "*/" { SKIP }
+
 "as" { TOKEN(AS) }
 "bool" { TOKEN(BOOL) }
 "break" { TOKEN(BREAK) }
