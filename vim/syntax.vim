@@ -19,9 +19,9 @@ endif
 syn keyword		sgTypeKeyword			bool f32 f64 i8 i16 i32 i64 never u8 u16 u32 u64
 syn keyword		sgBooleanValueKeyword	false true
 syn keyword		sgStructKeyword			enum struct 
-syn keyword		sgConditionalKeyword	elif else end if match then with
+syn keyword		sgConditionalKeyword	elif else end if match then
 syn keyword		sgLoopKeyword			for while
-syn keyword		sgOtherKeyword			as break continue copyable func in locally none ref return reversed some var
+syn keyword		sgOtherKeyword			as break continue copyable func in locally none ref return reversed some swap var with
 
 " Character/String literals
 syn match		sgEscapeSequence		contained '\\[\\nrt0"\']'
@@ -51,7 +51,7 @@ syn region		sgParenthesisRange		start='(' end=')' transparent contains=TOP,sgPar
 syn match		sgBracketsError			']'
 syn region		sgBracketsRange			start='\[' end=']' transparent contains=TOP,sgBracketsError
 syn match		sgBracesError			'}'
-syn region		sgBracesRange			start='{' end='}' transparent contains=TOP,sgBracesError
+syn region		sgBracesRange			start='{' end='}' transparent fold contains=TOP,sgBracesError
 
 " Comments
 syn keyword		sgTodoKeyword			contained TODO FIXME
@@ -60,6 +60,8 @@ syn region		sgMultiLineComment 		start='/\*' end='\*/' contains=sgTodoKeyword
 
 
 
+" The weird setting that has to be set
+syn sync fromstart
 
 " Set colors
 let b:current_syntax = "snowglobe"
