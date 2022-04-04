@@ -126,16 +126,16 @@
 %precedence "return" "some"
 %left "||"
 %left "&&"
+%left "==" "!="
+%left "<" "<=" ">=" ">"
 %left "|"
 %left "^"
 %left "&"
-%left "==" "!="
-%left "<" "<=" ">=" ">"
 %left "<<" ">>"
 %left "+" "-"
 %left "*" "/" "%"
 %left "as"
-%right "!" "~" "@" "$" "#"
+%right "!" "~" "@" "$" "#" UNARY_MINUS UNARY_STAR UNARY_AMP UNARY_CARET
 %left "."
 %precedence "(" "["
 
@@ -322,7 +322,7 @@ expr:
     | expr "&&" expr
     | expr "||" expr
 
-    | "-" expr
+    | "-" expr %prec UNARY_MINUS
     | expr "+" expr
     | expr "-" expr
     | expr "*" expr
@@ -353,10 +353,10 @@ expr:
 
     | "[" expr ";" expr "]"
 
-    | "&" expr
+    | "&" expr %prec UNARY_AMP
     | "@" expr
-    | "*" expr
-    | "^" expr
+    | "*" expr %prec UNARY_STAR
+    | "^" expr %prec UNARY_CARET
     | "#" expr
 
     | expr "." NAME
