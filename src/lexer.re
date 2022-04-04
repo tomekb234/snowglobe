@@ -59,6 +59,7 @@ static optional<string> parse_string(const string& text);
 "reversed" { TOKEN(REVERSED) }
 "some" { TOKEN(SOME) }
 "struct" { TOKEN(STRUCT) }
+"swap" { TOKEN(SWAP) }
 "then" { TOKEN(THEN) }
 "true" { TOKEN(TRUE) }
 "u8" { TOKEN(U8) }

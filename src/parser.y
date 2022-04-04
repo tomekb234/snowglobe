@@ -55,6 +55,7 @@
 %token REVERSED "reversed"
 %token SOME "some"
 %token STRUCT "struct"
+%token SWAP "swap"
 %token THEN "then"
 %token TRUE "true"
 %token U8 "u8"
@@ -158,6 +159,7 @@ global_def:
 
 var_def:
     "var" NAME ":" type "=" expr ";"
+    | "var" NAME "=" expr ";"
 
 
 func_def:
@@ -236,6 +238,9 @@ stmt:
     | expr "^=" expr ";"
     | expr "<<=" expr ";"
     | expr ">>=" expr ";"
+
+    | "swap" expr "with" expr ";"
+    | "swap" expr "with" expr "{" stmt_seq "}"
 
     | func_def
     | if_stmt
@@ -358,6 +363,8 @@ expr:
     | expr "." INTEGER
     | expr "[" expr "]"
     | expr "[" expr ".." expr "]"
+    | expr "[" ".." expr "]"
+    | expr "[" expr ".." "]"
 
     | if_expr
     | match_expr
