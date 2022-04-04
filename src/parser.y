@@ -239,14 +239,12 @@ stmt:
     | expr "<<=" expr ";"
     | expr ">>=" expr ";"
 
-    | "swap" expr "with" expr ";"
-    | "swap" expr "with" expr "{" stmt_seq "}"
-
     | func_def
     | if_stmt
     | while_stmt
     | for_stmt
     | match_stmt
+    | swap_stmt
     | locally_stmt
 
 stmt_seq:
@@ -258,7 +256,11 @@ if_stmt:
 
 condition:
     expr
-    | expr "in" expr
+    | expr "in" expr optional_locally
+
+optional_locally:
+    %empty
+    | "locally"
 
 elif:
     "elif" condition "{" stmt_seq "}"
@@ -276,10 +278,10 @@ while_stmt:
 
 for_stmt:
     "for" expr "in" expr ".." expr for_stmt_tail
-    | "for" expr "in" expr for_stmt_tail
-    | "for" expr "," expr "in" expr for_stmt_tail
-    | "for" expr "ref" expr for_stmt_tail
-    | "for" expr "," expr "ref" expr for_stmt_tail
+    | "for" expr "in" expr optional_locally for_stmt_tail
+    | "for" expr "," expr "in" expr optional_locally for_stmt_tail
+    | "for" expr "ref" expr optional_locally for_stmt_tail
+    | "for" expr "," expr "ref" optional_locally expr for_stmt_tail
 
 for_stmt_tail:
     optional_reversed "{" stmt_seq "}" optional_else
@@ -289,7 +291,7 @@ optional_reversed:
     | "reversed"
 
 match_stmt:
-    "match" expr with_seq_nempty optional_else
+    "match" expr optional_locally with_seq_nempty optional_else
 
 with:
     "with" expr "{" stmt_seq "}"
@@ -297,6 +299,10 @@ with:
 with_seq_nempty:
     with
     | with_seq_nempty with
+
+swap_stmt:
+    "swap" expr "with" expr ";"
+    | "swap" expr "with" expr optional_locally "{" stmt_seq "}"
 
 locally_stmt:
     "locally" expr_seq "{" stmt_seq "}"
@@ -406,7 +412,7 @@ elif_in_expr_seq:
     | elif_in_expr_seq elif_in_expr
 
 match_expr:
-    "match" expr with_in_expr_seq_nempty optional_else_in_expr "end"
+    "match" expr optional_locally with_in_expr_seq_nempty optional_else_in_expr "end"
 
 with_in_expr:
     "with" expr "then" expr
