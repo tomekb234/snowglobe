@@ -136,7 +136,7 @@
 %left "*" "/" "%"
 %left "as"
 %right "!" "~" "@" "$" "#" UNARY_MINUS UNARY_STAR UNARY_AMP UNARY_CARET
-%left "."
+%left "." "->"
 %precedence "(" "["
 
 
@@ -239,13 +239,14 @@ stmt:
     | expr "<<=" expr ";"
     | expr ">>=" expr ";"
 
-    | func_def
+    | swap_stmt
     | if_stmt
     | while_stmt
     | for_stmt
     | match_stmt
-    | swap_stmt
     | locally_stmt
+
+    | func_def
 
 stmt_seq:
     %empty
@@ -357,24 +358,31 @@ expr:
     | "break"
     | "continue"
 
-    | "[" expr ";" expr "]"
-
-    | "&" expr %prec UNARY_AMP
     | "@" expr
+    | "&" expr %prec UNARY_AMP
     | "*" expr %prec UNARY_STAR
-    | "^" expr %prec UNARY_CARET
+
+    | "[" expr ";" INTEGER "]"
+    | "@" "[" expr "#" expr "]"
     | "#" expr
 
     | expr "." NAME
     | expr "." INTEGER
     | expr "[" expr "]"
-    | expr "[" expr ".." expr "]"
-    | expr "[" ".." expr "]"
-    | expr "[" expr ".." "]"
+
+    | "^" expr %prec UNARY_CARET
+    | expr "->" NAME
+    | expr "->" INTEGER
+    | expr "[" "ref" expr "]"
+    | expr "[" "ref" optional_expr ".." optional_expr "]"
 
     | if_expr
     | match_expr
     | lambda_expr
+
+optional_expr:
+    %empty
+    | expr
 
 expr_seq:
     %empty
