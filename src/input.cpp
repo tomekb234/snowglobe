@@ -4,7 +4,7 @@
 using std::move;
 
 namespace sg {
-    lexer_input::lexer_input(istream& stream) : stream(stream) { }
+    lexer_input::lexer_input(istream& stream, string* fname) : stream(stream), fname(fname) { }
 
     void lexer_input::start() {
         token = cursor;
@@ -33,19 +33,39 @@ namespace sg {
     }
 
     void lexer_input::skip() {
+        char cur = peek();
+
+        lengths.back()++;
+        if(cur == '\n') {
+            lengths.push_back(0);
+        }
         cursor++;
     }
 
     void lexer_input::backup() {
         marker = cursor;
+        stored_lengths = lengths;
     }
 
     void lexer_input::restore() {
         cursor = marker;
+        lengths = stored_lengths;
     }
 
     void lexer_input::shift(string::difference_type shift) {
-        cursor += shift;
+        if(shift > 0) {
+            while(shift--) {
+                skip();
+            }
+        }
+        else {
+            while(-shift >= lengths.back()) {
+                cursor -= lengths.back();
+                shift += lengths.back();
+                lengths.pop_back();
+            }
+            cursor -= shift;
+        }
     }
 
     bool lexer_input::less_than(string::size_type len) const {
@@ -69,5 +89,15 @@ namespace sg {
             return buffer.substr(token, cursor - token);
 
         return buffer.substr(token) + next_buffer.substr(0, cursor - size);
+    }
+
+    long lexer_input::line() const {
+        return lengths.size();
+    }
+    long lexer_input::column() const {
+        return lengths.back();
+    }
+    string* lexer_input::file_name() const {
+        return fname;
     }
 }

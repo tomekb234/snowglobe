@@ -4,6 +4,9 @@
 %define api.value.type variant
 %define api.token.constructor
 
+%define parse.error custom
+%locations
+
 %code requires {
     #include "input.hpp"
     #include <string>

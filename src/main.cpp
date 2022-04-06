@@ -6,8 +6,8 @@
 
 using namespace std;
 
-void yy::parser::error(const string& err) {
-    cerr << err << endl;
+void yy::parser::error(const parser::location_type& loc, const string& err) {
+    cerr << loc << ":" << err << endl;
 }
 
 int main(int argc, const char** argv) {
@@ -15,7 +15,8 @@ int main(int argc, const char** argv) {
         return 1;
 
     ifstream file(argv[1]);
-    sg::lexer_input input(file);
+    string fname = argv[1];
+    sg::lexer_input input(file, &fname);
 
     yy::parser parser(input);
     parser.parse();

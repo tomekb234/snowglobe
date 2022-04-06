@@ -16,9 +16,10 @@ static optional<double> parse_float(const string& text);
 static optional<char> parse_char(const string& text);
 static optional<string> parse_string(const string& text);
 
+#define LOCATION yy::location(input.file_name(), input.line(), input.column())
 #define SKIP { continue; }
-#define TOKEN(token) { return yy::parser::make_##token(); }
-#define TOKEN_WITH(token, value) { return value ? yy::parser::make_##token(*value) : yy::parser::make_YYUNDEF(); }
+#define TOKEN(token) { return yy::parser::make_##token( LOCATION ); }
+#define TOKEN_WITH(token, value) { return value ? yy::parser::make_##token(*value, LOCATION) : yy::parser::make_YYUNDEF( LOCATION ); }
 #define END TOKEN(YYEOF)
 #define INVALID TOKEN(YYUNDEF)
 #define TEXT (input.text())
@@ -249,3 +250,25 @@ static optional<string> parse_string(const string& s) {
             result.push_back(s[i++]);
     return result;
 }
+
+using std::cerr;
+using std::endl;
+
+namespace yy {
+    void parser::report_syntax_error(const yy::parser::context& yyctx) const {
+        cerr << "syntax error:\n\t" << yyctx.location();
+		// report expected tokens
+		enum { TOKENMAX = 5 };
+        symbol_kind_type expected[TOKENMAX];
+        
+        int n = yyctx.expected_tokens(expected, TOKENMAX);
+        for (int i = 0; i < n; i++) {
+            cerr << (i == 0 ? ": expected " : " or ") << symbol_name(expected[i]);
+        }
+		// report the unexpected token
+        symbol_type lookahead = yyctx.lookahead();
+        if(!lookahead.empty())
+            cerr << " before " << lookahead.name();
+		cerr << endl;
+    }
+};
