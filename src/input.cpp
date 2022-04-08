@@ -4,10 +4,11 @@
 using std::move;
 
 namespace sg {
-    lexer_input::lexer_input(istream& stream, string* fname) : stream(stream), fname(fname) { }
+    lexer_input::lexer_input(istream& stream, const string& file_name) : stream(stream), file_name(file_name) { }
 
     void lexer_input::start() {
         token = cursor;
+        token_loc = cursor_loc;
 
         auto size = buffer.size();
 
@@ -33,42 +34,26 @@ namespace sg {
     }
 
     void lexer_input::skip() {
-        char cur = peek();
+        if (peek() == '\n') {
+            cursor_loc.line++;
+            cursor_loc.column = 1;
+        } else
+            cursor_loc.column++;
 
-        lengths.back()++;
-        if(cur == '\n') {
-            lengths.push_back(0);
-        }
         cursor++;
     }
 
     void lexer_input::backup() {
         marker = cursor;
-        stored_lengths = lengths;
+        marker_loc = cursor_loc;
     }
 
     void lexer_input::restore() {
         cursor = marker;
-        lengths = stored_lengths;
+        cursor_loc = marker_loc;
     }
 
-    void lexer_input::shift(string::difference_type shift) {
-        if(shift > 0) {
-            while(shift--) {
-                skip();
-            }
-        }
-        else {
-            while(-shift >= lengths.back()) {
-                cursor -= lengths.back();
-                shift += lengths.back();
-                lengths.pop_back();
-            }
-            cursor -= shift;
-        }
-    }
-
-    bool lexer_input::less_than(string::size_type len) const {
+    bool lexer_input::less_than(size_t len) const {
         return cursor + len > buffer.size() + next_buffer.size();
     }
 
@@ -91,13 +76,11 @@ namespace sg {
         return buffer.substr(token) + next_buffer.substr(0, cursor - size);
     }
 
-    long lexer_input::line() const {
-        return lengths.size();
+    size_t lexer_input::line() const {
+        return token_loc.line;
     }
-    long lexer_input::column() const {
-        return lengths.back();
-    }
-    string* lexer_input::file_name() const {
-        return fname;
+
+    size_t lexer_input::column() const {
+        return token_loc.column;
     }
 }

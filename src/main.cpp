@@ -12,8 +12,8 @@ int main(int argc, const char** argv) {
         return 1;
 
     ifstream file(argv[1]);
-    string fname = argv[1];
-    sg::lexer_input input(file, &fname);
+    string file_name = argv[1];
+    sg::lexer_input input(file, file_name);
 
 	sg::diagnostic_collector diag(cerr, true);
 

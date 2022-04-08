@@ -1,5 +1,6 @@
 #include "input.hpp"
 #include "parser.hpp"
+#include "location.hpp"
 #include "diagnostic.hpp"
 #include <optional>
 #include <string>
@@ -9,10 +10,10 @@ using std::optional;
 using std::make_optional;
 using std::string;
 
-#define LOCATION yy::location(input.file_name(), input.line(), input.column())
+#define LOCATION (yy::location(&input.file_name, input.line(), input.column()))
 #define SKIP { continue; }
-#define TOKEN(token) { return yy::parser::make_##token( LOCATION ); }
-#define TOKEN_WITH(token, value) { return value ? yy::parser::make_##token(*value, LOCATION) : yy::parser::make_YYUNDEF( LOCATION ); }
+#define TOKEN(token) { return yy::parser::make_##token(LOCATION); }
+#define TOKEN_WITH(token, value) { return value ? yy::parser::make_##token(*value, LOCATION) : yy::parser::make_YYUNDEF(LOCATION); }
 #define END TOKEN(YYEOF)
 #define INVALID TOKEN(YYUNDEF)
 #define TEXT (input.text())
@@ -225,7 +226,6 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
         re2c:define:YYSKIP = "input.skip();";
         re2c:define:YYBACKUP = "input.backup();";
         re2c:define:YYRESTORE = "input.restore();";
-        re2c:define:YYSHIFT = "input.shift(@@);";
         re2c:define:YYLESSTHAN = "input.less_than(@@)";
         re2c:define:YYFILL = "input.fill()";
 

@@ -3,40 +3,43 @@
 
 #include <istream>
 #include <string>
-#include <vector>
 
 namespace sg {
     using std::istream;
     using std::string;
-    using std::vector;
 
     class lexer_input {
+        struct location {
+            size_t line;
+            size_t column;
+        };
+
         istream& stream;
-        string* fname;
         string buffer;
         string next_buffer;
-        string::size_type token = 0;
-        string::size_type marker = 0;
-        string::size_type cursor = 0;
+        size_t token;
+        size_t marker;
+        size_t cursor = 0;
+        location token_loc;
+        location marker_loc;
+        location cursor_loc = { 1, 1 };
 
-        vector<int> lengths = { 0 };
-        vector<int> stored_lengths = { 0 };
         public:
 
-        lexer_input(istream& stream, string* fname);
+        const string& file_name;
+
+        lexer_input(istream& stream, const string& file_name);
 
         void start();
         char peek() const;
         void skip();
         void backup();
         void restore();
-        void shift(string::difference_type shift);
-        bool less_than(string::size_type len) const;
+        bool less_than(size_t len) const;
         bool fill();
         string text() const;
-        long line() const;
-        long column() const;
-        string* file_name() const;
+        size_t line() const;
+        size_t column() const;
     };
 }
 
