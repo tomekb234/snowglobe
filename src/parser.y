@@ -9,6 +9,7 @@
 
 %code requires {
     #include "input.hpp"
+	#include "diagnostic.hpp"
     #include <string>
     #include <cstdint>
 
@@ -18,9 +19,37 @@
 }
 
 %param {sg::lexer_input& input}
+%param {sg::diagnostic_collector& diag}
 
 %code provides {
-    yy::parser::symbol_type yylex(sg::lexer_input& input);
+    yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diag);
+}
+
+%code {
+	void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
+		const int TOKENMAX = 5;
+		symbol_kind_type expected[TOKENMAX];
+		
+		// get expected tokens list
+		int n = yyctx.expected_tokens(expected, TOKENMAX);
+		if (n == 0 && expected[0] != symbol_kind::S_YYEMPTY)
+			n = TOKENMAX;
+		
+		// extract token names
+		std::vector<string> expected_names(n);
+		for (int i = 0; i < n; i++)
+			expected_names[i] = symbol_name(expected[i]);
+
+		// report error message
+		diag.report(sg::diagnostic_collector::ERROR, yyctx.location(), sg::messages::syntax_error(
+			yyctx.lookahead().empty() ? std::optional<string>() : yyctx.lookahead().name(),
+			expected_names
+		));
+	}
+
+	void yy::parser::error(const parser::location_type& loc, const string& err) {
+		diag.report(sg::diagnostic_collector::ERROR, loc, err + "\n");
+	}
 }
 
 %token <string> NAME

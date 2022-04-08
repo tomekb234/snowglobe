@@ -1,14 +1,11 @@
 #include "input.hpp"
 #include "parser.hpp"
+#include "diagnostic.hpp"
 #include <iostream>
 #include <fstream>
 #include <string>
 
 using namespace std;
-
-void yy::parser::error(const parser::location_type& loc, const string& err) {
-    cerr << loc << ":" << err << endl;
-}
 
 int main(int argc, const char** argv) {
     if (argc < 2)
@@ -18,7 +15,9 @@ int main(int argc, const char** argv) {
     string fname = argv[1];
     sg::lexer_input input(file, &fname);
 
-    yy::parser parser(input);
+	sg::diagnostic_collector diag(cerr, true);
+
+    yy::parser parser(input, diag);
     parser.parse();
 
     return 0;
