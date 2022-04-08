@@ -1,72 +1,71 @@
 #include "diagnostic.hpp"
 
-using std::endl;
 using std::string;
-using std::vector;
-using std::optional;
+using std::endl;
 
-const string severity_texts[] = {"Error", "Warning"};
-
-namespace ANSI_codes {
-	const string severity_styles[] = {"\e[1;31m", "\e[1;33m"};
-	const string location_style = "\e[1;37m";
-	const string reset_style = "\e[0m";
+const string LEVEL_TEXTS[] = { "Error", "Warning" };
 
 #ifdef __unix__
-	const bool supported = true;
+const string LEVEL_COLORS[] = { "\e[1;31m", "\e[1;33m" };
+const string LOCATION_COLOR = "\e[1;37m";
+const string RESET_COLOR = "\e[0m";
 #else
-	const bool supported = false;
+const string LEVEL_COLORS[] = { "", "" };
+const string LOCATION_COLOR = "";
+const string RESET_COLOR = "";
 #endif
-}
 
 namespace sg {
-	diagnostic_collector::diagnostic_collector(std::ostream &stream, bool enable_colors) : stream(stream), enable_colors(enable_colors && ANSI_codes::supported) {}
+    diagnostic_collector::diagnostic_collector(ostream& stream, bool enable_colors) : stream(stream), enable_colors(enable_colors) { }
 
-	void diagnostic_collector::report (Severity severity, yy::location location, string text) {
-		// header
-		if (enable_colors)
-			stream << ANSI_codes::severity_styles[severity];
-		stream << severity_texts[severity];
-		if (enable_colors)
-			stream << ANSI_codes::reset_style;
-		
-		stream << " at ";
-		if (enable_colors)
-			stream << ANSI_codes::location_style;
-		stream << location;
-		if (enable_colors)
-			stream << ANSI_codes::reset_style;
-		stream << ":\n";
+    void diagnostic_collector::report(size_t level, yy::location location, const string& text) {
+        // header
+        if (enable_colors)
+            stream << LEVEL_COLORS[level];
+        stream << LEVEL_TEXTS[level];
+        if (enable_colors)
+            stream << RESET_COLOR;
 
-		// indented message text
-		size_t it = 0, nit;
-		while ((nit = text.find_first_of('\n', it)) != std::string::npos) {
-			stream << "\t" << text.substr(it, nit - it + 1);
-			it = nit + 1;
-		}
+        // location
+        stream << " at ";
+        if (enable_colors)
+            stream << LOCATION_COLOR;
+        stream << location;
+        if (enable_colors)
+            stream << RESET_COLOR;
+        stream << ":\n";
 
-		// extre line feed / stream flush
-		stream << endl;
-	}
+        // indented message text
+        size_t it = 0, nit;
+        while ((nit = text.find_first_of('\n', it)) != string::npos) {
+            stream << "\t" << text.substr(it, nit - it + 1);
+            it = nit + 1;
+        }
 
-	namespace messages {
-		string syntax_error(optional<string> unexpected, vector<string> expected) {
-			string text = (unexpected ? "Syntax error - read token: " + *unexpected + "\n" : "Syntax error\n");
-			if (!expected.empty()) {
-				text += (unexpected ? "while expecting:" : "sample expected tokens:");
-				for (auto exp : expected)
-					text += " " + exp;
-				text += "\n";
-			}
-			return text;
-		}
+        // extre line feed / stream flush
+        stream << endl;
+    }
 
-		string invalid_escape_sequence(char c) {
-			return "Invalid escape sequence \\" + string(1, c) + "\n";
-		}
+    namespace msg {
+        string syntax_error(optional<string> unexpected, vector<string> expected) {
+            string text = "Syntax error\n";
+            if (unexpected)
+                text += "Unexpected token: " + *unexpected + "\n";
+            if (!expected.empty()) {
+                text += (unexpected ? "Expected token:" : "Sample expected tokens:");
+                for (auto exp : expected)
+                    text += " " + exp;
+                text += "\n";
+            }
+            return text;
+        }
 
-		string integer_overflow(string num) {
-			return "Integer " + num + " overflows 64-bit variable\n";
-		}
-	}
+        string invalid_escape_sequence(char ch) {
+            return "Invalid character escape sequence \\" + string(1, ch) + "\n";
+        }
+
+        string integer_overflow(string num) {
+            return "Integer " + num + " does not fit in 64 bits\n";
+        }
+    }
 }

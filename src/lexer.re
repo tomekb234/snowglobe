@@ -1,7 +1,7 @@
 #include "input.hpp"
+#include "diagnostic.hpp"
 #include "parser.hpp"
 #include "location.hpp"
-#include "diagnostic.hpp"
 #include <string>
 #include <cstdint>
 
@@ -24,7 +24,7 @@ static string parse_string(const string& text);
     try { \
         return yy::parser::make_##token(value, LOCATION); \
     } catch (string err) { \
-        diag.report(sg::diagnostic_collector::ERROR, LOCATION, err); \
+        diag.report(sg::ERROR, LOCATION, err); \
         return yy::parser::make_YYerror(LOCATION); \
     } \
 }
@@ -187,7 +187,7 @@ static uint64_t parse_integer(const string& text, int base) {
     try {
         return stoull(remove_underscores(text), nullptr, base);
     } catch (out_of_range) {
-        throw sg::messages::integer_overflow(text);
+        throw sg::msg::integer_overflow(text);
     }
 }
 
@@ -207,7 +207,7 @@ static char resolve_escape_sequence(char ch) {
         case '\\': return '\\';
 
         default:
-            throw sg::messages::invalid_escape_sequence(ch);
+            throw sg::msg::invalid_escape_sequence(ch);
     }
 }
 

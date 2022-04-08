@@ -522,12 +522,12 @@ void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
         expected_names[index] = symbol_name(expected[index]);
 
     // report error message
-    diag.report(sg::diagnostic_collector::ERROR, yyctx.location(), sg::messages::syntax_error(
+    diag.report(sg::ERROR, yyctx.location(), sg::msg::syntax_error(
         yyctx.lookahead().empty() ? optional<string>() : yyctx.lookahead().name(),
         expected_names
     ));
 }
 
 void yy::parser::error(const yy::parser::location_type& loc, const string& err) {
-    diag.report(sg::diagnostic_collector::ERROR, loc, err + "\n");
+    diag.report(sg::ERROR, loc, err + "\n");
 }

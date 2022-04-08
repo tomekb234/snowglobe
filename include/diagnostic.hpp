@@ -4,28 +4,34 @@
 #include "location.hpp"
 #include <ostream>
 #include <string>
-#include <vector>
 #include <optional>
+#include <vector>
 
 namespace sg {
-	class diagnostic_collector {
-		private:
-		std::ostream &stream;
-		bool enable_colors;
+    using std::ostream;
+    using std::string;
+    using std::optional;
+    using std::vector;
 
-		public:
-		enum Severity {ERROR = 0, WARNING};
+    const size_t ERROR = 0;
+    const size_t WARNING = 1;
 
-		diagnostic_collector(std::ostream &stream, bool enable_colors);
+    class diagnostic_collector {
+        ostream& stream;
+        bool enable_colors;
 
-		void report(Severity severity, yy::location location, std::string text);
-	};
+        public:
 
-	namespace messages {
-		std::string syntax_error(std::optional<std::string> unexpected, std::vector<std::string> expected);
-		std::string invalid_escape_sequence(char c);
-		std::string integer_overflow(std::string num);
-	}
+        diagnostic_collector(ostream& stream, bool enable_colors);
+
+        void report(size_t level, yy::location location, const string& text);
+    };
+
+    namespace msg {
+        string syntax_error(optional<string> unexpected, vector<string> expected);
+        string invalid_escape_sequence(char ch);
+        string integer_overflow(string num);
+    }
 }
 
 #endif
