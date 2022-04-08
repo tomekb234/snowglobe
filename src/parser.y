@@ -260,11 +260,11 @@ if_stmt:
 
 condition:
     expr
-    | expr "in" expr optional_locally
+    | expr "in" expr_or_name_locally
 
-optional_locally:
-    %empty
-    | "locally"
+expr_or_name_locally:
+    expr
+    | NAME "locally"
 
 elif:
     "elif" condition "{" stmt_seq "}"
@@ -282,10 +282,10 @@ while_stmt:
 
 for_stmt:
     "for" expr "in" expr ".." expr for_stmt_tail
-    | "for" expr "in" expr optional_locally for_stmt_tail
-    | "for" expr "," expr "in" expr optional_locally for_stmt_tail
-    | "for" expr "ref" expr optional_locally for_stmt_tail
-    | "for" expr "," expr "ref" optional_locally expr for_stmt_tail
+    | "for" expr "in" expr_or_name_locally for_stmt_tail
+    | "for" expr "," expr "in" expr_or_name_locally for_stmt_tail
+    | "for" expr "ref" expr_or_name_locally for_stmt_tail
+    | "for" expr "," expr "ref" expr_or_name_locally for_stmt_tail
 
 for_stmt_tail:
     optional_reversed "{" stmt_seq "}" optional_else
@@ -295,7 +295,7 @@ optional_reversed:
     | "reversed"
 
 match_stmt:
-    "match" expr optional_locally with_seq_nempty optional_else
+    "match" expr_or_name_locally with_seq_nempty optional_else
 
 with:
     "with" expr "{" stmt_seq "}"
@@ -306,10 +306,14 @@ with_seq_nempty:
 
 swap_stmt:
     "swap" expr "with" expr ";"
-    | "swap" expr "with" expr optional_locally "{" stmt_seq "}"
+    | "swap" expr "with" expr_or_name_locally "{" stmt_seq "}"
 
 locally_stmt:
-    "locally" expr_seq "{" stmt_seq "}"
+    "locally" name_seq_nempty "{" stmt_seq "}"
+
+name_seq_nempty:
+    NAME
+    | name_seq_nempty "," NAME
 
 
 expr:
@@ -361,8 +365,8 @@ expr:
     | "break"
     | "continue"
 
+    | "&" NAME %prec UNARY_AMP
     | "@" expr
-    | "&" expr %prec UNARY_AMP
     | "*" expr %prec UNARY_STAR
 
     | "[" expr ";" INTEGER "]"
@@ -386,14 +390,6 @@ expr:
 optional_expr:
     %empty
     | expr
-
-expr_seq:
-    %empty
-    | expr_seq_nempty
-
-expr_seq_nempty:
-    expr
-    | expr_seq_nempty "," expr
 
 expr_indexed:
     expr
@@ -423,7 +419,7 @@ elif_in_expr_seq:
     | elif_in_expr_seq elif_in_expr
 
 match_expr:
-    "match" expr optional_locally with_in_expr_seq_nempty optional_else_in_expr "end"
+    "match" expr_or_name_locally with_in_expr_seq_nempty optional_else_in_expr "end"
 
 with_in_expr:
     "with" expr "then" expr
@@ -453,20 +449,20 @@ type:
     | "[" type ";" INTEGER "]"
     | "?" type
 
-    | "&" type
     | "$" type
+    | "&" type
     | "*" type
     | "~" type
     | "@" type
 
-    | "&" "[" type "]"
     | "$" "[" type "]"
+    | "&" "[" type "]"
     | "*" "[" type "]"
     | "~" "[" type "]"
     | "@" "[" type "]"
 
-    | "&" type "." type
     | "$" type "." type
+    | "&" type "." type
     | "*" type "." type
     | "~" type "." type
     | "@" type "." type
