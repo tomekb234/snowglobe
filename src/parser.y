@@ -12,7 +12,7 @@
 
 %code requires {
     #include "input.hpp"
-	#include "diagnostic.hpp"
+    #include "diagnostic.hpp"
     #include <string>
     #include <cstdint>
 
@@ -26,33 +26,6 @@
 
 %code provides {
     yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diag);
-}
-
-%code {
-	void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
-		const int TOKENMAX = 5;
-		symbol_kind_type expected[TOKENMAX];
-		
-		// get expected tokens list
-		int n = yyctx.expected_tokens(expected, TOKENMAX);
-		if (n == 0 && expected[0] != symbol_kind::S_YYEMPTY)
-			n = TOKENMAX;
-		
-		// extract token names
-		std::vector<string> expected_names(n);
-		for (int i = 0; i < n; i++)
-			expected_names[i] = symbol_name(expected[i]);
-
-		// report error message
-		diag.report(sg::diagnostic_collector::ERROR, yyctx.location(), sg::messages::syntax_error(
-			yyctx.lookahead().empty() ? std::optional<string>() : yyctx.lookahead().name(),
-			expected_names
-		));
-	}
-
-	void yy::parser::error(const parser::location_type& loc, const string& err) {
-		diag.report(sg::diagnostic_collector::ERROR, loc, err + "\n");
-	}
 }
 
 %token <string> NAME
@@ -525,3 +498,36 @@ mtype_seq:
 mtype_seq_nempty:
     mtype
     | mtype_seq_nempty "," mtype
+
+%%
+
+#include <vector>
+#include <optional>
+
+using std::vector;
+using std::optional;
+
+void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
+    const size_t MAX_TOKENS = 5;
+    symbol_kind_type expected[MAX_TOKENS];
+
+    // get expected token list
+    size_t count = yyctx.expected_tokens(expected, MAX_TOKENS);
+    if (count == 0 && expected[0] != symbol_kind::S_YYEMPTY)
+        count = MAX_TOKENS;
+
+    // extract token names
+    vector<string> expected_names(count);
+    for (size_t index = 0; index < count; index++)
+        expected_names[index] = symbol_name(expected[index]);
+
+    // report error message
+    diag.report(sg::diagnostic_collector::ERROR, yyctx.location(), sg::messages::syntax_error(
+        yyctx.lookahead().empty() ? optional<string>() : yyctx.lookahead().name(),
+        expected_names
+    ));
+}
+
+void yy::parser::error(const yy::parser::location_type& loc, const string& err) {
+    diag.report(sg::diagnostic_collector::ERROR, loc, err + "\n");
+}
