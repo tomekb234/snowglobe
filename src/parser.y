@@ -1,11 +1,14 @@
 %require "3.8"
 %language "c++"
 
+%header
+
 %define api.value.type variant
 %define api.token.constructor
 
-%define parse.error custom
 %locations
+%define api.location.file "location.hpp"
+%define parse.error custom
 
 %code requires {
     #include "input.hpp"

@@ -18,7 +18,7 @@ build/lexer.o: gen/lexer.cpp include/input.hpp include/diagnostic.hpp gen/parser
 build/parser.o: gen/parser.cpp include/input.hpp include/diagnostic.hpp | build
 	$(CXXC) $< -o $@
 
-build/diagnostic.o: src/diagnostic.cpp include/diagnostic.hpp gen/location.hh | build
+build/diagnostic.o: src/diagnostic.cpp include/diagnostic.hpp gen/location.hpp | build
 	$(CXXC) $< -o $@
 
 gen/lexer.cpp: src/lexer.re | gen
@@ -27,11 +27,11 @@ gen/lexer.cpp: src/lexer.re | gen
 gen/parser.hpp: gen/parser.cpp | gen
 	@touch $@
 
-gen/location.hh: gen/parser.cpp | gen
+gen/location.hpp: gen/parser.cpp | gen
 	@touch $@
 
 gen/parser.cpp: src/parser.y | gen
-	$(BISON) $< -H -o $@
+	$(BISON) $< -o $@
 
 gen:
 	mkdir gen

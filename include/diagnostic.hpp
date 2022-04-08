@@ -1,7 +1,7 @@
 #ifndef DIAGNOSTIC_HPP
 #define DIAGNOSTIC_HPP
 
-#include "location.hh"
+#include "location.hpp"
 #include <ostream>
 #include <string>
 #include <vector>
