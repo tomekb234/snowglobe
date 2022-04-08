@@ -2,21 +2,32 @@
 #include "parser.hpp"
 #include "location.hpp"
 #include "diagnostic.hpp"
-#include <optional>
 #include <string>
 #include <cstdint>
 
-using std::optional;
-using std::make_optional;
 using std::string;
 
+static uint64_t parse_integer(const string& text, int base);
+static double parse_float(const string& text);
+static char parse_char(const string& text);
+static string parse_string(const string& text);
+
+#define TEXT (input.text())
 #define LOCATION (yy::location(&input.file_name, input.line(), input.column()))
+
 #define SKIP { continue; }
 #define TOKEN(token) { return yy::parser::make_##token(LOCATION); }
-#define TOKEN_WITH(token, value) { return value ? yy::parser::make_##token(*value, LOCATION) : yy::parser::make_YYUNDEF(LOCATION); }
 #define END TOKEN(YYEOF)
 #define INVALID TOKEN(YYUNDEF)
-#define TEXT (input.text())
+
+#define TOKEN_WITH(token, value) { \
+    try { \
+        return yy::parser::make_##token(value, LOCATION); \
+    } catch (string err) { \
+        diag.report(sg::diagnostic_collector::ERROR, LOCATION, err); \
+        return yy::parser::make_YYerror(LOCATION); \
+    } \
+}
 
 /*!rules:re2c
 
@@ -65,17 +76,17 @@ using std::string;
 "while" { TOKEN(WHILE) }
 "with" { TOKEN(WITH) }
 
-[a-zA-Z_][a-zA-Z_0-9]* { TOKEN_WITH(NAME, make_optional(TEXT)) }
+[a-zA-Z_][a-zA-Z_0-9]* { TOKEN_WITH(NAME, TEXT) }
 
-[0-9][0-9_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, ctx.parse_integer(TEXT, 10)) }
-"0b" [01][01_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, ctx.parse_integer(TEXT, 2)) }
-"0o" [0-7][0-7_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, ctx.parse_integer(TEXT, 8)) }
-"0x" [0-9a-fA-F][0-9a-fA-F_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, ctx.parse_integer(TEXT, 16)) }
+[0-9][0-9_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_integer(TEXT, 10)) }
+"0b" [01][01_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_integer(TEXT, 2)) }
+"0o" [0-7][0-7_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_integer(TEXT, 8)) }
+"0x" [0-9a-fA-F][0-9a-fA-F_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_integer(TEXT, 16)) }
 
-[0-9][0-9_]* "." [0-9][0-9_]* ("e"("+"|"-")?[0-9][0-9_]*)? ("f"("32"|"64")?)? { TOKEN_WITH(FLOAT, ctx.parse_float(TEXT)) }
+[0-9][0-9_]* "." [0-9][0-9_]* ("e"("+"|"-")?[0-9][0-9_]*)? ("f"("32"|"64")?)? { TOKEN_WITH(FLOAT, parse_float(TEXT)) }
 
-['] ([\\].|[^'\\]) ['] { TOKEN_WITH(CHAR, ctx.parse_char(TEXT)) }
-["] ([\\].|[^"\\])* ["] { TOKEN_WITH(STRING, ctx.parse_string(TEXT)) }
+['] ([\\].|[^'\\]) ['] { TOKEN_WITH(CHAR, parse_char(TEXT)) }
+["] ([\\].|[^"\\])* ["] { TOKEN_WITH(STRING, parse_string(TEXT)) }
 
 "<<=" { TOKEN(LSHIFT_ASSIGN) }
 ">>=" { TOKEN(RSHIFT_ASSIGN) }
@@ -133,85 +144,7 @@ $ { END }
 
 */
 
-#define REPORT_ERROR(err) {diag.report(sg::diagnostic_collector::ERROR, LOCATION, sg::messages::err);}
-
-using std::stoull;
-using std::stod;
-
-struct lexer_ctx {
-	sg::lexer_input& input;
-	sg::diagnostic_collector& diag;
-
-	string clean_number(const string& s, int base = 10) {
-		string res;
-		int start = 0;
-		if (base != 10) {
-			start = 2;
-		}
-		for (int i = start; i < (int)s.size(); i++) {
-			if (s[i] != '_') {
-				res += s[i];
-			}
-		}
-		return res;
-	}
-
-	optional<uint64_t> parse_integer(const string& s, int base) {
-		try {
-			return stoull(clean_number(s, base), nullptr, base);
-		} catch(...) {
-			REPORT_ERROR(integer_overflow(s));
-			return { };
-		}
-	}
-
-	optional<double> parse_float(const string& s) {
-		try {
-			return stod(clean_number(s));
-		} catch(...) {
-			return { };
-		}
-	}
-
-	optional<char> resolve_escape_sequence(char c) {
-		switch(c) {
-			case '\'': return '\'';
-			case '"': return '"';
-			case '0': return '\0';
-			case 'n': return '\n';
-			case 'r': return '\r';
-			case 't': return '\t';
-			case '\\': return '\\';
-			default: {
-						 REPORT_ERROR(invalid_escape_sequence(c));
-						 return { };
-					 }
-		}
-	}
-
-	optional<char> parse_char(const string& s) {
-		return (s[1] == '\\') ? resolve_escape_sequence(s[2]) : s[1];
-	}
-
-	optional<string> parse_string(const string& s) {
-		string result;
-		for (int i = 1; i < (int)s.length() - 1; )
-			if (s[i] == '\\') {
-				auto esc_seq = resolve_escape_sequence(s[i+1]);
-				if (!esc_seq)
-					return { };
-				result.push_back(esc_seq.value());
-				i += 2;
-			}
-			else
-				result.push_back(s[i++]);
-		return result;
-	}
-};
-
 yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diag) {
-	lexer_ctx ctx{input, diag};
-
     while (true) {
         input.start();
 
@@ -231,4 +164,66 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
 
         */
     }
+}
+
+#include <stdexcept>
+
+using std::stoull;
+using std::stod;
+using std::out_of_range;
+
+static string remove_underscores(const string& text) {
+    string result;
+
+    for (auto ch : text) {
+        if (ch != '_')
+            result.push_back(ch);
+    }
+
+    return result;
+}
+
+static uint64_t parse_integer(const string& text, int base) {
+    try {
+        return stoull(remove_underscores(text), nullptr, base);
+    } catch (out_of_range) {
+        throw sg::messages::integer_overflow(text);
+    }
+}
+
+static double parse_float(const string& text) {
+    return stod(remove_underscores(text));
+    // TODO float out-of-range
+}
+
+static char resolve_escape_sequence(char ch) {
+    switch (ch) {
+        case '\'': return '\'';
+        case '"': return '"';
+        case '0': return '\0';
+        case 'n': return '\n';
+        case 'r': return '\r';
+        case 't': return '\t';
+        case '\\': return '\\';
+
+        default:
+            throw sg::messages::invalid_escape_sequence(ch);
+    }
+}
+
+static char parse_char(const string& text) {
+    return (text[1] == '\\') ? resolve_escape_sequence(text[2]) : text[1];
+}
+
+static string parse_string(const string& text) {
+    string result;
+
+    for (size_t index = 1; index < text.length() - 1; index++) {
+        if (text[index] == '\\')
+            result.push_back(resolve_escape_sequence(text[++index]));
+        else
+            result.push_back(text[index]);
+    }
+
+    return result;
 }
