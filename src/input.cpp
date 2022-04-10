@@ -1,9 +1,9 @@
 #include "input.hpp"
 #include <utility>
 
-using std::move;
-
 namespace sg {
+    using std::move;
+
     void lexer_input::start() {
         token = cursor;
         token_loc = cursor_loc;

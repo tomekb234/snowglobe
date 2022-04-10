@@ -3,9 +3,11 @@
 #include "parser.hpp"
 #include "location.hpp"
 #include <string>
+#include <memory>
 #include <cstdint>
 
 using std::string;
+using std::unique_ptr;
 
 static uint64_t parse_integer(const string& text, int base);
 static double parse_float(const string& text);
@@ -23,9 +25,8 @@ static string parse_string(const string& text);
 #define TOKEN_WITH(token, value) { \
     try { \
         return yy::parser::make_##token(value, LOCATION); \
-    } catch (sg::diagnostic& diag) { \
-        diag.location = { LOCATION }; \
-        diags.report(diag); \
+    } catch (sg::diagnostic* diag) { \
+        diags.add(unique_ptr<sg::diagnostic>(diag), LOCATION); \
         return yy::parser::make_YYerror(LOCATION); \
     } \
 }
@@ -145,7 +146,7 @@ $ { END }
 
 */
 
-yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_reporter& diags) {
+yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diags) {
     while (true) {
         input.start();
 
@@ -188,7 +189,7 @@ static uint64_t parse_integer(const string& text, int base) {
     try {
         return stoull(remove_underscores(text), nullptr, base);
     } catch (out_of_range) {
-        throw sg::integer_overflow_error(text);
+        throw new sg::integer_overflow_error(text);
     }
 }
 
@@ -208,7 +209,7 @@ static char resolve_escape_sequence(char ch) {
         case '\\': return '\\';
 
         default:
-            throw sg::invalid_escape_sequence_error(ch);
+            throw new sg::invalid_escape_sequence_error(ch);
     }
 }
 

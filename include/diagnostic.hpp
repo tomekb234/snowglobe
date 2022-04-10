@@ -3,15 +3,17 @@
 
 #include "location.hpp"
 #include <optional>
+#include <vector>
+#include <memory>
 #include <ostream>
 #include <string>
-#include <vector>
 
 namespace sg {
     using std::optional;
+    using std::vector;
+    using std::unique_ptr;
     using std::ostream;
     using std::string;
-    using std::vector;
 
     struct diagnostic {
         enum level_t {
@@ -25,16 +27,14 @@ namespace sg {
         virtual void write(ostream& stream) const = 0;
     };
 
-    ostream& operator<<(ostream& stream, const diagnostic& diag);
-
-    class diagnostic_reporter {
-        ostream& stream;
-        bool enable_colors;
+    class diagnostic_collector {
+        vector<unique_ptr<diagnostic>> diags;
 
         public:
 
-        diagnostic_reporter(ostream& stream, bool enable_colors) : stream(stream), enable_colors(enable_colors) { }
-        void report(const diagnostic& diag);
+        void add(unique_ptr<diagnostic> diag);
+        void add(unique_ptr<diagnostic> diag, yy::location location);
+        void report_all(ostream& stream, bool enable_colors) const;
     };
 
     struct parser_error : diagnostic {

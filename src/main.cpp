@@ -20,10 +20,12 @@ int main(int argc, const char** argv) {
     }
 
     sg::lexer_input input(file, file_name);
-    sg::diagnostic_reporter diags(cerr, true);
+    sg::diagnostic_collector diags;
 
     yy::parser parser(input, diags);
     parser.parse();
+
+    diags.report_all(cerr, true);
 
     return 0;
 }

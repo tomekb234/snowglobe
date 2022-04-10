@@ -2,8 +2,6 @@
 #include <sstream>
 
 using std::string;
-using std::endl;
-using std::ostringstream;
 
 const string LEVEL_TEXTS[] = { "Error", "Warning" };
 
@@ -18,41 +16,53 @@ const string RESET_COLOR = "";
 #endif
 
 namespace sg {
-    ostream& operator<<(ostream& stream, const diagnostic& diag) {
-        diag.write(stream);
-        return stream;
+    using std::move;
+    using std::endl;
+    using std::ostringstream;
+
+    void diagnostic_collector::add(unique_ptr<diagnostic> diag) {
+        diags.push_back(move(diag));
     }
 
-    void diagnostic_reporter::report(const diagnostic& diag) {
-        // header
-        if (enable_colors)
-            stream << LEVEL_COLORS[diag.level];
-        stream << LEVEL_TEXTS[diag.level];
-        if (enable_colors)
-            stream << RESET_COLOR;
+    void diagnostic_collector::add(unique_ptr<diagnostic> diag, yy::location location) {
+        diag->location = { location };
+        diags.push_back(move(diag));
+    }
 
-        // location
-        if (diag.location) {
-            stream << " at ";
+    void diagnostic_collector::report_all(ostream& stream, bool enable_colors) const {
+        for (auto& diag : diags) {
+            // header
             if (enable_colors)
-                stream << LOCATION_COLOR;
-            stream << *diag.location;
+                stream << LEVEL_COLORS[diag->level];
+            stream << LEVEL_TEXTS[diag->level];
             if (enable_colors)
                 stream << RESET_COLOR;
+
+            // location
+            if (diag->location) {
+                stream << " at ";
+                if (enable_colors)
+                    stream << LOCATION_COLOR;
+                stream << *diag->location;
+                if (enable_colors)
+                    stream << RESET_COLOR;
+            }
+
+            stream << ":" << endl;
+
+            // indented message text
+            ostringstream buf;
+            diag->write(buf);
+            string text = buf.str();
+            size_t it = 0, nit;
+            while ((nit = text.find_first_of('\n', it)) != string::npos) {
+                stream << "\t" << text.substr(it, nit - it + 1);
+                it = nit + 1;
+            }
+
+            // extre line feed / stream flush
+            stream << endl;
         }
-
-        stream << ":\n";
-
-        // indented message text
-        string text = (ostringstream() << diag).str();
-        size_t it = 0, nit;
-        while ((nit = text.find_first_of('\n', it)) != string::npos) {
-            stream << "\t" << text.substr(it, nit - it + 1);
-            it = nit + 1;
-        }
-
-        // extre line feed / stream flush
-        stream << endl;
     }
 
     void parser_error::write(ostream& stream) const {

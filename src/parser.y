@@ -22,10 +22,10 @@
 }
 
 %param {sg::lexer_input& input}
-%param {sg::diagnostic_reporter& diags}
+%param {sg::diagnostic_collector& diags}
 
 %code provides {
-    yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_reporter& diags);
+    yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diags);
 }
 
 %token <string> NAME
@@ -503,9 +503,11 @@ mtype_seq_nempty:
 
 #include <vector>
 #include <optional>
+#include <memory>
 
 using std::vector;
 using std::optional;
+using std::make_unique;
 
 void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
     const size_t MAX_TOKENS = 5;
@@ -522,13 +524,9 @@ void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
         expected_names[index] = symbol_name(expected[index]);
 
     // report error message
-    sg::syntax_error error(yyctx.lookahead().empty() ? optional<string>() : yyctx.lookahead().name(), expected_names);
-    error.location = { yyctx.location() };
-    diags.report(error);
+    diags.add(make_unique<sg::syntax_error>(yyctx.lookahead().empty() ? optional<string>() : yyctx.lookahead().name(), expected_names), yyctx.location());
 }
 
 void yy::parser::error(const yy::parser::location_type& loc, const string& err) {
-    sg::parser_error error(err);
-    error.location = { loc };
-    diags.report(error);
+    diags.add(make_unique<sg::parser_error>(err), loc);
 }
