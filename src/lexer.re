@@ -35,6 +35,8 @@ static string parse_string(const string& text);
 
 [ \t\n\r] { SKIP }
 
+"\ufeff" { SKIP }
+
 "//" .* { SKIP }
 "/" "*" "/"* "*"* (([^/]\[*])+ "/"* "*"*)* "*" "/" { SKIP }
 
@@ -155,8 +157,9 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
         re2c:eof = 0;
         re2c:api = custom;
         re2c:api:style = free-form;
+        re2c:encoding:utf8 = 1;
 
-        re2c:define:YYCTYPE = "char";
+        re2c:define:YYCTYPE = "unsigned char";
         re2c:define:YYPEEK = "input.peek()";
         re2c:define:YYSKIP = "input.skip();";
         re2c:define:YYBACKUP = "input.backup();";
