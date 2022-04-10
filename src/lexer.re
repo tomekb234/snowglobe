@@ -194,8 +194,11 @@ static uint64_t parse_integer(const string& text, int base) {
 }
 
 static double parse_float(const string& text) {
-    return stod(remove_underscores(text));
-    // TODO float out-of-range
+    try {
+        return stod(remove_underscores(text));
+    } catch (out_of_range) {
+        throw new sg::float_overflow_error(text);
+    }
 }
 
 static char resolve_escape_sequence(char ch) {

@@ -65,6 +65,13 @@ namespace sg {
         integer_overflow_error(string number) : diagnostic(ERROR), number(number) { }
         void write(ostream& stream) const override;
     };
+
+    struct float_overflow_error : diagnostic {
+        string number;
+
+        float_overflow_error(string number) : diagnostic(ERROR), number(number) { }
+        void write(ostream& stream) const override;
+    };
 }
 
 #endif

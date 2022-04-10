@@ -88,4 +88,8 @@ namespace sg {
     void integer_overflow_error::write(ostream& stream) const {
         stream << "Integer " << number << " does not fit in 64 bits" << endl;
     }
+
+    void float_overflow_error::write(ostream& stream) const {
+        stream << "Number " << number << " is out of range of double-precision format" << endl;
+    }
 }
