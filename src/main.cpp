@@ -13,15 +13,16 @@ int main(int argc, const char** argv) {
 
     string file_name = argv[1];
     ifstream file(file_name);
-	if (!file.is_open()) {
-		cerr << "Couldn't open file " << file_name << endl;
-		return 1;
-	}
+
+    if (!file.is_open()) {
+        cerr << "Could not open file " << file_name << endl;
+        return 1;
+    }
 
     sg::lexer_input input(file, file_name);
-    sg::diagnostic_collector diag(cerr, true);
+    sg::diagnostic_reporter diags(cerr, true);
 
-    yy::parser parser(input, diag);
+    yy::parser parser(input, diags);
     parser.parse();
 
     return 0;

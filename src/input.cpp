@@ -4,8 +4,6 @@
 using std::move;
 
 namespace sg {
-    lexer_input::lexer_input(istream& stream, const string& file_name) : stream(stream), file_name(file_name) { }
-
     void lexer_input::start() {
         token = cursor;
         token_loc = cursor_loc;

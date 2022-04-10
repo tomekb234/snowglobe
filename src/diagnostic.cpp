@@ -1,7 +1,9 @@
 #include "diagnostic.hpp"
+#include <sstream>
 
 using std::string;
 using std::endl;
+using std::ostringstream;
 
 const string LEVEL_TEXTS[] = { "Error", "Warning" };
 
@@ -16,26 +18,33 @@ const string RESET_COLOR = "";
 #endif
 
 namespace sg {
-    diagnostic_collector::diagnostic_collector(ostream& stream, bool enable_colors) : stream(stream), enable_colors(enable_colors) { }
+    ostream& operator<<(ostream& stream, const diagnostic& diag) {
+        diag.write(stream);
+        return stream;
+    }
 
-    void diagnostic_collector::report(size_t level, yy::location location, const string& text) {
+    void diagnostic_reporter::report(const diagnostic& diag) {
         // header
         if (enable_colors)
-            stream << LEVEL_COLORS[level];
-        stream << LEVEL_TEXTS[level];
+            stream << LEVEL_COLORS[diag.level];
+        stream << LEVEL_TEXTS[diag.level];
         if (enable_colors)
             stream << RESET_COLOR;
 
         // location
-        stream << " at ";
-        if (enable_colors)
-            stream << LOCATION_COLOR;
-        stream << location;
-        if (enable_colors)
-            stream << RESET_COLOR;
+        if (diag.location) {
+            stream << " at ";
+            if (enable_colors)
+                stream << LOCATION_COLOR;
+            stream << *diag.location;
+            if (enable_colors)
+                stream << RESET_COLOR;
+        }
+
         stream << ":\n";
 
         // indented message text
+        string text = (ostringstream() << diag).str();
         size_t it = 0, nit;
         while ((nit = text.find_first_of('\n', it)) != string::npos) {
             stream << "\t" << text.substr(it, nit - it + 1);
@@ -46,26 +55,27 @@ namespace sg {
         stream << endl;
     }
 
-    namespace msg {
-        string syntax_error(optional<string> unexpected, vector<string> expected) {
-            string text = "Syntax error\n";
-            if (unexpected)
-                text += "Unexpected token: " + *unexpected + "\n";
-            if (!expected.empty()) {
-                text += (unexpected ? "Expected token:" : "Sample expected tokens:");
-                for (auto exp : expected)
-                    text += " " + exp;
-                text += "\n";
-            }
-            return text;
-        }
+    void parser_error::write(ostream& stream) const {
+        stream << error << endl;
+    }
 
-        string invalid_escape_sequence(char ch) {
-            return "Invalid character escape sequence \\" + string(1, ch) + "\n";
+    void syntax_error::write(ostream& stream) const {
+        stream << "Syntax error" << endl;
+        if (unexpected)
+            stream << "Unexpected token: " << *unexpected << endl;
+        if (!expected.empty()) {
+            stream << (unexpected ? "Expected token:" : "Sample expected tokens:");
+            for (auto exp : expected)
+                stream << " " << exp;
+            stream << endl;
         }
+    }
 
-        string integer_overflow(string num) {
-            return "Integer " + num + " does not fit in 64 bits\n";
-        }
+    void invalid_escape_sequence_error::write(ostream& stream) const {
+        stream << "Invalid character escape sequence \\" << string(1, ch) << endl;
+    }
+
+    void integer_overflow_error::write(ostream& stream) const {
+        stream << "Integer " << number << " does not fit in 64 bits" << endl;
     }
 }

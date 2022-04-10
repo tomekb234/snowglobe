@@ -22,10 +22,10 @@
 }
 
 %param {sg::lexer_input& input}
-%param {sg::diagnostic_collector& diag}
+%param {sg::diagnostic_reporter& diags}
 
 %code provides {
-    yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diag);
+    yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_reporter& diags);
 }
 
 %token <string> NAME
@@ -522,12 +522,13 @@ void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
         expected_names[index] = symbol_name(expected[index]);
 
     // report error message
-    diag.report(sg::ERROR, yyctx.location(), sg::msg::syntax_error(
-        yyctx.lookahead().empty() ? optional<string>() : yyctx.lookahead().name(),
-        expected_names
-    ));
+    sg::syntax_error error(yyctx.lookahead().empty() ? optional<string>() : yyctx.lookahead().name(), expected_names);
+    error.location = { yyctx.location() };
+    diags.report(error);
 }
 
 void yy::parser::error(const yy::parser::location_type& loc, const string& err) {
-    diag.report(sg::ERROR, loc, err + "\n");
+    sg::parser_error error(err);
+    error.location = { loc };
+    diags.report(error);
 }

@@ -23,8 +23,9 @@ static string parse_string(const string& text);
 #define TOKEN_WITH(token, value) { \
     try { \
         return yy::parser::make_##token(value, LOCATION); \
-    } catch (string err) { \
-        diag.report(sg::ERROR, LOCATION, err); \
+    } catch (sg::diagnostic& diag) { \
+        diag.location = { LOCATION }; \
+        diags.report(diag); \
         return yy::parser::make_YYerror(LOCATION); \
     } \
 }
@@ -144,7 +145,7 @@ $ { END }
 
 */
 
-yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diag) {
+yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_reporter& diags) {
     while (true) {
         input.start();
 
@@ -187,7 +188,7 @@ static uint64_t parse_integer(const string& text, int base) {
     try {
         return stoull(remove_underscores(text), nullptr, base);
     } catch (out_of_range) {
-        throw sg::msg::integer_overflow(text);
+        throw sg::integer_overflow_error(text);
     }
 }
 
@@ -207,7 +208,7 @@ static char resolve_escape_sequence(char ch) {
         case '\\': return '\\';
 
         default:
-            throw sg::msg::invalid_escape_sequence(ch);
+            throw sg::invalid_escape_sequence_error(ch);
     }
 }
 
