@@ -34,7 +34,7 @@ build:
 	mkdir build
 
 clean:
-	rm -r gen
-	rm -r build
+	rm -rf gen
+	rm -rf build
 
 .PHONY: clean

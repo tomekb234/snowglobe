@@ -19,7 +19,7 @@ endif
 syn keyword		sgTypeKeyword			bool f32 f64 i8 i16 i32 i64 never u8 u16 u32 u64
 syn keyword		sgBooleanValueKeyword	false true
 syn keyword		sgStructKeyword			enum struct 
-syn keyword		sgConditionalKeyword	elif else end if match then
+syn keyword		sgConditionalKeyword	elif else if match
 syn keyword		sgLoopKeyword			for while
 syn keyword		sgOtherKeyword			as break continue copyable func in locally none ref return reversed some swap var with
 

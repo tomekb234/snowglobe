@@ -47,7 +47,6 @@ static string parse_string(const string& text);
 "copyable" { TOKEN(COPYABLE) }
 "elif" { TOKEN(ELIF) }
 "else" { TOKEN(ELSE) }
-"end" { TOKEN(END) }
 "enum" { TOKEN(ENUM) }
 "f32" { TOKEN(F32) }
 "f64" { TOKEN(F64) }
@@ -70,7 +69,6 @@ static string parse_string(const string& text);
 "some" { TOKEN(SOME) }
 "struct" { TOKEN(STRUCT) }
 "swap" { TOKEN(SWAP) }
-"then" { TOKEN(THEN) }
 "true" { TOKEN(TRUE) }
 "u8" { TOKEN(U8) }
 "u16" { TOKEN(U16) }

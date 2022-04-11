@@ -41,7 +41,6 @@
 %token COPYABLE "copyable"
 %token ELIF "elif"
 %token ELSE "else"
-%token END "end"
 %token ENUM "enum"
 %token F32 "f32"
 %token F64 "f64"
@@ -64,7 +63,6 @@
 %token SOME "some"
 %token STRUCT "struct"
 %token SWAP "swap"
-%token THEN "then"
 %token TRUE "true"
 %token U8 "u8"
 %token U16 "u16"
@@ -247,12 +245,12 @@ stmt:
     | expr "<<=" expr ";"
     | expr ">>=" expr ";"
 
+    | locally_stmt
     | swap_stmt
     | if_stmt
+    | match_stmt
     | while_stmt
     | for_stmt
-    | match_stmt
-    | locally_stmt
 
     | func_def
 
@@ -260,16 +258,27 @@ stmt_seq:
     %empty
     | stmt_seq stmt
 
+locally_stmt:
+    "locally" name_seq_nempty "{" stmt_seq "}"
+
+name_seq_nempty:
+    NAME
+    | name_seq_nempty "," NAME
+
+swap_stmt:
+    "swap" expr "with" expr ";"
+    | "swap" expr "with" expr_or_name_locally "{" stmt_seq "}"
+
+expr_or_name_locally:
+    expr
+    | NAME "locally"
+
 if_stmt:
     "if" condition "{" stmt_seq "}" elif_seq optional_else
 
 condition:
     expr
     | expr "in" expr_or_name_locally
-
-expr_or_name_locally:
-    expr
-    | NAME "locally"
 
 elif:
     "elif" condition "{" stmt_seq "}"
@@ -281,6 +290,16 @@ elif_seq:
 optional_else:
     %empty
     | "else" "{" stmt_seq "}"
+
+match_stmt:
+    "match" expr_or_name_locally with_seq_nempty optional_else
+
+with:
+    "with" expr "{" stmt_seq "}"
+
+with_seq_nempty:
+    with
+    | with_seq_nempty with
 
 while_stmt:
     "while" condition "{" stmt_seq "}" optional_else
@@ -299,27 +318,6 @@ optional_reversed:
     %empty
     | "reversed"
 
-match_stmt:
-    "match" expr_or_name_locally with_seq_nempty optional_else
-
-with:
-    "with" expr "{" stmt_seq "}"
-
-with_seq_nempty:
-    with
-    | with_seq_nempty with
-
-swap_stmt:
-    "swap" expr "with" expr ";"
-    | "swap" expr "with" expr_or_name_locally "{" stmt_seq "}"
-
-locally_stmt:
-    "locally" name_seq_nempty "{" stmt_seq "}"
-
-name_seq_nempty:
-    NAME
-    | name_seq_nempty "," NAME
-
 
 expr:
     "(" expr_indexed_seq ")"
@@ -328,7 +326,9 @@ expr:
 
     | NAME
     | NAME "::" NAME
-    | var_decl_expr
+
+    | "var" NAME ":" mtype
+    | "var" NAME
 
     | "true"
     | "false"
@@ -388,9 +388,7 @@ expr:
     | expr "[" "ref" expr "]"
     | expr "[" "ref" optional_expr ".." optional_expr "]"
 
-    | if_expr
-    | match_expr
-    | lambda_expr
+    | "func" optional_copying "(" func_param_seq ")" "{" func_body "}"
 
 optional_expr:
     %empty
@@ -409,37 +407,6 @@ expr_indexed_seq_nempty:
     expr_indexed
     | expr_indexed_seq_nempty "," expr_indexed
 
-var_decl_expr:
-    "var" NAME ":" mtype
-    | "var" NAME
-
-if_expr:
-    "if" condition "then" expr elif_in_expr_seq "else" expr "end"
-
-elif_in_expr:
-    "elif" condition "then" expr
-
-elif_in_expr_seq:
-    %empty
-    | elif_in_expr_seq elif_in_expr
-
-match_expr:
-    "match" expr_or_name_locally with_in_expr_seq_nempty optional_else_in_expr "end"
-
-with_in_expr:
-    "with" expr "then" expr
-
-with_in_expr_seq_nempty:
-    with_in_expr
-    | with_in_expr_seq_nempty with_in_expr
-
-optional_else_in_expr:
-    %empty
-    | "else" expr
-
-lambda_expr:
-    "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}"
-
 
 type:
     NAME
@@ -454,30 +421,24 @@ type:
     | "[" type ";" INTEGER "]"
     | "?" type
 
-    | "$" type
-    | "&" type
-    | "*" type
-    | "~" type
-    | "@" type
+    | "$" ptype
+    | "&" ptype
+    | "*" ptype
+    | "~" ptype
+    | "@" ptype
 
-    | "$" "[" type "]"
-    | "&" "[" type "]"
-    | "*" "[" type "]"
-    | "~" "[" type "]"
-    | "@" "[" type "]"
-
-    | "$" type "." type
-    | "&" type "." type
-    | "*" type "." type
-    | "~" type "." type
-    | "@" type "." type
+    | "$" ptype "." ptype
+    | "&" ptype "." ptype
+    | "*" ptype "." ptype
+    | "~" ptype "." ptype
+    | "@" ptype "." ptype
 
     | "func" "(" mtype_seq ")" "->" type
     | "func" "$" "(" mtype_seq ")" "->" type
-    | "func" "&" type "+" "(" mtype_seq ")" "->" type
-    | "func" "*" type "+" "(" mtype_seq ")" "->" type
-    | "func" "~" type "+" "(" mtype_seq ")" "->" type
-    | "func" "@" type "+" "(" mtype_seq ")" "->" type
+    | "func" "&" ptype "(" mtype_seq ")" "->" type
+    | "func" "*" ptype "(" mtype_seq ")" "->" type
+    | "func" "~" ptype "(" mtype_seq ")" "->" type
+    | "func" "@" ptype "(" mtype_seq ")" "->" type
 
 type_seq:
     %empty
@@ -486,6 +447,10 @@ type_seq:
 type_seq_nempty:
     type
     | type_seq_nempty "," type
+
+ptype:
+    type
+    | "[" type "]"
 
 mtype:
     type
