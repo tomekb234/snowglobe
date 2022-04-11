@@ -14,10 +14,30 @@
     #include "input.hpp"
     #include "diagnostic.hpp"
     #include <string>
-    #include <cstdint>
 
     namespace yy {
         using std::string;
+    }
+
+    namespace sg {
+        struct int_token {
+            unsigned long long value;
+
+            enum {
+                NONE,
+                I, I8, I16, I32, I64,
+                U, U8, U16, U32, U64
+            } type_marker;
+        };
+
+        struct float_token {
+            double value;
+
+            enum {
+                NONE,
+                F, F32, F64
+            } type_marker;
+        };
     }
 }
 
@@ -29,8 +49,8 @@
 }
 
 %token <string> NAME
-%token <uint64_t> INTEGER
-%token <double> FLOAT
+%token <sg::int_token> INTEGER
+%token <sg::float_token> FLOAT
 %token <char> CHAR
 %token <string> STRING
 
@@ -347,6 +367,7 @@ expr:
     | expr "*" expr
     | expr "/" expr
     | expr "%" expr
+
     | expr "as" mtype
 
     | "~" expr

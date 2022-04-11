@@ -4,13 +4,12 @@
 #include "location.hpp"
 #include <string>
 #include <memory>
-#include <cstdint>
 
 using std::string;
 using std::unique_ptr;
 
-static uint64_t parse_integer(const string& text, int base);
-static double parse_float(const string& text);
+static sg::int_token parse_int(const string& text, int base);
+static sg::float_token parse_float(const string& text);
 static char parse_char(const string& text);
 static string parse_string(const string& text);
 
@@ -80,10 +79,10 @@ static string parse_string(const string& text);
 
 [a-zA-Z_][a-zA-Z_0-9]* { TOKEN_WITH(NAME, TEXT) }
 
-[0-9][0-9_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_integer(TEXT, 10)) }
-"0b" [01][01_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_integer(TEXT, 2)) }
-"0o" [0-7][0-7_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_integer(TEXT, 8)) }
-"0x" [0-9a-fA-F][0-9a-fA-F_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_integer(TEXT, 16)) }
+[0-9][0-9_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT, 10)) }
+"0b" [01][01_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT, 2)) }
+"0o" [0-7][0-7_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT, 8)) }
+"0x" [0-9a-fA-F][0-9a-fA-F_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT, 16)) }
 
 [0-9][0-9_]* "." [0-9][0-9_]* ("e"("+"|"-")?[0-9][0-9_]*)? ("f"("32"|"64")?)? { TOKEN_WITH(FLOAT, parse_float(TEXT)) }
 
@@ -186,17 +185,17 @@ static string remove_underscores(const string& text) {
     return result;
 }
 
-static uint64_t parse_integer(const string& text, int base) {
+static sg::int_token parse_int(const string& text, int base) {
     try {
-        return stoull(remove_underscores(text), nullptr, base);
+        return { stoull(remove_underscores(text), nullptr, base), sg::int_token::NONE }; // TODO
     } catch (out_of_range) {
         throw new sg::integer_overflow_error(text);
     }
 }
 
-static double parse_float(const string& text) {
+static sg::float_token parse_float(const string& text) {
     try {
-        return stod(remove_underscores(text));
+        return { stod(remove_underscores(text)), sg::float_token::NONE }; // TODO
     } catch (out_of_range) {
         throw new sg::float_overflow_error(text);
     }
