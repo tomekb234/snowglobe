@@ -13,31 +13,12 @@
 %code requires {
     #include "input.hpp"
     #include "diagnostic.hpp"
+    #include "ast.hpp"
     #include <string>
 
     namespace yy {
         using std::string;
-    }
-
-    namespace sg {
-        struct int_token {
-            unsigned long long value;
-
-            enum {
-                NONE,
-                I, I8, I16, I32, I64,
-                U, U8, U16, U32, U64
-            } type_marker;
-        };
-
-        struct float_token {
-            double value;
-
-            enum {
-                NONE,
-                F, F32, F64
-            } type_marker;
-        };
+        using namespace sg::ast;
     }
 }
 
@@ -49,8 +30,8 @@
 }
 
 %token <string> NAME
-%token <sg::int_token> INTEGER
-%token <sg::float_token> FLOAT
+%token <int_token> INTEGER
+%token <float_token> FLOAT
 %token <char> CHAR
 %token <string> STRING
 

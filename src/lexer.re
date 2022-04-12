@@ -1,3 +1,4 @@
+#include "ast.hpp"
 #include "input.hpp"
 #include "diagnostic.hpp"
 #include "parser.hpp"
@@ -5,11 +6,13 @@
 #include <string>
 #include <memory>
 
+using sg::ast::int_token;
+using sg::ast::float_token;
 using std::string;
 using std::unique_ptr;
 
-static sg::int_token parse_int(const string& text, int base);
-static sg::float_token parse_float(const string& text);
+static int_token parse_int(const string& text, int base);
+static float_token parse_float(const string& text);
 static char parse_char(const string& text);
 static string parse_string(const string& text);
 
@@ -185,17 +188,17 @@ static string remove_underscores(const string& text) {
     return result;
 }
 
-static sg::int_token parse_int(const string& text, int base) {
+static int_token parse_int(const string& text, int base) {
     try {
-        return { stoull(remove_underscores(text), nullptr, base), sg::int_token::NONE }; // TODO
+        return { stoull(remove_underscores(text), nullptr, base), int_token::NONE }; // TODO
     } catch (out_of_range) {
         throw new sg::integer_overflow_error(text);
     }
 }
 
-static sg::float_token parse_float(const string& text) {
+static float_token parse_float(const string& text) {
     try {
-        return { stod(remove_underscores(text)), sg::float_token::NONE }; // TODO
+        return { stod(remove_underscores(text)), float_token::NONE }; // TODO
     } catch (out_of_range) {
         throw new sg::float_overflow_error(text);
     }
