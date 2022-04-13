@@ -48,6 +48,7 @@ namespace sg::ast {
     struct for_range_stmt;
     struct for_slice_stmt;
     struct expr;
+    struct expr_indexed;
     struct var_decl_expr;
     struct const_expr;
     struct int_token;
@@ -55,12 +56,19 @@ namespace sg::ast {
     struct unary_operator_expr;
     struct binary_operator_expr;
     struct as_expr;
-    struct array_expr;
+    struct array_with_size_expr;
     struct heap_array_expr;
     struct extract_expr;
     struct ptr_extract_expr;
     struct lambda_expr;
     struct type;
+    struct primitive_type;
+    struct pointer_base;
+    struct pointer_type;
+    struct inner_pointer_type;
+    struct func_type;
+    struct func_with_ptr_type;
+    struct ptype;
     struct mtype;
 
     struct program {
@@ -190,10 +198,12 @@ namespace sg::ast {
 
     struct swap_stmt {
         ptr<expr> left;
-        ptr<expr_or_name_locally> right;
+        ptr<expr> right;
     };
 
-    struct swap_block_stmt : swap_stmt {
+    struct swap_block_stmt {
+        ptr<expr> left;
+        ptr<expr_or_name_locally> right;
         ptr<stmt_block> block;
     };
 
@@ -280,7 +290,9 @@ namespace sg::ast {
 
     struct expr {
         enum {
-            // TODO
+            TUPPLE,
+            ARRAY,
+            FUNCTION_CALL,
             NAME,
             SCOPED_NAME,
             VAR_DECL,
@@ -296,7 +308,7 @@ namespace sg::ast {
             LOCAL_PTR,
             HEAP_ALLOC,
             DEREF,
-            ARRAY,
+            ARRAY_WITH_SIZE,
             HEAP_ARRAY,
             LENGTH,
             EXTRACT,
@@ -305,6 +317,9 @@ namespace sg::ast {
         };
 
         variant<
+            vector<ptr<expr_indexed>>, //TUPPLE
+            vector<ptr<expr_indexed>>, //ARRAY
+            pair<ptr<expr>, vector<ptr<expr_indexed>>>, //FUNCTION_CALL
             string, // NAME
             pair<string, string>, // SCOPED_NAME
             ptr<var_decl_expr>, // VAR_DECL
@@ -320,12 +335,26 @@ namespace sg::ast {
             string, // LOCAL_PTR
             ptr<expr>, // HEAP_ALLOC
             ptr<expr>, // DEREF
-            ptr<array_expr>, // ARRAY,
+            ptr<array_with_size_expr>, // ARRAY_WITH_SIZE,
             ptr<heap_array_expr>, // HEAP_ARRAY
             ptr<expr>, // LENGTH
             ptr<extract_expr>, // EXTRACT
             ptr<ptr_extract_expr>, // PTR_EXTRACT
             ptr<lambda_expr> // LAMBDA
+        > value;
+    };
+
+    struct expr_indexed {
+        enum {
+            EXPR,
+            NAMED,
+            INDEXED
+        };
+
+        variant<
+            ptr<expr>,
+            pair<string, ptr<expr>>,
+            pair<size_t, ptr<expr>>
         > value;
     };
 
@@ -412,7 +441,7 @@ namespace sg::ast {
         ptr<mtype> as_type;
     };
 
-    struct array_expr {
+    struct array_with_size_expr {
         ptr<expr> value;
         size_t size;
     };
@@ -462,11 +491,93 @@ namespace sg::ast {
     };
 
     struct type {
-        // TODO
+        enum {
+            NAME,
+            PRIMITIVE,
+            TUPLE,
+            ARRAY,
+            MAYBE,
+            POINTER,
+            INNER_POINTER,
+            FUNC,
+            GLOBAL_FUNC,
+            FUNC_WITH_PTR
+        };
+
+        variant<
+            string, //NAME
+            ptr<primitive_type>, //PRIMITIVE
+            vector<ptr<type>>, //TUPLE
+            pair<ptr<type>, size_t>, //ARRAY
+            ptr<type>, //MAYBE
+            ptr<pointer_type>, //POINTER
+            ptr<inner_pointer_type>, //INNER_POINTER
+            ptr<func_type>, //FUNC
+            ptr<func_type>, //GLOBAL_FUNC
+            ptr<func_with_ptr_type> //FUNC_WITH_PTR
+        > value;
+    };
+
+    struct primitive_type {
+        enum {
+            BOOL,
+            I8,
+            I16,
+            I32,
+            I64,
+            U8,
+            U16,
+            U32,
+            U64,
+            F32,
+            F64,
+            NEVER
+        } p_type;
+    };
+
+    struct pointer_base {
+        enum {
+            GLOBAL,
+            BASIC,
+            SHARED,
+            WEAK,
+            UNIQUE
+        } kind;
+    };
+
+    struct pointer_type : pointer_base {
+        ptr<ptype> target_type;
+    };
+
+    struct inner_pointer_type : pointer_base {
+        ptr<ptype> outer_type;
+        ptr<ptype> inner_type;
+    };
+
+    struct func_type {
+        vector<ptr<mtype>> arg_types;
+        ptr<type> ret_type;
+    };
+
+    struct func_with_ptr_type : func_type {
+        enum {
+            BASIC,
+            SHARED,
+            WEAK,
+            UNIQUE
+        } kind;
+
+        ptr<ptype> ptr_type;
+    };
+
+    struct ptype {
+        ptr<type> base_type;
+        bool slice;
     };
 
     struct mtype {
-        // TODO
+        ptr<type> base_type;
+        bool leakable;
     };
 }
 
