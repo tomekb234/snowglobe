@@ -1,3 +1,5 @@
+// Configuration
+
 %require "3.8"
 %language "c++"
 
@@ -10,24 +12,65 @@
 %define api.location.file "location.hpp"
 %define parse.error custom
 
+// Interface
+
 %code requires {
     #include "input.hpp"
     #include "diagnostic.hpp"
     #include "ast.hpp"
-    #include <string>
 
     namespace yy {
-        using std::string;
         using namespace sg::ast;
     }
 }
 
+%parse-param {sg::ast::program& result}
 %param {sg::lexer_input& input}
 %param {sg::diagnostic_collector& diags}
 
 %code provides {
     yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diags);
 }
+
+// Utilities
+
+%code {
+    #include <utility>
+    #include <memory>
+    #include <optional>
+    #include <vector>
+    #include <variant>
+
+    using std::move;
+    using std::unique_ptr;
+    using std::make_unique;
+    using std::optional;
+    using std::make_optional;
+    using std::vector;
+    using std::in_place_index;
+
+    template<typename T>
+    static unique_ptr<T> into_ptr(T& value) {
+        return make_unique<T>(move(value));
+    }
+
+    template<typename T>
+    static optional<unique_ptr<T>> into_optional_ptr(optional<T>& value) {
+        return value ? make_optional(make_unique<T>(move(*value))) : optional<unique_ptr<T>>();
+    }
+
+    template<typename T>
+    static vector<unique_ptr<T>> into_ptr_vector(vector<T>& values) {
+        vector<unique_ptr<T>> result;
+        for (T& value : values)
+            result.push_back(make_unique<T>(move(value)));
+        return result;
+    }
+
+    #define VARIANT(type, index, val) { decltype(type::value)(in_place_index<type::index>, val) }
+}
+
+// Tokens
 
 %token <string> NAME
 %token <int_token> INTEGER
@@ -129,6 +172,8 @@
 %token RANGE ".."
 %token SCOPE "::"
 
+// Token precedence
+
 %precedence ":"
 %precedence "return" "some"
 %left "||"
@@ -146,58 +191,84 @@
 %left "." "->"
 %precedence "(" "["
 
+// Nonterminal symbols
+
+%nterm program
+%nterm <vector<global_def>> global_def_seq
+%nterm <global_def> global_def
+%nterm <var_def> var_def
+%nterm <func_def> func_def
+%nterm <bool> optional_copying
+%nterm <func_param> func_param
+%nterm <vector<func_param>> func_param_seq
+%nterm <vector<func_param>> func_param_seq_nempty
+%nterm <optional<type>> optional_return_type
+%nterm <func_body> func_body
+%nterm <struct_def> struct_def
+%nterm <enum_def> enum_def
+// TODO
+
+%nterm <stmt> stmt
+%nterm <stmt_block> stmt_seq
+// TODO
+
+%nterm <expr> expr
+// TODO
+
+%nterm <type> type
+// TODO
+%nterm <type_local> type_local
+// TODO
 
 %%
 
+// Main rules
 
 program:
-    global_def_seq
+    global_def_seq { result = { into_ptr_vector($global_def_seq) }; }
 
 global_def_seq:
-    %empty
-    | global_def_seq global_def
+    %empty { $$ = { }; }
+    | global_def_seq[head] global_def { $$ = move($head); $$.push_back(move($global_def)); }
 
 global_def:
-    var_def
-    | func_def
-    | struct_def
-    | enum_def
-
+    var_def { $$ = VARIANT(global_def, VAR_DEF, into_ptr($var_def)); }
+    | func_def { $$ = VARIANT(global_def, FUNC_DEF, into_ptr($func_def)); }
+    | struct_def { $$ = VARIANT(global_def, STRUCT_DEF, into_ptr($struct_def)); }
+    | enum_def { $$ = VARIANT(global_def, ENUM_DEF, into_ptr($enum_def)); }
 
 var_def:
-    "var" NAME ":" type "=" expr ";"
-    | "var" NAME "=" expr ";"
-
+    "var" NAME ":" type "=" expr ";" { $$ = { move($NAME), { into_ptr($type) }, into_ptr($expr) }; }
+    | "var" NAME "=" expr ";" { $$ = { move($NAME), { }, into_ptr($expr) }; }
 
 func_def:
-    "func" optional_copying NAME "(" func_param_seq ")" optional_return_type "{" func_body "}"
+    "func" optional_copying NAME "(" func_param_seq ")" optional_return_type "{" func_body "}" { $$ = { move($NAME), $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body) }; }
 
 optional_copying:
-    %empty
-    | "@"
+    %empty { $$ = false; }
+    | "@" { $$ = true; }
 
 func_param:
-    NAME ":" type_local
+    NAME ":" type_local { $$ = { move($NAME), into_ptr($type_local) }; }
 
 func_param_seq:
-    %empty
-    | func_param_seq_nempty
+    %empty { $$ = { }; }
+    | func_param_seq_nempty { $$ = move($func_param_seq_nempty); }
 
 func_param_seq_nempty:
-    func_param
-    | func_param_seq_nempty "," func_param
+    func_param { $$ = { move($func_param) }; }
+    | func_param_seq_nempty[head] "," func_param { $$ = move($head); $$.push_back(move($func_param)); }
 
 optional_return_type:
-    %empty
-    | "->" type
+    %empty { $$ = { }; }
+    | "->" type { $$ = { move($type) }; }
 
 func_body:
-    stmt_seq
-    | stmt_seq expr
-
+    stmt_seq { $$ = { into_ptr($stmt_seq), { } }; }
+    | stmt_seq expr { $$ = { into_ptr($stmt_seq), { into_ptr($expr) } }; }
 
 struct_def:
-    "struct" NAME optional_copyable "{" struct_field_seq "}"
+    "struct" NAME optional_copyable "{" struct_field_seq "}" // TODO
 
 optional_copyable:
     %empty
@@ -214,7 +285,6 @@ struct_field_seq_inner:
     %empty
     | struct_field_seq_inner struct_field ","
 
-
 enum_def:
     "enum" NAME optional_copyable "{" enum_variant_seq "}"
 
@@ -230,6 +300,7 @@ enum_variant_seq_inner:
     %empty
     | enum_variant_seq_inner enum_variant ","
 
+// Statement rules
 
 stmt:
     expr ";"
@@ -319,6 +390,7 @@ optional_reversed:
     %empty
     | "reversed"
 
+// Expression rules
 
 expr:
     "(" expr_marked_seq ")"
@@ -409,6 +481,7 @@ expr_marked_seq_nempty:
     expr_marked
     | expr_marked_seq_nempty "," expr_marked
 
+// Type rules
 
 type:
     NAME
@@ -468,10 +541,14 @@ type_local_seq_nempty:
 
 %%
 
+// Error reporting
+
+#include <string>
 #include <vector>
 #include <optional>
 #include <memory>
 
+using std::string;
 using std::vector;
 using std::optional;
 using std::make_unique;

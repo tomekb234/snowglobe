@@ -1,3 +1,4 @@
+#include "ast.hpp"
 #include "input.hpp"
 #include "diagnostic.hpp"
 #include "parser.hpp"
@@ -19,10 +20,11 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
+    sg::ast::program ast;
     sg::lexer_input input(file, file_name);
     sg::diagnostic_collector diags;
 
-    yy::parser parser(input, diags);
+    yy::parser parser(ast, input, diags);
     parser.parse();
 
     diags.report_all(cerr, true);
