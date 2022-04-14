@@ -33,7 +33,7 @@ namespace sg::ast {
     struct stmt_block;
     struct assignment_stmt;
     struct compund_assignment_stmt;
-    struct locally_stmt;
+    struct locally_block_stmt;
     struct swap_stmt;
     struct swap_block_stmt;
     struct expr_or_name_locally;
@@ -44,32 +44,32 @@ namespace sg::ast {
     struct match_branch;
     struct while_stmt;
     struct for_stmt;
-    struct for_base_stmt;
+    struct for_stmt_base;
     struct for_range_stmt;
     struct for_slice_stmt;
     struct expr;
-    struct expr_indexed;
+    struct expr_marked;
     struct var_decl_expr;
     struct const_expr;
     struct int_token;
     struct float_token;
-    struct unary_operator_expr;
-    struct binary_operator_expr;
-    struct as_expr;
-    struct array_with_size_expr;
-    struct heap_array_expr;
+    struct unary_operation_expr;
+    struct binary_operation_expr;
+    struct numeric_cast_expr;
+    struct sized_array_expr;
+    struct heap_slice_alloc_expr;
     struct extract_expr;
     struct ptr_extract_expr;
     struct lambda_expr;
     struct type;
     struct primitive_type;
-    struct pointer_base;
-    struct pointer_type;
-    struct inner_pointer_type;
+    struct array_type;
+    struct ptr_type;
+    struct inner_ptr_type;
     struct func_type;
     struct func_with_ptr_type;
-    struct ptype;
-    struct mtype;
+    struct type_pointed;
+    struct type_local;
 
     struct program {
         vector<ptr<global_def>> global_defs;
@@ -93,7 +93,7 @@ namespace sg::ast {
 
     struct var_def {
         string name;
-        optional<ptr<type>> var_type;
+        optional<ptr<type>> tp;
         ptr<expr> value;
     };
 
@@ -101,18 +101,18 @@ namespace sg::ast {
         string name;
         bool copying;
         vector<ptr<func_param>> params;
-        optional<ptr<type>> return_type;
+        optional<ptr<type>> return_tp;
         ptr<func_body> body;
     };
 
     struct func_body {
         ptr<stmt_block> block;
-        optional<ptr<expr>> return_expr;
+        optional<ptr<expr>> return_value;
     };
 
     struct func_param {
         string name;
-        ptr<mtype> param_type;
+        ptr<type_local> tp;
     };
 
     struct struct_def {
@@ -123,7 +123,7 @@ namespace sg::ast {
 
     struct struct_field {
         string name;
-        ptr<type> field_type;
+        ptr<type> tp;
     };
 
     struct enum_def {
@@ -134,7 +134,7 @@ namespace sg::ast {
 
     struct enum_variant {
         string name;
-        vector<ptr<type>> variant_types;
+        vector<ptr<type>> tps;
     };
 
     struct stmt {
@@ -142,7 +142,7 @@ namespace sg::ast {
             EXPR_EVAL,
             ASSIGNMENT,
             COMPOUND_ASSIGNMENT,
-            LOCALLY,
+            LOCALLY_BLOCK,
             SWAP,
             SWAP_BLOCK,
             IF,
@@ -156,7 +156,7 @@ namespace sg::ast {
             ptr<expr>,
             ptr<assignment_stmt>,
             ptr<compund_assignment_stmt>,
-            ptr<locally_stmt>,
+            ptr<locally_block_stmt>,
             ptr<swap_stmt>,
             ptr<swap_block_stmt>,
             ptr<if_stmt>,
@@ -178,20 +178,20 @@ namespace sg::ast {
 
     struct compund_assignment_stmt : assignment_stmt {
         enum {
-            PLUS,
-            MINUS,
+            ADD,
+            SUB,
             MUL,
             DIV,
             MOD,
-            AND,
-            OR,
-            XOR,
-            LSH,
-            RSH
+            BIT_AND,
+            BIT_OR,
+            BIT_XOR,
+            BIT_LSH,
+            BIT_RSH
         } operation;
     };
 
-    struct locally_stmt {
+    struct locally_block_stmt {
         vector<string> var_names;
         ptr<stmt_block> block;
     };
@@ -270,19 +270,19 @@ namespace sg::ast {
         > value;
     };
 
-    struct for_base_stmt {
+    struct for_stmt_base {
         ptr<expr> lvalue;
         bool reversed;
         ptr<stmt_block> block;
         optional<ptr<stmt_block>> else_block;
     };
 
-    struct for_range_stmt : for_base_stmt {
+    struct for_range_stmt : for_stmt_base {
         ptr<expr> begin;
         ptr<expr> end;
     };
 
-    struct for_slice_stmt : for_base_stmt {
+    struct for_slice_stmt : for_stmt_base {
         optional<ptr<expr>> index;
         bool by_ref;
         ptr<expr_or_name_locally> value;
@@ -290,16 +290,16 @@ namespace sg::ast {
 
     struct expr {
         enum {
-            TUPPLE,
+            TUPLE,
             ARRAY,
-            FUNCTION_CALL,
+            APPLICATION,
             NAME,
-            SCOPED_NAME,
+            QUALIFIED_NAME,
             VAR_DECL,
             CONST,
-            UNARY_OPERATOR,
-            BINARY_OPERATOR,
-            AS,
+            UNARY_OPERATION,
+            BINARY_OPERATION,
+            NUMERIC_CAST,
             NONE,
             SOME,
             RETURN,
@@ -308,8 +308,8 @@ namespace sg::ast {
             LOCAL_PTR,
             HEAP_ALLOC,
             DEREF,
-            ARRAY_WITH_SIZE,
-            HEAP_ARRAY,
+            SIZED_ARRAY,
+            HEAP_SLICE_ALLOC,
             LENGTH,
             EXTRACT,
             PTR_EXTRACT,
@@ -317,16 +317,16 @@ namespace sg::ast {
         };
 
         variant<
-            vector<ptr<expr_indexed>>, //TUPPLE
-            vector<ptr<expr_indexed>>, //ARRAY
-            pair<ptr<expr>, vector<ptr<expr_indexed>>>, //FUNCTION_CALL
+            vector<ptr<expr_marked>>, // TUPLE
+            vector<ptr<expr_marked>>, // ARRAY
+            pair<ptr<expr>, vector<ptr<expr_marked>>>, // APPLICATION
             string, // NAME
-            pair<string, string>, // SCOPED_NAME
+            pair<string, string>, // QUALIFIED_NAME
             ptr<var_decl_expr>, // VAR_DECL
             ptr<const_expr>, // CONST
-            ptr<unary_operator_expr>, // UNARY_OPERATOR
-            ptr<binary_operator_expr>, // BINARY_OPERATOR
-            ptr<as_expr>, // AS
+            ptr<unary_operation_expr>, // UNARY_OPERATION
+            ptr<binary_operation_expr>, // BINARY_OPERATION
+            ptr<numeric_cast_expr>, // NUMERIC_CAST
             monostate, // NONE
             ptr<expr>, // SOME
             optional<ptr<expr>>, // RETURN
@@ -335,8 +335,8 @@ namespace sg::ast {
             string, // LOCAL_PTR
             ptr<expr>, // HEAP_ALLOC
             ptr<expr>, // DEREF
-            ptr<array_with_size_expr>, // ARRAY_WITH_SIZE,
-            ptr<heap_array_expr>, // HEAP_ARRAY
+            ptr<sized_array_expr>, // SIZED_ARRAY
+            ptr<heap_slice_alloc_expr>, // HEAP_SLICE_ALLOC
             ptr<expr>, // LENGTH
             ptr<extract_expr>, // EXTRACT
             ptr<ptr_extract_expr>, // PTR_EXTRACT
@@ -344,11 +344,11 @@ namespace sg::ast {
         > value;
     };
 
-    struct expr_indexed {
+    struct expr_marked {
         enum {
             EXPR,
-            NAMED,
-            INDEXED
+            EXPR_WITH_NAME,
+            EXPR_WITH_COORD
         };
 
         variant<
@@ -360,7 +360,7 @@ namespace sg::ast {
 
     struct var_decl_expr {
         string name;
-        optional<ptr<mtype>> type;
+        optional<ptr<type_local>> tp;
     };
 
     struct const_expr {
@@ -388,7 +388,7 @@ namespace sg::ast {
             NONE,
             I, I8, I16, I32, I64,
             U, U8, U16, U32, U64
-        } type_marker;
+        } marker;
     };
 
     struct float_token {
@@ -397,10 +397,10 @@ namespace sg::ast {
         enum {
             NONE,
             F, F32, F64
-        } type_marker;
+        } marker;
     };
 
-    struct unary_operator_expr {
+    struct unary_operation_expr {
         enum {
             NOT,
             MINUS,
@@ -410,12 +410,12 @@ namespace sg::ast {
         ptr<expr> value;
     };
 
-    struct binary_operator_expr {
+    struct binary_operation_expr {
         enum {
             AND,
             OR,
-            PLUS,
-            MINUS,
+            ADD,
+            SUB,
             MUL,
             DIV,
             MOD,
@@ -427,33 +427,33 @@ namespace sg::ast {
             EQ,
             NEQ,
             LS,
-            LEQ,
+            LSEQ,
             GT,
-            GEQ
+            GTEQ
         } operation;
 
         ptr<expr> left;
         ptr<expr> right;
     };
 
-    struct as_expr {
+    struct numeric_cast_expr {
         ptr<expr> value;
-        ptr<mtype> as_type;
+        ptr<type_local> tp;
     };
 
-    struct array_with_size_expr {
+    struct sized_array_expr {
         ptr<expr> value;
         size_t size;
     };
 
-    struct heap_array_expr {
+    struct heap_slice_alloc_expr {
         ptr<expr> value;
         ptr<expr> size;
     };
 
     struct extract_expr {
         enum {
-            NAME,
+            FIELD,
             COORD,
             INDEX
         };
@@ -467,8 +467,8 @@ namespace sg::ast {
 
     struct ptr_extract_expr {
         enum {
-            OUTER,
-            NAME,
+            OWNER,
+            FIELD,
             COORD,
             INDEX,
             RANGE
@@ -486,35 +486,35 @@ namespace sg::ast {
     struct lambda_expr {
         bool copying;
         vector<ptr<func_param>> params;
-        optional<ptr<type>> return_type;
+        optional<ptr<type>> return_tp;
         ptr<func_body> body;
     };
 
     struct type {
         enum {
-            NAME,
+            USER_TYPE,
             PRIMITIVE,
             TUPLE,
             ARRAY,
-            MAYBE,
-            POINTER,
-            INNER_POINTER,
+            OPTIONAL,
+            PTR,
+            INNER_PTR,
             FUNC,
             GLOBAL_FUNC,
             FUNC_WITH_PTR
         };
 
         variant<
-            string, //NAME
-            ptr<primitive_type>, //PRIMITIVE
-            vector<ptr<type>>, //TUPLE
-            pair<ptr<type>, size_t>, //ARRAY
-            ptr<type>, //MAYBE
-            ptr<pointer_type>, //POINTER
-            ptr<inner_pointer_type>, //INNER_POINTER
-            ptr<func_type>, //FUNC
-            ptr<func_type>, //GLOBAL_FUNC
-            ptr<func_with_ptr_type> //FUNC_WITH_PTR
+            string, // USER_TYPE
+            ptr<primitive_type>, // PRIMITIVE
+            vector<ptr<type>>, // TUPLE
+            ptr<array_type>, // ARRAY
+            ptr<type>, // OPTIONAL
+            ptr<ptr_type>, // PTR
+            ptr<inner_ptr_type>, // INNER_PTR
+            ptr<func_type>, // FUNC
+            ptr<func_type>, // GLOBAL_FUNC
+            ptr<func_with_ptr_type> // FUNC_WITH_PTR
         > value;
     };
 
@@ -532,10 +532,15 @@ namespace sg::ast {
             F32,
             F64,
             NEVER
-        } p_type;
+        } tp;
     };
 
-    struct pointer_base {
+    struct array_type {
+        ptr<type> tp;
+        size_t size;
+    };
+
+    struct ptr_type {
         enum {
             GLOBAL,
             BASIC,
@@ -543,20 +548,17 @@ namespace sg::ast {
             WEAK,
             UNIQUE
         } kind;
+
+        ptr<type_pointed> target_tp;
     };
 
-    struct pointer_type : pointer_base {
-        ptr<ptype> target_type;
-    };
-
-    struct inner_pointer_type : pointer_base {
-        ptr<ptype> outer_type;
-        ptr<ptype> inner_type;
+    struct inner_ptr_type : ptr_type {
+        ptr<type_pointed> owner_tp;
     };
 
     struct func_type {
-        vector<ptr<mtype>> arg_types;
-        ptr<type> ret_type;
+        vector<ptr<type_local>> param_tps;
+        ptr<type> return_tp;
     };
 
     struct func_with_ptr_type : func_type {
@@ -567,17 +569,17 @@ namespace sg::ast {
             UNIQUE
         } kind;
 
-        ptr<ptype> ptr_type;
+        ptr<type_pointed> target_tp;
     };
 
-    struct ptype {
-        ptr<type> base_type;
+    struct type_pointed {
+        ptr<type> tp;
         bool slice;
     };
 
-    struct mtype {
-        ptr<type> base_type;
-        bool leakable;
+    struct type_local {
+        ptr<type> tp;
+        bool confined;
     };
 }
 

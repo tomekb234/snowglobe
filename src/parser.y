@@ -177,7 +177,7 @@ optional_copying:
     | "@"
 
 func_param:
-    NAME ":" mtype
+    NAME ":" type_local
 
 func_param_seq:
     %empty
@@ -321,14 +321,14 @@ optional_reversed:
 
 
 expr:
-    "(" expr_indexed_seq ")"
-    | "[" expr_indexed_seq "]"
-    | expr "(" expr_indexed_seq ")"
+    "(" expr_marked_seq ")"
+    | "[" expr_marked_seq "]"
+    | expr "(" expr_marked_seq ")"
 
     | NAME
     | NAME "::" NAME
 
-    | "var" NAME ":" mtype
+    | "var" NAME ":" type_local
     | "var" NAME
 
     | "true"
@@ -349,7 +349,7 @@ expr:
     | expr "/" expr
     | expr "%" expr
 
-    | expr "as" mtype
+    | expr "as" type_local
 
     | "~" expr
     | expr "&" expr
@@ -390,24 +390,24 @@ expr:
     | expr "[" "ref" expr "]"
     | expr "[" "ref" optional_expr ".." optional_expr "]"
 
-    | "func" optional_copying "(" func_param_seq ")" "{" func_body "}"
+    | "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}"
 
 optional_expr:
     %empty
     | expr
 
-expr_indexed:
+expr_marked:
     expr
     | NAME ":" expr
     | INTEGER ":" expr
 
-expr_indexed_seq:
+expr_marked_seq:
     %empty
-    | expr_indexed_seq_nempty
+    | expr_marked_seq_nempty
 
-expr_indexed_seq_nempty:
-    expr_indexed
-    | expr_indexed_seq_nempty "," expr_indexed
+expr_marked_seq_nempty:
+    expr_marked
+    | expr_marked_seq_nempty "," expr_marked
 
 
 type:
@@ -423,24 +423,24 @@ type:
     | "[" type ";" INTEGER "]"
     | "?" type
 
-    | "$" ptype
-    | "&" ptype
-    | "*" ptype
-    | "~" ptype
-    | "@" ptype
+    | "$" type_pointed
+    | "&" type_pointed
+    | "*" type_pointed
+    | "~" type_pointed
+    | "@" type_pointed
 
-    | "$" ptype "." ptype
-    | "&" ptype "." ptype
-    | "*" ptype "." ptype
-    | "~" ptype "." ptype
-    | "@" ptype "." ptype
+    | "$" type_pointed "." type_pointed
+    | "&" type_pointed "." type_pointed
+    | "*" type_pointed "." type_pointed
+    | "~" type_pointed "." type_pointed
+    | "@" type_pointed "." type_pointed
 
-    | "func" "(" mtype_seq ")" "->" type
-    | "func" "$" "(" mtype_seq ")" "->" type
-    | "func" "&" ptype "(" mtype_seq ")" "->" type
-    | "func" "*" ptype "(" mtype_seq ")" "->" type
-    | "func" "~" ptype "(" mtype_seq ")" "->" type
-    | "func" "@" ptype "(" mtype_seq ")" "->" type
+    | "func" "(" type_local_seq ")" "->" type
+    | "func" "$" "(" type_local_seq ")" "->" type
+    | "func" "&" type_pointed "(" type_local_seq ")" "->" type
+    | "func" "*" type_pointed "(" type_local_seq ")" "->" type
+    | "func" "~" type_pointed "(" type_local_seq ")" "->" type
+    | "func" "@" type_pointed "(" type_local_seq ")" "->" type
 
 type_seq:
     %empty
@@ -450,21 +450,21 @@ type_seq_nempty:
     type
     | type_seq_nempty "," type
 
-ptype:
+type_pointed:
     type
     | "[" type "]"
 
-mtype:
+type_local:
     type
     | "!" type
 
-mtype_seq:
+type_local_seq:
     %empty
-    | mtype_seq_nempty
+    | type_local_seq_nempty
 
-mtype_seq_nempty:
-    mtype
-    | mtype_seq_nempty "," mtype
+type_local_seq_nempty:
+    type_local
+    | type_local_seq_nempty "," type_local
 
 %%
 
