@@ -205,12 +205,36 @@
 %nterm <optional<type>> optional_return_type
 %nterm <func_body> func_body
 %nterm <struct_def> struct_def
+%nterm <bool> optional_copyable
+%nterm <struct_field> struct_field
+%nterm <vector<struct_field>> struct_field_seq
+%nterm <vector<struct_field>> struct_field_seq_inner
 %nterm <enum_def> enum_def
-// TODO
+%nterm <enum_variant> enum_variant
+%nterm <vector<enum_variant>> enum_variant_seq
+%nterm <vector<enum_variant>> enum_variant_seq_inner
 
 %nterm <stmt> stmt
 %nterm <stmt_block> stmt_seq
-// TODO
+%nterm <locally_block_stmt> locally_stmt
+%nterm <vector<string>> name_seq_nempty
+%nterm <swap_stmt> swap_stmt
+%nterm <swap_block_stmt> swap_block_stmt
+%nterm <expr_or_name_locally> expr_or_name_locally
+%nterm <if_stmt> if_stmt
+%nterm <condition> condition
+%nterm <if_branch> elif
+%nterm <vector<if_branch>> elif_seq
+%nterm <optional<stmt_block>> optional_else
+%nterm <match_stmt> match_stmt
+%nterm <match_branch> with
+%nterm <vector<match_branch>> with_seq_nempty
+%nterm <while_stmt> while_stmt
+%nterm <for_stmt> for_stmt
+%nterm <for_range_stmt> for_range_stmt
+%nterm <for_slice_stmt> for_slice_stmt
+%nterm <for_stmt_base> for_stmt_tail
+%nterm <bool> optional_reversed
 
 %nterm <expr> expr
 // TODO
@@ -268,127 +292,136 @@ func_body:
     | stmt_seq expr { $$ = { into_ptr($stmt_seq), { into_ptr($expr) } }; }
 
 struct_def:
-    "struct" NAME optional_copyable "{" struct_field_seq "}" // TODO
+    "struct" NAME optional_copyable "{" struct_field_seq "}" { $$ = { move($NAME), $optional_copyable, into_ptr_vec($struct_field_seq) }; }
 
 optional_copyable:
-    %empty
-    | "copyable"
+    %empty { $$ = false; }
+    | "copyable" { $$ = true; }
 
 struct_field:
-    NAME ":" type
+    NAME ":" type { $$ = { move($NAME), into_ptr($type) }; }
 
 struct_field_seq:
-    struct_field_seq_inner
-    | struct_field_seq_inner struct_field
+    struct_field_seq_inner[head] { $$ = move($head); }
+    | struct_field_seq_inner[head] struct_field { $$ = move($head); $$.push_back(move($struct_field)); }
 
 struct_field_seq_inner:
-    %empty
-    | struct_field_seq_inner struct_field ","
+    %empty { $$ = { }; }
+    | struct_field_seq_inner[head] struct_field "," { $$ = move($head); $$.push_back(move($struct_field)); }
 
 enum_def:
-    "enum" NAME optional_copyable "{" enum_variant_seq "}"
+    "enum" NAME optional_copyable "{" enum_variant_seq "}" { $$ = { move($NAME), $optional_copyable, into_ptr_vec($enum_variant_seq) }; }
 
 enum_variant:
-    NAME
-    | NAME "(" type_seq ")"
+    NAME { $$ = { move($NAME), { } }; }
+    | NAME "(" type_seq ")" { $$ = { move($NAME), into_ptr_vec($type_seq) }; }
 
 enum_variant_seq:
-    enum_variant_seq_inner
-    | enum_variant_seq_inner enum_variant
+    enum_variant_seq_inner[head] { $$ = move($head); }
+    | enum_variant_seq_inner[head] enum_variant { $$ = move($head); $$.push_back(move($enum_variant)); }
 
 enum_variant_seq_inner:
-    %empty
-    | enum_variant_seq_inner enum_variant ","
+    %empty { $$ = { }; }
+    | enum_variant_seq_inner[head] enum_variant "," { $$ = move($head); $$.push_back(move($enum_variant)); }
 
 // Statement rules
 
 stmt:
-    expr ";"
+    expr ";" { $$ = VARIANT(stmt, EXPR_EVAL, into_ptr($expr)); }
 
-    | expr "=" expr ";"
-    | expr "+=" expr ";"
-    | expr "-=" expr ";"
-    | expr "*=" expr ";"
-    | expr "/=" expr ";"
-    | expr "%=" expr ";"
-    | expr "&=" expr ";"
-    | expr "|=" expr ";"
-    | expr "^=" expr ";"
-    | expr "<<=" expr ";"
-    | expr ">>=" expr ";"
+    | expr[left] "=" expr[right] ";" { $$ = VARIANT(stmt, ASSIGNMENT, { into_ptr($left), into_ptr($right) }); }
+    | expr[left] "+=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, ADD }); }
+    | expr[left] "-=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, SUB }); }
+    | expr[left] "*=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, MUL }); }
+    | expr[left] "/=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, DIV }); }
+    | expr[left] "%=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, MOD }); }
+    | expr[left] "&=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, BIT_AND }); }
+    | expr[left] "|=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, BIT_OR }); }
+    | expr[left] "^=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, BIT_XOR }); }
+    | expr[left] "<<=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, BIT_LSH }); }
+    | expr[left] ">>=" expr[right] ";" { $$ = VARIANT(stmt, COMPOUND_ASSIGNMENT, { /*base*/{ into_ptr($left), into_ptr($right) }, BIT_RSH }); }
 
-    | locally_stmt
-    | swap_stmt
-    | if_stmt
-    | match_stmt
-    | while_stmt
-    | for_stmt
+    | locally_stmt { $$ = VARIANT(stmt, LOCALLY_BLOCK, into_ptr($locally_stmt)); }
+    | swap_stmt { $$ = VARIANT(stmt, SWAP, into_ptr($swap_stmt)); }
+    | swap_block_stmt { $$ = VARIANT(stmt, SWAP_BLOCK, into_ptr($swap_block_stmt)); }
+    | if_stmt { $$ = VARIANT(stmt, IF, into_ptr($if_stmt)); }
+    | match_stmt { $$ = VARIANT(stmt, MATCH, into_ptr($match_stmt)); }
+    | while_stmt { $$ = VARIANT(stmt, WHILE, into_ptr($while_stmt)); }
+    | for_stmt { $$ = VARIANT(stmt, FOR, into_ptr($for_stmt)); }
 
-    | func_def
+    | func_def { $$ = VARIANT(stmt, FUNC_DEF, into_ptr($func_def)); }
 
 stmt_seq:
-    %empty
-    | stmt_seq stmt
+    %empty { $$ = { { } }; }
+    | stmt_seq[head] stmt { $$ = move($head); $$.stmts.push_back(into_ptr($stmt)); }
 
 locally_stmt:
-    "locally" name_seq_nempty "{" stmt_seq "}"
+    "locally" name_seq_nempty "{" stmt_seq "}" { $$ = { move($name_seq_nempty), into_ptr($stmt_seq); }; }
 
 name_seq_nempty:
-    NAME
-    | name_seq_nempty "," NAME
+    NAME { $$ = { move($NAME); }; }
+    | name_seq_nempty[head] "," NAME { $$ = move($head); $$.push_back(move($NAME)); }
 
 swap_stmt:
-    "swap" expr "with" expr ";"
-    | "swap" expr "with" expr_or_name_locally "{" stmt_seq "}"
+    "swap" expr[left] "with" expr[right] ";" { $$ = { into_ptr($left), into_ptr($right) }; }
+
+swap_block_stmt:
+    "swap" expr "with" expr_or_name_locally "{" stmt_seq "}" { $$ = { into_ptr($expr), into_ptr($expr_or_name_locally), into_ptr(stmt_seq) }; }
 
 expr_or_name_locally:
-    expr
-    | NAME "locally"
+    expr { $$ = VARIANT(expr_or_name_locally, EXPR, into_ptr($expr)); }
+    | NAME "locally" { $$ = VARIANT(expr_or_name_locally, NAME_LOCALLY, move($NAME)); }
 
 if_stmt:
-    "if" condition "{" stmt_seq "}" elif_seq optional_else
+    "if" condition "{" stmt_seq "}" elif_seq optional_else { $elif_seq.insert($elif_seq.begin(), { into_ptr($condition), into_ptr($stmt_seq) }); $$ = { into_ptr_vec($elif_seq), into_optional_ptr($optional_else) }; }
 
 condition:
-    expr
-    | expr "in" expr_or_name_locally
+    expr { $$ = VARIANT(condition, CHECK_IF_TRUE, into_ptr($expr)); }
+    | expr "in" expr_or_name_locally { $$ = VARIANT(condition, CHECK_IF_PRESENT, { into_ptr($expr), into_ptr($expr_or_name_locally) }); }
 
 elif:
-    "elif" condition "{" stmt_seq "}"
+    "elif" condition "{" stmt_seq "}" { $$ = { into_ptr($condition), into_ptr($stmt_seq) }; }
 
 elif_seq:
-    %empty
-    | elif_seq elif
+    %empty { $$ = { }; }
+    | elif_seq[head] elif { $$ = move($head); $$.push_back(move($elif)); }
 
 optional_else:
-    %empty
-    | "else" "{" stmt_seq "}"
+    %empty { $$ = { }; }
+    | "else" "{" stmt_seq "}" { $$ = { move($stmt_seq) }; }
 
 match_stmt:
-    "match" expr_or_name_locally with_seq_nempty optional_else
+    "match" expr_or_name_locally with_seq_nempty optional_else { $$ = { into_ptr($expr_or_name_locally), into_ptr_vector($with_seq_nempty), into_optional_ptr($optional_else) }; }
 
 with:
-    "with" expr "{" stmt_seq "}"
+    "with" expr "{" stmt_seq "}" { $$ = { into_ptr($expr), into_ptr($stmt_seq) }; }
 
 with_seq_nempty:
-    with
-    | with_seq_nempty with
+    with { $$ = { move($with) }; }
+    | with_seq_nempty[head] with { $$ = move($head); $$.push_back(move($with)); }
 
 while_stmt:
-    "while" condition "{" stmt_seq "}" optional_else
+    "while" condition "{" stmt_seq "}" optional_else { $$ = { into_ptr($condition), into_ptr($stmt_seq), into_optional_ptr($optional_else) }; }
 
 for_stmt:
-    "for" expr "in" expr ".." expr for_stmt_tail
-    | "for" expr "in" expr_or_name_locally for_stmt_tail
-    | "for" expr "," expr "in" expr_or_name_locally for_stmt_tail
-    | "for" expr "ref" expr_or_name_locally for_stmt_tail
-    | "for" expr "," expr "ref" expr_or_name_locally for_stmt_tail
+    for_range_stmt { $$ = VARIANT(for_stmt, RANGE, into_ptr($for_range_stmt)); }
+    | for_slice_stmt { $$ = VARIANT(for_stmt, SLICE, into_ptr($for_slice_stmt)); }
+
+for_range_stmt:
+    "for" expr[lval] "in" expr[begin] ".." expr[end] for_stmt_tail[tail] { $tail.lvalue = into_ptr($lval); $$ = { /*base*/move($tail), into_ptr($begin), into_ptr($end) }; }  
+
+for_slice_stmt:
+    "for" expr[lval] "in" expr_or_name_locally for_stmt_tail[tail] { $tail.lvalue = into_ptr($lval); $$ = { /*base*/move($tail), { }, false, into_ptr($expr_or_name_locally) }; }
+    | "for" expr[lval] "," expr[idx] "in" expr_or_name_locally for_stmt_tail[tail] { $tail.lvalue = into_ptr($lval); $$ = { /*base*/move($tail), into_optional_ptr($idx), false, into_ptr($expr_or_name_locally) }; }
+    | "for" expr[lval] "ref" expr_or_name_locally for_stmt_tail[tail] { $tail.lvalue = into_ptr($lval); $$ = { /*base*/move($tail), { }, true, into_ptr($expr_or_name_locally) }; }
+    | "for" expr[lval] "," expr[idx] "ref" expr_or_name_locally for_stmt_tail[tail] { $tail.lvalue = into_ptr($lval); $$ = { /*base*/move($tail), into_optional_ptr($idx), true, into_ptr($expr_or_name_locally) }; }
 
 for_stmt_tail:
-    optional_reversed "{" stmt_seq "}" optional_else
+    optional_reversed "{" stmt_seq "}" optional_else { $$ = { {/*null pointer*/}, $optional_reversed, into_ptr($stmt_seq), into_optional_ptr($optional_else) }; }
 
 optional_reversed:
-    %empty
-    | "reversed"
+    %empty { $$ = false; }
+    | "reversed" { $$ = true; }
 
 // Expression rules
 
