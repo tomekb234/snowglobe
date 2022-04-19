@@ -5,6 +5,7 @@
 #include "location.hpp"
 #include <string>
 #include <memory>
+#include <unordered_map>
 
 using sg::ast::int_token;
 using sg::ast::float_token;
@@ -176,6 +177,7 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
 using std::stoull;
 using std::stod;
 using std::out_of_range;
+using std::unordered_map;
 
 static string remove_underscores(const string& text) {
     string result;
@@ -188,9 +190,76 @@ static string remove_underscores(const string& text) {
     return result;
 }
 
+static const unordered_map<string, int> marker_map = {
+    // int tokens
+    {"i", int_token::I},
+    {"i8", int_token::I8},
+    {"i16", int_token::I16},
+    {"i32", int_token::I32},
+    {"i64", int_token::I64},
+    {"u", int_token::U},
+    {"u8", int_token::U8},
+    {"u16", int_token::U16},
+    {"u32", int_token::U32},
+    {"u64", int_token::U64},
+    // float tokens
+    {"f", float_token::F},
+    {"f32", float_token::F32},
+    {"f64", float_token::F64}
+};
+
+static string get_str_marker(const string& text) {
+    size_t n = text.size();
+    decltype(marker_map)::const_iterator it;
+
+    // i / u / f
+    if((it = marker_map.find(text.substr(n - 1))) != marker_map.end()) {
+        return it->first;
+    }
+    else if(n < 2) {
+        return "";
+    }
+    // i_, u_
+    else if((it = marker_map.find(text.substr(n - 2))) != marker_map.end()) {
+        return it->first;
+    }
+    else if(n < 3) {
+        return "";
+    }
+    // i__, u__, f__
+    else if((it = marker_map.find(text.substr(n - 3))) != marker_map.end()) {
+        return it->first;
+    }
+    else {
+        return "";
+    }
+}
+
+static auto get_int_marker(const string& text) {
+    string str_marker = get_str_marker(text);
+    
+    if(str_marker == "") {
+        return int_token::NONE;
+    }
+    else {
+        return static_cast< decltype(int_token::marker) >(marker_map.at(str_marker));
+    }
+}
+
+static auto get_float_marker(const string& text) {
+    string str_marker = get_str_marker(text);
+    
+    if(str_marker == "") {
+        return float_token::NONE;
+    }
+    else {
+        return static_cast< decltype(float_token::marker) >(marker_map.at(str_marker));
+    }
+}
+
 static int_token parse_int(const string& text, int base) {
     try {
-        return { stoull(remove_underscores(text), nullptr, base), int_token::NONE }; // TODO
+        return { stoull(remove_underscores(text), nullptr, base), get_int_marker(text) };
     } catch (out_of_range) {
         throw new sg::integer_overflow_error(text);
     }
@@ -198,7 +267,7 @@ static int_token parse_int(const string& text, int base) {
 
 static float_token parse_float(const string& text) {
     try {
-        return { stod(remove_underscores(text)), float_token::NONE }; // TODO
+        return { stod(remove_underscores(text)), get_float_marker(text) };
     } catch (out_of_range) {
         throw new sg::float_overflow_error(text);
     }
