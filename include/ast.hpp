@@ -32,7 +32,7 @@ namespace sg::ast {
     struct stmt;
     struct stmt_block;
     struct assignment_stmt;
-    struct compund_assignment_stmt;
+    struct compound_assignment_stmt;
     struct locally_block_stmt;
     struct swap_stmt;
     struct swap_block_stmt;
@@ -155,7 +155,7 @@ namespace sg::ast {
         variant<
             ptr<expr>,
             ptr<assignment_stmt>,
-            ptr<compund_assignment_stmt>,
+            ptr<compound_assignment_stmt>,
             ptr<locally_block_stmt>,
             ptr<swap_stmt>,
             ptr<swap_block_stmt>,
@@ -176,7 +176,7 @@ namespace sg::ast {
         ptr<expr> value;
     };
 
-    struct compund_assignment_stmt : assignment_stmt {
+    struct compound_assignment_stmt : assignment_stmt {
         enum {
             ADD,
             SUB,
