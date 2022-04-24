@@ -479,7 +479,7 @@ namespace sg::ast {
             pair<ptr<expr>, string>,
             pair<ptr<expr>, size_t>,
             pair<ptr<expr>, ptr<expr>>,
-            pair<ptr<expr>, pair<optional<expr>, optional<expr>>>
+            pair<ptr<expr>, pair<ptr<optional<expr>>, ptr<optional<expr>>>>
         > value;
     };
 
