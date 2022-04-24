@@ -442,72 +442,72 @@ optional_reversed:
 // Expression rules
 
 expr:
-    "(" expr_marked_seq ")" { $$ = VARIANT(expr, TUPLE, into_ptr_vector($expr_marked_seq); }
+    "(" expr_marked_seq ")" { $$ = VARIANT(expr, TUPLE, into_ptr_vector($expr_marked_seq)); }
     | "[" expr_marked_seq "]" { $$ = VARIANT(expr, ARRAY, into_ptr_vector($expr_marked_seq)); }
-    | expr "(" expr_marked_seq ")" { $$ = VARIANT(expr, APPLICATION, make_pair(into_ptr($expr), into_ptr_vector($expr_marked_seq))); }
+    | expr[exp] "(" expr_marked_seq ")" { $$ = VARIANT(expr, APPLICATION, make_pair(into_ptr($exp), into_ptr_vector($expr_marked_seq))); }
 
     | NAME { $$ = VARIANT(expr, NAME, move($NAME)); }
     | NAME[left] "::" NAME[right] { $$ = VARIANT(expr, QUALIFIED_NAME, make_pair(move($left), move($right))); }
 
-    | "var" NAME ":" type_local { $$ = VARIANT(expr, VAR_DECL, into_ptr(var_decl_expr{ $NAME, into_optional_ptr($type_local) })); }
-    | "var" NAME { $$ = VARIANT(expr, VAR_DECL, into_ptr(var_decl_expr{ $NAME }); }
+    | "var" NAME ":" type_local { $$ = VARIANT(expr, VAR_DECL, into_ptr(var_decl_expr{ $NAME, into_ptr(move($type_local)) })); }
+    | "var" NAME { $$ = VARIANT(expr, VAR_DECL, into_ptr(var_decl_expr{ $NAME })); }
 
-    | "true" { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ const_expr::BOOL, true } )); }
-    | "false" { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ const_expr::BOOL, false } )); }
-    | CHAR { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ const_expr::CHAR, $CHAR } )); }
-    | STRING { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ const_expr::STRING, move($STRING) } )); }
-    | INTEGER { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ const_expr::INT, into_ptr($INTEGER) } )); }
-    | FLOAT { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ const_expr::FLOAT, into_ptr($FLOAT) } )); }
+    | "true" { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ VARIANT(const_expr, BOOL, true) } )); }
+    | "false" { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ VARIANT(const_expr, BOOL, false) } )); }
+    | CHAR { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ VARIANT(const_expr, CHAR, $CHAR) } )); }
+    | STRING { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ VARIANT(const_expr, STRING, move($STRING)) } )); }
+    | INTEGER { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ VARIANT(const_expr, INT, into_ptr($INTEGER)) } )); }
+    | FLOAT { $$ = VARIANT(expr, CONST, into_ptr(const_expr{ VARIANT(const_expr, FLOAT, into_ptr($FLOAT)) } )); }
 
-    | "!" expr { $$ = VARIANT(expr, UNARY_OPERATION, into_ptr(unary_operation_expr{ unary_operation_expr::NOT, into_ptr($expr)} )); }
+    | "!" expr[exp] { $$ = VARIANT(expr, UNARY_OPERATION, into_ptr(unary_operation_expr{ unary_operation_expr::NOT, into_ptr($exp)} )); }
     | expr[left] "&&" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::AND, into_ptr($left), into_ptr($right) })); }
     | expr[left] "||" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::OR, into_ptr($left), into_ptr($right) })); }
 
-    | "-" expr %prec UNARY_MINUS { $$ = VARIANT(expr, UNARY_OPERATION, into_ptr(unary_operation_expr{ unary_operation_expr::MINUS, into_ptr($expr)} )); }
-    | expr "+" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::ADD, into_ptr($left), into_ptr($right) })); }
-    | expr "-" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::SUB, into_ptr($left), into_ptr($right) })); }
-    | expr "*" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::MUL, into_ptr($left), into_ptr($right) })); }
-    | expr "/" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::DIV, into_ptr($left), into_ptr($right) })); }
-    | expr "%" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::MOD, into_ptr($left), into_ptr($right) })); }
+    | "-" expr[exp] %prec UNARY_MINUS { $$ = VARIANT(expr, UNARY_OPERATION, into_ptr(unary_operation_expr{ unary_operation_expr::MINUS, into_ptr($exp)} )); }
+    | expr[left] "+" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::ADD, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "-" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::SUB, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "*" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::MUL, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "/" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::DIV, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "%" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::MOD, into_ptr($left), into_ptr($right) })); }
 
-    | expr "as" type_local { $$ = VARIANT(expr, NUMERIC_CAST, into_ptr(numeric_cast_expr{ into_ptr($expr), into_ptr($type_local) })); }
+    | expr[exp] "as" type_local { $$ = VARIANT(expr, NUMERIC_CAST, into_ptr(numeric_cast_expr{ into_ptr($exp), into_ptr($type_local) })); }
 
-    | "~" expr { $$ = VARIANT(expr, UNARY_OPERATION, into_ptr(unary_operation_expr{ unary_operation_expr::BIT_NEG, into_ptr($expr)} )); }
-    | expr "&" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_AND, into_ptr($left), into_ptr($right) })); }
-    | expr "|" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_OR, into_ptr($left), into_ptr($right) })); }
-    | expr "^" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_XOR, into_ptr($left), into_ptr($right) })); }
-    | expr "<<" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_LSH, into_ptr($left), into_ptr($right) })); }    
-    | expr ">>" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_RSH, into_ptr($left), into_ptr($right) })); }
+    | "~" expr[exp] { $$ = VARIANT(expr, UNARY_OPERATION, into_ptr(unary_operation_expr{ unary_operation_expr::BIT_NEG, into_ptr($exp)} )); }
+    | expr[left] "&" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_AND, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "|" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_OR, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "^" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_XOR, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "<<" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_LSH, into_ptr($left), into_ptr($right) })); }    
+    | expr[left] ">>" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::BIT_RSH, into_ptr($left), into_ptr($right) })); }
 
-    | expr "==" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::EQ, into_ptr($left), into_ptr($right) })); }
-    | expr "!=" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::NEQ, into_ptr($left), into_ptr($right) })); }
-    | expr "<" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::LS, into_ptr($left), into_ptr($right) })); }
-    | expr "<=" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::LSEQ, into_ptr($left), into_ptr($right) })); }
-    | expr ">" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::GT, into_ptr($left), into_ptr($right) })); }
-    | expr ">=" expr { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::GTEQ, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "==" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::EQ, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "!=" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::NEQ, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "<" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::LS, into_ptr($left), into_ptr($right) })); }
+    | expr[left] "<=" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::LSEQ, into_ptr($left), into_ptr($right) })); }
+    | expr[left] ">" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::GT, into_ptr($left), into_ptr($right) })); }
+    | expr[left] ">=" expr[right] { $$ = VARIANT(expr, BINARY_OPERATION, into_ptr(binary_operation_expr{ binary_operation_expr::GTEQ, into_ptr($left), into_ptr($right) })); }
 
-    | "none" { $$ = VARIANT(expr, NONE, {}); }
-    | "some" expr { $$ = VARIANT(expr, SOME, into_ptr($expr)); }
-    | "return" { $$ = VARIANT(expr, RETURN, {}); }
-    | "return" expr { $$ = VARIANT(expr, RETURN, into_optional_ptr($expr)); }
-    | "break" { $$ = VARIANT(expr, BREAK, {}); }
-    | "continue" { $$ = VARIANT(expr, CONTINUE, {}); }
+    | "none" { $$ = VARIANT(expr, NONE, monostate()); }
+    | "some" expr[exp] { $$ = VARIANT(expr, SOME, into_ptr($exp)); }
+    | "return" { $$ = VARIANT(expr, RETURN, optional<ptr<expr>>()); }
+    | "return" expr[exp] { $$ = VARIANT(expr, RETURN, into_ptr($exp)); }
+    | "break" { $$ = VARIANT(expr, BREAK, monostate()); }
+    | "continue" { $$ = VARIANT(expr, CONTINUE, monostate()); }
 
     | "&" NAME %prec UNARY_AMP { $$ = VARIANT(expr, LOCAL_PTR, move($NAME)); }
-    | "@" expr { $$ = VARIANT(expr, HEAP_ALLOC, into_ptr($expr)); }
-    | "*" expr %prec UNARY_STAR { $$ = VARIANT(expr, DEREF, into_ptr($expr)); }
+    | "@" expr[exp] { $$ = VARIANT(expr, HEAP_ALLOC, into_ptr($exp)); }
+    | "*" expr[exp] %prec UNARY_STAR { $$ = VARIANT(expr, DEREF, into_ptr($exp)); }
 
-    | "[" expr ";" INTEGER "]" { $$ = VARIANT(expr, SIZED_ARRAY, into_ptr(sized_array_expr{ into_ptr($expr), $INTEGER.value })); }
+    | "[" expr[exp] ";" INTEGER "]" { $$ = VARIANT(expr, SIZED_ARRAY, into_ptr(sized_array_expr{ into_ptr($exp), $INTEGER.value })); }
     | "@" "[" expr[value] "#" expr[size] "]" { $$ = VARIANT(expr, HEAP_SLICE_ALLOC, into_ptr(heap_slice_alloc_expr{ into_ptr($value), into_ptr($size) })); }
-    | "#" expr { $$ = VARIANT(expr, LENGTH, into_ptr($expr)); }
+    | "#" expr[exp] { $$ = VARIANT(expr, LENGTH, into_ptr($exp)); }
 
-    | expr "." NAME { $$ = VARIANT(expr, EXTRACT, into_ptr(extract_expr{ VARIANT(extract_expr, FIELD, make_pair(into_ptr($expr), move($NAME)))} )); }
-    | expr "." INTEGER { $$ = VARIANT(expr, EXTRACT, into_ptr(extract_expr{ VARIANT(extract_expr, COORD, make_pair(into_ptr($expr), $INTEGER.value ))} )); }
-    | expr[left] "[" expr[rigth] "]" { $$ = VARIANT(expr, EXTRACT, into_ptr(extract_expr{ VARIANT(extract_expr, INDEX, make_pair(into_ptr($left), into_ptr($right) ))} )); }
+    | expr[exp] "." NAME { $$ = VARIANT(expr, EXTRACT, into_ptr(extract_expr{ VARIANT(extract_expr, FIELD, make_pair(into_ptr($exp), move($NAME)))} )); }
+    | expr[exp] "." INTEGER { $$ = VARIANT(expr, EXTRACT, into_ptr(extract_expr{ VARIANT(extract_expr, COORD, make_pair(into_ptr($exp), $INTEGER.value ))} )); }
+    | expr[left] "[" expr[right] "]" { $$ = VARIANT(expr, EXTRACT, into_ptr(extract_expr{ VARIANT(extract_expr, INDEX, make_pair(into_ptr($left), into_ptr($right) ))} )); }
 
-    | "^" expr %prec UNARY_CARET { $$ = VARIANT(expr, PTR_EXTRACT, into_ptr(ptr_extract_expr{ VARIANT(ptr_extract_expr, OWNER, into_ptr($expr)) })); }
-    | expr "->" NAME { $$ = VARIANT(expr, PTR_EXTRACT, into_ptr(ptr_extract_expr{ VARIANT(ptr_extract_expr, FIELD, make_pair(into_ptr($expr), move($NAME))) })); }
-    | expr "->" INTEGER { $$ = VARIANT(expr, PTR_EXTRACT, into_ptr(ptr_extract_expr{ VARIANT(ptr_extract_expr, COORD, make_pair(into_ptr($expr), $INTEGER.value)) })); }
+    | "^" expr[exp] %prec UNARY_CARET { $$ = VARIANT(expr, PTR_EXTRACT, into_ptr(ptr_extract_expr{ VARIANT(ptr_extract_expr, OWNER, into_ptr($exp)) })); }
+    | expr[exp] "->" NAME { $$ = VARIANT(expr, PTR_EXTRACT, into_ptr(ptr_extract_expr{ VARIANT(ptr_extract_expr, FIELD, make_pair(into_ptr($exp), move($NAME))) })); }
+    | expr[exp] "->" INTEGER { $$ = VARIANT(expr, PTR_EXTRACT, into_ptr(ptr_extract_expr{ VARIANT(ptr_extract_expr, COORD, make_pair(into_ptr($exp), $INTEGER.value)) })); }
     | expr[left] "[" "ref" expr[right] "]" { $$ = VARIANT(expr, PTR_EXTRACT, into_ptr(ptr_extract_expr{ VARIANT(ptr_extract_expr, INDEX, make_pair(into_ptr($left), into_ptr($right))) })); }
     | expr[arr] "[" "ref" optional_expr[lrange] ".." optional_expr[rrange] "]" { $$ = VARIANT(expr, PTR_EXTRACT, into_ptr(ptr_extract_expr{ VARIANT(ptr_extract_expr, RANGE, make_pair(into_ptr($arr), make_pair(into_ptr($lrange), into_ptr($rrange)))) })); }
 
@@ -518,9 +518,9 @@ optional_expr:
     | expr { $$ = { move($expr) }; }
 
 expr_marked:
-    expr { $$ = VARIANT(expr_marked, EXPR, into_ptr($expr)); }
-    | NAME ":" expr { $$ = VARIANT(expr_marked, EXPR_WITH_NAME, make_pair(move($NAME), into_ptr($expr))); }
-    | INTEGER ":" expr { $$ = VARIANT(expr_marked, EXPR_WITH_COORD, make_pair($INTEGER.value, into_ptr($expr))); }
+    expr { $$ = expr_marked{ VARIANT(expr_marked, EXPR, into_ptr($expr)) }; }
+    | NAME ":" expr { $$ = expr_marked{ VARIANT(expr_marked, EXPR_WITH_NAME, make_pair(move($NAME), into_ptr($expr))) }; }
+    | INTEGER ":" expr { $$ = expr_marked{ VARIANT(expr_marked, EXPR_WITH_COORD, make_pair($INTEGER.value, into_ptr($expr))) }; }
 
 expr_marked_seq:
     %empty { $$ = TYPE($$)(); }
