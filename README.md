@@ -6,7 +6,7 @@ TODO:
 
 - [x] Lexing
 - [x] Parsing
-- [ ] AST building
+- [x] AST building
 - [ ] Type checking
 - [ ] LLVM IR generation
 - [ ] Documentation
