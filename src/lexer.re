@@ -5,7 +5,6 @@
 #include "location.hpp"
 #include <string>
 #include <memory>
-#include <unordered_map>
 
 using sg::ast::int_token;
 using sg::ast::float_token;
@@ -84,11 +83,12 @@ static string parse_string(const string& text);
 [a-zA-Z_][a-zA-Z_0-9]* { TOKEN_WITH(NAME, TEXT) }
 
 [0-9][0-9_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT, 10)) }
-"0b" [01][01_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT, 2)) }
-"0o" [0-7][0-7_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT, 8)) }
-"0x" [0-9a-fA-F][0-9a-fA-F_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT, 16)) }
+"0b" [01][01_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT.substr(2), 2)) }
+"0o" [0-7][0-7_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT.substr(2), 8)) }
+"0x" [0-9a-fA-F][0-9a-fA-F_]* (("i"|"u")("8"|"16"|"32"|"64")?)? { TOKEN_WITH(INTEGER, parse_int(TEXT.substr(2), 16)) }
 
 [0-9][0-9_]* "." [0-9][0-9_]* ("e"("+"|"-")?[0-9][0-9_]*)? ("f"("32"|"64")?)? { TOKEN_WITH(FLOAT, parse_float(TEXT)) }
+[0-9][0-9_]* "f"("32"|"64")? { TOKEN_WITH(FLOAT, parse_float(TEXT)) }
 
 ['] ([\\].|[^'\\]) ['] { TOKEN_WITH(CHAR, parse_char(TEXT)) }
 ["] ([\\].|[^"\\])* ["] { TOKEN_WITH(STRING, parse_string(TEXT)) }
@@ -173,6 +173,7 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
 }
 
 #include <stdexcept>
+#include <unordered_map>
 
 using std::stoull;
 using std::stod;
@@ -190,71 +191,47 @@ static string remove_underscores(const string& text) {
     return result;
 }
 
-static const unordered_map<string, int> marker_map = {
-    // int tokens
-    {"i", int_token::I},
-    {"i8", int_token::I8},
-    {"i16", int_token::I16},
-    {"i32", int_token::I32},
-    {"i64", int_token::I64},
-    {"u", int_token::U},
-    {"u8", int_token::U8},
-    {"u16", int_token::U16},
-    {"u32", int_token::U32},
-    {"u64", int_token::U64},
-    // float tokens
-    {"f", float_token::F},
-    {"f32", float_token::F32},
-    {"f64", float_token::F64}
+const unordered_map<string, decltype(int_token::marker)> int_markers = {
+    { "i", int_token::I },
+    { "i8", int_token::I8 },
+    { "i16", int_token::I16 },
+    { "i32", int_token::I32 },
+    { "i64", int_token::I64 },
+    { "u", int_token::U },
+    { "u8", int_token::U8 },
+    { "u16", int_token::U16 },
+    { "u32", int_token::U32 },
+    { "u64", int_token::U64 }
 };
 
-static string get_str_marker(const string& text) {
-    size_t n = text.size();
-    decltype(marker_map)::const_iterator it;
+const unordered_map<string, decltype(float_token::marker)> float_markers = {
+    { "f", float_token::F },
+    { "f32", float_token::F32 },
+    { "f64", float_token::F64 }
+};
 
-    // i / u / f
-    if((it = marker_map.find(text.substr(n - 1))) != marker_map.end()) {
-        return it->first;
+static decltype(int_token::marker) get_int_marker(const string& text) {
+    auto length = text.length();
+
+    for (size_t count = 1; count < 3 && count <= length; count++) {
+        auto it = int_markers.find(text.substr(length - count));
+        if (it != int_markers.end())
+            return it->second;
     }
-    else if(n < 2) {
-        return "";
-    }
-    // i_, u_
-    else if((it = marker_map.find(text.substr(n - 2))) != marker_map.end()) {
-        return it->first;
-    }
-    else if(n < 3) {
-        return "";
-    }
-    // i__, u__, f__
-    else if((it = marker_map.find(text.substr(n - 3))) != marker_map.end()) {
-        return it->first;
-    }
-    else {
-        return "";
-    }
+
+    return int_token::NONE;
 }
 
-static auto get_int_marker(const string& text) {
-    string str_marker = get_str_marker(text);
-    
-    if(str_marker == "") {
-        return int_token::NONE;
-    }
-    else {
-        return static_cast< decltype(int_token::marker) >(marker_map.at(str_marker));
-    }
-}
+static decltype(float_token::marker) get_float_marker(const string& text) {
+    auto length = text.length();
 
-static auto get_float_marker(const string& text) {
-    string str_marker = get_str_marker(text);
-    
-    if(str_marker == "") {
-        return float_token::NONE;
+    for (size_t count = 1; count < 3 && count <= length; count++) {
+        auto it = float_markers.find(text.substr(length - count));
+        if (it != float_markers.end())
+            return it->second;
     }
-    else {
-        return static_cast< decltype(float_token::marker) >(marker_map.at(str_marker));
-    }
+
+    return float_token::NONE;
 }
 
 static int_token parse_int(const string& text, int base) {
