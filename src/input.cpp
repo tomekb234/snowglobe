@@ -1,7 +1,9 @@
 #include "input.hpp"
+#include <string>
 #include <utility>
 
 namespace sg {
+    using std::string;
     using std::move;
 
     void lexer_input::start() {

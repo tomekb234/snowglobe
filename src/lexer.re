@@ -1,6 +1,6 @@
 #include "ast.hpp"
 #include "input.hpp"
-#include "diagnostic.hpp"
+#include "diagnostics.hpp"
 #include "parser.hpp"
 #include "location.hpp"
 #include <string>
@@ -238,7 +238,7 @@ static int_token parse_int(const string& text, int base) {
     try {
         return { stoull(remove_underscores(text), nullptr, base), get_int_marker(text) };
     } catch (out_of_range) {
-        throw new sg::integer_overflow_error(text);
+        throw new sg::diags::integer_overflow_error(text);
     }
 }
 
@@ -246,7 +246,7 @@ static float_token parse_float(const string& text) {
     try {
         return { stod(remove_underscores(text)), get_float_marker(text) };
     } catch (out_of_range) {
-        throw new sg::float_overflow_error(text);
+        throw new sg::diags::float_overflow_error(text);
     }
 }
 
@@ -261,7 +261,7 @@ static char resolve_escape_sequence(char ch) {
         case '\\': return '\\';
 
         default:
-            throw new sg::invalid_escape_sequence_error(ch);
+            throw new sg::diags::invalid_escape_sequence_error(ch);
     }
 }
 

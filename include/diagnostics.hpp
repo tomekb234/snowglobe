@@ -1,0 +1,94 @@
+#ifndef DIAGNOSTICS_HPP
+#define DIAGNOSTICS_HPP
+
+#include "location.hpp"
+#include <optional>
+#include <vector>
+#include <memory>
+#include <ostream>
+#include <string>
+
+namespace sg {
+    using std::optional;
+    using std::vector;
+    using std::unique_ptr;
+    using std::ostream;
+    using std::string;
+
+    struct diagnostic {
+        enum level_t {
+            ERROR = 0,
+            WARNING = 1
+        } level;
+
+        optional<yy::location> location;
+
+        diagnostic(level_t level) : level(level) { }
+        virtual void write(ostream& stream) const = 0;
+    };
+
+    class diagnostic_collector {
+        vector<unique_ptr<diagnostic>> diags;
+
+        public:
+
+        void add(unique_ptr<diagnostic> diag);
+        void add(unique_ptr<diagnostic> diag, yy::location location);
+        void report_all(ostream& stream, bool enable_colors) const;
+    };
+
+    namespace diags {
+        struct error : diagnostic {
+            error() : diagnostic(ERROR) { }
+        };
+
+        struct not_implemented_error : error {
+            void write(ostream& stream) const override;
+        };
+
+        struct parser_error : error {
+            string message;
+
+            parser_error(string message) : message(message) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct syntax_error : error {
+            optional<string> unexpected;
+            vector<string> expected;
+
+            syntax_error(optional<string> unexpected, vector<string> expected) : unexpected(unexpected), expected(expected) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct invalid_escape_sequence_error : error {
+            char ch;
+
+            invalid_escape_sequence_error(char ch) : ch(ch) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct integer_overflow_error : error {
+            string number;
+
+            integer_overflow_error(string number) : number(number) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct float_overflow_error : error {
+            string number;
+
+            float_overflow_error(string number) : number(number) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct global_name_used_error : error {
+            string name;
+
+            global_name_used_error(string name) : name(name) { }
+            void write(ostream& stream) const override;
+        };
+    }
+}
+
+#endif

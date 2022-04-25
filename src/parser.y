@@ -16,7 +16,7 @@
 
 %code requires {
     #include "input.hpp"
-    #include "diagnostic.hpp"
+    #include "diagnostics.hpp"
     #include "ast.hpp"
 
     namespace yy {
@@ -35,45 +35,9 @@
 // Utilities
 
 %code {
-    #include <utility>
-    #include <memory>
-    #include <optional>
-    #include <vector>
-    #include <variant>
+    #include "utils.hpp"
 
-    using std::move;
-    using std::unique_ptr;
-    using std::make_unique;
-    using std::optional;
-    using std::make_optional;
-    using std::vector;
-    using std::in_place_index;
-    using std::make_pair;
-
-    template<typename T>
-    static unique_ptr<T> make_ptr(T value) {
-        return make_unique<T>(move(value));
-    }
-
-    template<typename T>
-    static unique_ptr<T> into_ptr(T& value) {
-        return make_unique<T>(move(value));
-    }
-
-    template<typename T>
-    static optional<unique_ptr<T>> into_optional_ptr(optional<T>& value) {
-        return value ? make_optional(make_unique<T>(move(*value))) : optional<unique_ptr<T>>();
-    }
-
-    template<typename T>
-    static vector<unique_ptr<T>> into_ptr_vector(vector<T>& values) {
-        vector<unique_ptr<T>> result;
-        for (T& value : values)
-            result.push_back(make_unique<T>(move(value)));
-        return result;
-    }
-
-    #define VARIANT(type, index, val) { decltype(type::value)(in_place_index<type::index>, val) }
+    using namespace sg::utils;
 }
 
 // Tokens
@@ -1117,12 +1081,12 @@ using std::vector;
 using std::optional;
 using std::make_unique;
 
-void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
+void yy::parser::report_syntax_error(const yy::parser::context& context) const {
     const size_t MAX_TOKENS = 5;
     symbol_kind_type expected[MAX_TOKENS];
 
     // Get expected token list
-    size_t count = yyctx.expected_tokens(expected, MAX_TOKENS);
+    size_t count = context.expected_tokens(expected, MAX_TOKENS);
     if (count == 0 && expected[0] != symbol_kind::S_YYEMPTY)
         count = MAX_TOKENS;
 
@@ -1132,9 +1096,9 @@ void yy::parser::report_syntax_error(const yy::parser::context& yyctx) const {
         expected_names[index] = symbol_name(expected[index]);
 
     // Report error message
-    diags.add(make_unique<sg::syntax_error>(yyctx.lookahead().empty() ? optional<string>() : yyctx.lookahead().name(), expected_names), yyctx.location());
+    diags.add(make_unique<sg::diags::syntax_error>(context.lookahead().empty() ? optional<string>() : context.lookahead().name(), expected_names), context.location());
 }
 
-void yy::parser::error(const yy::parser::location_type& loc, const string& err) {
-    diags.add(make_unique<sg::parser_error>(err), loc);
+void yy::parser::error(const yy::parser::location_type& location, const string& message) {
+    diags.add(make_unique<sg::diags::parser_error>(message), location);
 }

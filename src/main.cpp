@@ -1,6 +1,6 @@
 #include "ast.hpp"
 #include "input.hpp"
-#include "diagnostic.hpp"
+#include "diagnostics.hpp"
 #include "parser.hpp"
 #include <iostream>
 #include <fstream>
