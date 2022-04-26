@@ -3,10 +3,10 @@ CXXC = $(CXX) -c -I include -I gen
 RE2C = re2c
 BISON = bison
 
-build/snowglobe: build/main.o build/input.o build/lexer.o build/parser.o build/diagnostics.o | build
+build/snowglobe: build/main.o build/input.o build/lexer.o build/parser.o build/diagnostics.o build/compiler.o | build
 	$(CXX) $^ -o $@
 
-build/main.o: src/main.cpp include/input.hpp include/diagnostics.hpp include/ast.hpp gen/parser.cpp | build
+build/main.o: src/main.cpp include/input.hpp include/diagnostics.hpp include/ast.hpp include/program.hpp include/compiler.hpp gen/parser.cpp | build
 	$(CXXC) $< -o $@
 
 build/input.o: src/input.cpp include/input.hpp | build
@@ -19,6 +19,9 @@ build/parser.o: gen/parser.cpp include/input.hpp include/diagnostics.hpp include
 	$(CXXC) $< -o $@
 
 build/diagnostics.o: src/diagnostics.cpp include/diagnostics.hpp gen/parser.cpp | build
+	$(CXXC) $< -o $@
+
+build/compiler.o: src/compiler.cpp include/diagnostics.hpp include/ast.hpp include/program.hpp include/compiler.hpp | build
 	$(CXXC) $< -o $@
 
 gen/lexer.cpp: src/lexer.re | gen

@@ -2,11 +2,16 @@
 #include "input.hpp"
 #include "diagnostics.hpp"
 #include "parser.hpp"
+#include "program.hpp"
+#include "compiler.hpp"
 #include <iostream>
 #include <fstream>
 #include <string>
 
-using namespace std;
+using std::string;
+using std::ifstream;
+using std::cerr;
+using std::endl;
 
 int main(int argc, const char** argv) {
     if (argc < 2)
@@ -20,14 +25,26 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
+    bool ok = true;
+
     sg::ast::program ast;
     sg::lexer_input input(file, file_name);
     sg::diagnostic_collector diags;
 
     yy::parser parser(ast, input, diags);
-    parser.parse();
+
+    if (parser.parse() == 0) {
+        sg::compiler compiler(diags);
+
+        try {
+            compiler.compile(ast);
+        } catch (...) {
+            ok = false;
+        }
+    } else
+        ok = false;
 
     diags.report_all(cerr, true);
 
-    return 0;
+    return ok ? 0 : 1;
 }
