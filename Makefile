@@ -8,25 +8,34 @@ I = include
 B = build
 G = gen
 
+input_hpp = $I/input.hpp
+location_hpp = $I/location.hpp
+ast_hpp = $I/ast.hpp
+program_hpp = $I/program.hpp
+utils_hpp = $I/utils.hpp
+diagnostics_hpp = $I/diagnostics.hpp $(location_hpp)
+compiler_hpp = $I/compiler.hpp $(ast_hpp) $(program_hpp) $(location_hpp) $(diagnostics_hpp)
+parser_hpp = $G/parser.cpp $(input_hpp) $(diagnostics_hpp) $(ast_hpp)
+
 $B/snowglobe: $B/main.o $B/input.o $B/lexer.o $B/parser.o $B/diagnostics.o $B/compiler.o | $B
 	$(CXX) $^ -o $@
 
-$B/main.o: $S/main.cpp $I/input.hpp $I/location.hpp $I/diagnostics.hpp $I/ast.hpp $I/compiler.hpp $I/program.hpp $G/parser.cpp | $B
+$B/main.o: $S/main.cpp $(input_hpp) $(diagnostics_hpp) $(ast_hpp) $(parser_hpp) $(compiler_hpp) $(program_hpp) | $B
 	$(CXXC) $< -o $@
 
-$B/input.o: $S/input.cpp $I/input.hpp | $B
+$B/input.o: $S/input.cpp $(input_hpp) | $B
 	$(CXXC) $< -o $@
 
-$B/lexer.o: $G/lexer.cpp $I/input.hpp $I/location.hpp $I/diagnostics.hpp $I/ast.hpp $G/parser.cpp | $B
+$B/lexer.o: $G/lexer.cpp $(input_hpp) $(diagnostics_hpp) $(parser_hpp) $(ast_hpp) | $B
 	$(CXXC) $< -o $@
 
-$B/parser.o: $G/parser.cpp $I/input.hpp $I/location.hpp $I/diagnostics.hpp $I/ast.hpp $I/utils.hpp | $B
+$B/parser.o: $G/parser.cpp $(parser_hpp) $(utils_hpp) $(location_hpp) | $B
 	$(CXXC) $< -o $@
 
-$B/diagnostics.o: $S/diagnostics.cpp $I/location.hpp $I/diagnostics.hpp | $B
+$B/diagnostics.o: $S/diagnostics.cpp $(diagnostics_hpp) | $B
 	$(CXXC) $< -o $@
 
-$B/compiler.o: $S/compiler.cpp $I/compiler.hpp $I/ast.hpp $I/program.hpp $I/location.hpp $I/diagnostics.hpp $I/utils.hpp  | $B
+$B/compiler.o: $S/compiler.cpp $(compiler_hpp) $(ast_hpp) $(program_hpp) $(utils_hpp) | $B
 	$(CXXC) $< -o $@
 
 $G/lexer.cpp: $S/lexer.re | $G
