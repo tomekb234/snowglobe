@@ -384,7 +384,7 @@ namespace sg::ast {
     struct int_token {
         unsigned long long value;
 
-        enum {
+        enum marker_t {
             NONE,
             I, I8, I16, I32, I64,
             U, U8, U16, U32, U64
@@ -394,7 +394,7 @@ namespace sg::ast {
     struct float_token {
         double value;
 
-        enum {
+        enum marker_t {
             NONE,
             F, F32, F64
         } marker;

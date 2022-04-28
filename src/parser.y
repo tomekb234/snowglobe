@@ -24,9 +24,9 @@
     }
 }
 
-%parse-param {sg::ast::program& result}
 %param {sg::lexer_input& input}
 %param {sg::diagnostic_collector& diags}
+%parse-param {sg::ast::program& ast}
 
 %code provides {
     yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diags);
@@ -227,7 +227,7 @@
 
 program:
     global_def_seq {
-        result = { into_ptr_vector($global_def_seq) };
+        ast = { into_ptr_vector($global_def_seq) };
     }
 
 global_def_seq:
@@ -1074,12 +1074,15 @@ type_local_seq_nempty:
 #include <string>
 #include <vector>
 #include <optional>
-#include <memory>
 
 using std::string;
 using std::vector;
 using std::optional;
-using std::make_unique;
+using std::make_optional;
+
+static sg::location make_location(const yy::location& loc) {
+    return { *loc.begin.filename, static_cast<size_t>(loc.begin.line), static_cast<size_t>(loc.begin.column) };
+}
 
 void yy::parser::report_syntax_error(const yy::parser::context& context) const {
     const size_t MAX_TOKENS = 5;
@@ -1096,9 +1099,11 @@ void yy::parser::report_syntax_error(const yy::parser::context& context) const {
         expected_names[index] = symbol_name(expected[index]);
 
     // Report error message
-    diags.add(make_unique<sg::diags::syntax_error>(context.lookahead().empty() ? optional<string>() : context.lookahead().name(), expected_names), context.location());
+    auto unexpected_name = context.lookahead().empty() ? optional<string>() : make_optional(context.lookahead().name());
+    auto location = context.location();
+    diags.add(sg::diags::syntax_error(unexpected_name, expected_names), make_location(location));
 }
 
 void yy::parser::error(const yy::parser::location_type& location, const string& message) {
-    diags.add(make_unique<sg::diags::parser_error>(message), location);
+    diags.add(sg::diags::parser_error(message), make_location(location));
 }

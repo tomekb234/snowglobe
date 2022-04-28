@@ -21,17 +21,9 @@ static string parse_string(const string& text);
 
 #define SKIP { continue; }
 #define TOKEN(token) { return yy::parser::make_##token(LOCATION); }
+#define TOKEN_WITH(token, value) { return yy::parser::make_##token(value, LOCATION); }
 #define END TOKEN(YYEOF)
 #define INVALID TOKEN(YYUNDEF)
-
-#define TOKEN_WITH(token, value) { \
-    try { \
-        return yy::parser::make_##token(value, LOCATION); \
-    } catch (sg::diagnostic* diag) { \
-        diags.add(unique_ptr<sg::diagnostic>(diag), LOCATION); \
-        return yy::parser::make_YYerror(LOCATION); \
-    } \
-}
 
 /*!rules:re2c
 
@@ -150,25 +142,31 @@ $ { END }
 */
 
 yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& diags) {
-    while (true) {
-        input.start();
+    try {
+        while (true) {
+            input.start();
 
-        /*!use:re2c
+            /*!use:re2c
 
-        re2c:eof = 0;
-        re2c:api = custom;
-        re2c:api:style = free-form;
-        re2c:encoding:utf8 = 1;
+            re2c:eof = 0;
+            re2c:api = custom;
+            re2c:api:style = free-form;
+            re2c:encoding:utf8 = 1;
 
-        re2c:define:YYCTYPE = "unsigned char";
-        re2c:define:YYPEEK = "input.peek()";
-        re2c:define:YYSKIP = "input.skip();";
-        re2c:define:YYBACKUP = "input.backup();";
-        re2c:define:YYRESTORE = "input.restore();";
-        re2c:define:YYLESSTHAN = "input.less_than(@@)";
-        re2c:define:YYFILL = "input.fill()";
+            re2c:define:YYCTYPE = "unsigned char";
+            re2c:define:YYPEEK = "input.peek()";
+            re2c:define:YYSKIP = "input.skip();";
+            re2c:define:YYBACKUP = "input.backup();";
+            re2c:define:YYRESTORE = "input.restore();";
+            re2c:define:YYLESSTHAN = "input.less_than(@@)";
+            re2c:define:YYFILL = "input.fill()";
 
-        */
+            */
+        }
+    } catch (sg::diagnostic* diag) {
+        diag->loc = { input.file_name, input.line(), input.column() };
+        diags.add(unique_ptr<sg::diagnostic>(diag));
+        return yy::parser::make_YYerror(yy::location());
     }
 }
 
@@ -191,7 +189,7 @@ static string remove_underscores(const string& text) {
     return result;
 }
 
-const unordered_map<string, decltype(int_token::marker)> int_markers = {
+const unordered_map<string, int_token::marker_t> int_markers = {
     { "i", int_token::I },
     { "i8", int_token::I8 },
     { "i16", int_token::I16 },
@@ -204,13 +202,13 @@ const unordered_map<string, decltype(int_token::marker)> int_markers = {
     { "u64", int_token::U64 }
 };
 
-const unordered_map<string, decltype(float_token::marker)> float_markers = {
+const unordered_map<string, float_token::marker_t> float_markers = {
     { "f", float_token::F },
     { "f32", float_token::F32 },
     { "f64", float_token::F64 }
 };
 
-static decltype(int_token::marker) get_int_marker(const string& text) {
+static int_token::marker_t get_int_marker(const string& text) {
     auto length = text.length();
 
     for (size_t count = 1; count < 3 && count <= length; count++) {
@@ -222,7 +220,7 @@ static decltype(int_token::marker) get_int_marker(const string& text) {
     return int_token::NONE;
 }
 
-static decltype(float_token::marker) get_float_marker(const string& text) {
+static float_token::marker_t get_float_marker(const string& text) {
     auto length = text.length();
 
     for (size_t count = 1; count < 3 && count <= length; count++) {

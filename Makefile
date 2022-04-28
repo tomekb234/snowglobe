@@ -1,43 +1,48 @@
 CXX = c++ -std=c++17
-CXXC = $(CXX) -c -I include -I gen
+CXXC = $(CXX) -c -I $I -I $G
 RE2C = re2c
 BISON = bison
 
-build/snowglobe: build/main.o build/input.o build/lexer.o build/parser.o build/diagnostics.o build/compiler.o | build
+S = src
+I = include
+B = build
+G = gen
+
+$B/snowglobe: $B/main.o $B/input.o $B/lexer.o $B/parser.o $B/diagnostics.o $B/compiler.o | $B
 	$(CXX) $^ -o $@
 
-build/main.o: src/main.cpp include/input.hpp include/diagnostics.hpp include/ast.hpp include/program.hpp include/compiler.hpp gen/parser.cpp | build
+$B/main.o: $S/main.cpp $I/input.hpp $I/diagnostics.hpp $I/ast.hpp $I/program.hpp $I/compiler.hpp $G/parser.cpp | $B
 	$(CXXC) $< -o $@
 
-build/input.o: src/input.cpp include/input.hpp | build
+$B/input.o: $S/input.cpp $I/input.hpp | $B
 	$(CXXC) $< -o $@
 
-build/lexer.o: gen/lexer.cpp include/input.hpp include/diagnostics.hpp include/ast.hpp gen/parser.cpp | build
+$B/lexer.o: $G/lexer.cpp $I/input.hpp $I/diagnostics.hpp $I/ast.hpp $G/parser.cpp | $B
 	$(CXXC) $< -o $@
 
-build/parser.o: gen/parser.cpp include/input.hpp include/diagnostics.hpp include/ast.hpp | build
+$B/parser.o: $G/parser.cpp $I/input.hpp $I/diagnostics.hpp $I/ast.hpp | $B
 	$(CXXC) $< -o $@
 
-build/diagnostics.o: src/diagnostics.cpp include/diagnostics.hpp gen/parser.cpp | build
+$B/diagnostics.o: $S/diagnostics.cpp $I/diagnostics.hpp | $B
 	$(CXXC) $< -o $@
 
-build/compiler.o: src/compiler.cpp include/diagnostics.hpp include/ast.hpp include/program.hpp include/compiler.hpp | build
+$B/compiler.o: $S/compiler.cpp $I/diagnostics.hpp $I/ast.hpp $I/program.hpp $I/compiler.hpp | $B
 	$(CXXC) $< -o $@
 
-gen/lexer.cpp: src/lexer.re | gen
+$G/lexer.cpp: $S/lexer.re | $G
 	$(RE2C) $< -o $@
 
-gen/parser.cpp: src/parser.y | gen
+$G/parser.cpp: $S/parser.y | $G
 	$(BISON) $< -o $@
 
-gen:
-	mkdir gen
+$G:
+	mkdir $G
 
-build:
-	mkdir build
+$B:
+	mkdir $B
 
 clean:
-	rm -rf gen
-	rm -rf build
+	rm -rf $G
+	rm -rf $B
 
 .PHONY: clean

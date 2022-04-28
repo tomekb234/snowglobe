@@ -27,11 +27,11 @@ int main(int argc, const char** argv) {
 
     bool ok = true;
 
-    sg::ast::program ast;
     sg::lexer_input input(file, file_name);
     sg::diagnostic_collector diags;
+    sg::ast::program ast;
 
-    yy::parser parser(ast, input, diags);
+    yy::parser parser(input, diags, ast);
 
     if (parser.parse() == 0) {
         sg::compiler compiler(diags);

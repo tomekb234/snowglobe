@@ -1,7 +1,7 @@
 #ifndef DIAGNOSTICS_HPP
 #define DIAGNOSTICS_HPP
 
-#include "location.hpp"
+#include <utility>
 #include <optional>
 #include <vector>
 #include <memory>
@@ -9,21 +9,32 @@
 #include <string>
 
 namespace sg {
+    using std::move;
     using std::optional;
     using std::vector;
     using std::unique_ptr;
+    using std::make_unique;
     using std::ostream;
     using std::string;
 
+    struct location {
+        string file_name;
+        size_t line;
+        size_t column;
+    };
+
     struct diagnostic {
         enum level_t {
-            ERROR = 0,
-            WARNING = 1
+            NOTE = 0,
+            WARNING = 1,
+            ERROR = 2,
         } level;
 
-        optional<yy::location> location;
+        optional<location> loc;
 
         diagnostic(level_t level) : level(level) { }
+        diagnostic(level_t level, location loc) : level(level), loc(loc) { }
+
         virtual void write(ostream& stream) const = 0;
     };
 
@@ -32,8 +43,16 @@ namespace sg {
 
         public:
 
-        void add(unique_ptr<diagnostic> diag);
-        void add(unique_ptr<diagnostic> diag, yy::location location);
+        inline void add(unique_ptr<diagnostic> diag) {
+            diags.push_back(move(diag));
+        }
+
+        template<typename T>
+        void add(T&& diag, location loc) {
+            diag.loc = { loc };
+            diags.push_back(make_unique<T>(move(diag)));
+        }
+
         void report_all(ostream& stream, bool enable_colors) const;
     };
 

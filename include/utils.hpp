@@ -20,7 +20,7 @@ namespace sg::utils {
     using std::make_pair;
 
     template<typename T>
-    static unique_ptr<T> make_ptr(T value) {
+    static unique_ptr<T> make_ptr(T&& value) {
         return make_unique<T>(move(value));
     }
 
