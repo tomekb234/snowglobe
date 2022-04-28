@@ -4,14 +4,14 @@
 #include "parser.hpp"
 #include "program.hpp"
 #include "compiler.hpp"
+#include <string>
 #include <iostream>
 #include <fstream>
-#include <string>
 
 using std::string;
-using std::ifstream;
 using std::cerr;
 using std::endl;
+using std::ifstream;
 
 int main(int argc, const char** argv) {
     if (argc < 2)
@@ -35,12 +35,12 @@ int main(int argc, const char** argv) {
 
     if (parser.parse() == 0) {
         sg::compiler compiler(diags);
+        auto program = compiler.compile(ast);
 
-        try {
-            compiler.compile(ast);
-        } catch (...) {
+        if (program) {
+            // TODO
+        } else
             ok = false;
-        }
     } else
         ok = false;
 

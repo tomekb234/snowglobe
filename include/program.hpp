@@ -25,13 +25,6 @@ namespace sg::prog {
     struct struct_type;
     struct enum_type;
     struct constant;
-    struct int_constant;
-    struct float_constant;
-    struct struct_constant;
-    struct enum_constant;
-    struct tuple_constant;
-    struct array_constant;
-    struct sized_array_constant;
     struct type;
     struct primitive_type;
     struct array_type;
@@ -56,14 +49,17 @@ namespace sg::prog {
     };
 
     struct global_func {
+        string name;
         // TODO
     };
 
     struct struct_type {
+        string name;
         // TODO
     };
 
     struct enum_type {
+        string name;
         // TODO
     };
 
@@ -86,63 +82,19 @@ namespace sg::prog {
 
         variant<
             bool, // BOOL
-            ptr<int_constant>, // INT
-            ptr<float_constant>, // FLOAT
-            ptr<struct_constant>, // STRUCT
-            ptr<enum_constant>, // ENUM
-            ptr<tuple_constant>, // TUPLE
-            ptr<array_constant>, // ARRAY
-            ptr<sized_array_constant>, // SIZED_ARRAY
+            unsigned long long, // INT
+            double, // FLOAT
+            vector<ptr<constant>>, // STRUCT
+            pair<size_t, vector<ptr<constant>>>, // ENUM
+            vector<ptr<constant>>, // TUPLE
+            vector<ptr<constant>>, // ARRAY
+            pair<ptr<constant>, size_t>, // SIZED_ARRAY
             ptr<constant>, // SOME
             monostate, // NONE
             size_t, // GLOBAL_PTR
             pair<size_t, vector<size_t>>, // GLOBAL_INNER_PTR
             size_t // GLOBAL_FUNC_PTR
         > value;
-    };
-
-    struct int_constant {
-        enum {
-            I8,
-            I16,
-            I32,
-            I64
-        } tp;
-
-        unsigned long long value;
-    };
-
-    struct float_constant {
-        enum {
-            F32,
-            F64
-        } tp;
-
-        double value;
-    };
-
-    struct struct_constant {
-        size_t struct_id;
-        vector<ptr<constant>> fields;
-    };
-
-    struct enum_constant {
-        size_t enum_id;
-        size_t variant_id;
-        vector<ptr<constant>> values;
-    };
-
-    struct tuple_constant {
-        vector<ptr<constant>> values;
-    };
-
-    struct array_constant {
-        vector<ptr<constant>> values;
-    };
-
-    struct sized_array_constant {
-        ptr<constant> value;
-        size_t size;
     };
 
     struct type {
