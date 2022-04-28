@@ -22,19 +22,10 @@ namespace sg {
     }
 
     void compiler::compile_program(const ast::program& ast) {
-        // Phase 1: Prepare global function, struct and enum declarations
+        // Phase 1: Prepare struct and enum declarations
 
         for (auto& global_def : ast.global_defs) {
             switch (global_def->value.index()) {
-                case ast::global_def::FUNC_DEF: {
-                    auto& global_func_ast = *get<ast::global_def::FUNC_DEF>(global_def->value);
-                    auto global_func = declare_global_func(global_func_ast);
-                    auto name = global_func.name;
-                    auto index = program.global_funcs.size();
-                    program.global_funcs.push_back(into_ptr(global_func));
-                    global_names[name] = { global_name::FUNCTION, index, false };
-                }
-
                 case ast::global_def::STRUCT_DEF: {
                     auto& struct_type_ast = *get<ast::global_def::STRUCT_DEF>(global_def->value);
                     auto struct_type = declare_struct_type(struct_type_ast);
@@ -55,7 +46,22 @@ namespace sg {
             }
         }
 
-        // Phase 2: Compile struct and enum definitions
+        // Phase 2: Prepare global function declarations
+
+        for (auto& global_def : ast.global_defs) {
+            switch (global_def->value.index()) {
+                case ast::global_def::FUNC_DEF: {
+                    auto& global_func_ast = *get<ast::global_def::FUNC_DEF>(global_def->value);
+                    auto global_func = declare_global_func(global_func_ast);
+                    auto name = global_func.name;
+                    auto index = program.global_funcs.size();
+                    program.global_funcs.push_back(into_ptr(global_func));
+                    global_names[name] = { global_name::FUNCTION, index, false };
+                }
+            }
+        }
+
+        // Phase 3: Compile struct and enum definitions
 
         size_t struct_type_index = 0;
         size_t enum_type_index = 0;
@@ -78,7 +84,7 @@ namespace sg {
             }
         }
 
-        // Phase 3: Compile global variable definitions
+        // Phase 4: Compile global variable definitions
 
         for (auto& global_def : ast.global_defs) {
             switch (global_def->value.index()) {
@@ -94,7 +100,7 @@ namespace sg {
             }
         }
 
-        // Phase 4: Compile global function definitions
+        // Phase 5: Compile global function definitions
 
         size_t global_func_index = 0;
 
