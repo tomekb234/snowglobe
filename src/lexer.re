@@ -1,8 +1,7 @@
-#include "ast.hpp"
 #include "input.hpp"
 #include "diagnostics.hpp"
 #include "parser.hpp"
-#include "location.hpp"
+#include "ast.hpp"
 #include <string>
 #include <memory>
 

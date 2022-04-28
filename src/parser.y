@@ -9,7 +9,7 @@
 %define api.token.constructor
 
 %locations
-%define api.location.file "location.hpp"
+%define api.location.file none
 %define parse.error custom
 
 // Interface
@@ -36,8 +36,13 @@
 
 %code {
     #include "utils.hpp"
+    #include "location.hpp"
 
     using namespace sg::utils;
+
+    static sg::location operator~(const yy::location& loc) {
+        return { *loc.begin.filename, static_cast<size_t>(loc.begin.line), static_cast<size_t>(loc.begin.column) };
+    }
 }
 
 // Tokens
@@ -1080,10 +1085,6 @@ using std::vector;
 using std::optional;
 using std::make_optional;
 
-static sg::location make_location(const yy::location& loc) {
-    return { *loc.begin.filename, static_cast<size_t>(loc.begin.line), static_cast<size_t>(loc.begin.column) };
-}
-
 void yy::parser::report_syntax_error(const yy::parser::context& context) const {
     const size_t MAX_TOKENS = 5;
     symbol_kind_type expected[MAX_TOKENS];
@@ -1101,9 +1102,9 @@ void yy::parser::report_syntax_error(const yy::parser::context& context) const {
     // Report error message
     auto unexpected_name = context.lookahead().empty() ? optional<string>() : make_optional(context.lookahead().name());
     auto location = context.location();
-    diags.add(sg::diags::syntax_error(unexpected_name, expected_names), make_location(location));
+    diags.add(sg::diags::syntax_error(unexpected_name, expected_names), ~location);
 }
 
 void yy::parser::error(const yy::parser::location_type& location, const string& message) {
-    diags.add(sg::diags::parser_error(message), make_location(location));
+    diags.add(sg::diags::parser_error(message), ~location);
 }

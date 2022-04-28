@@ -1,9 +1,9 @@
-#include "ast.hpp"
 #include "input.hpp"
 #include "diagnostics.hpp"
+#include "ast.hpp"
 #include "parser.hpp"
-#include "program.hpp"
 #include "compiler.hpp"
+#include "program.hpp"
 #include <string>
 #include <iostream>
 #include <fstream>

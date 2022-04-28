@@ -1,4 +1,6 @@
 #include "compiler.hpp"
+#include "ast.hpp"
+#include "program.hpp"
 #include "utils.hpp"
 #include <utility>
 #include <variant>

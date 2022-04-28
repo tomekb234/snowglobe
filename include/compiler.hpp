@@ -3,6 +3,7 @@
 
 #include "ast.hpp"
 #include "program.hpp"
+#include "location.hpp"
 #include "diagnostics.hpp"
 #include <optional>
 #include <unordered_map>
@@ -30,7 +31,8 @@ namespace sg {
 
         template<typename T>
         [[noreturn]] void error(T&& diag) {
-            diags.add(move(diag), location { /*TODO*/ });
+            // TODO locations
+            diags.add(move(diag));
             throw 0;
         }
 
