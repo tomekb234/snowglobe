@@ -39,6 +39,7 @@
     #include "location.hpp"
 
     using namespace sg::utils;
+    using std::get;
 
     static sg::location operator~(const yy::location& loc) {
         return { *loc.begin.filename, static_cast<size_t>(loc.begin.line), static_cast<size_t>(loc.begin.column) };
@@ -693,7 +694,16 @@ expr:
     }
 
     | "-" expr[inner] %prec UNARY_MINUS {
-        $$ = VARIANT(expr, UNARY_OPERATION, make_ptr(unary_operation_expr { unary_operation_expr::MINUS, into_ptr($inner) }));
+        if ($inner.value.index() == expr::CONST) {
+            $$ = move($inner);
+            auto& cexpr = *get<expr::CONST>($$.value);
+            if (cexpr.value.index() == const_expr::INT)
+                get<const_expr::INT>(cexpr.value)->negative = ! get<const_expr::INT>(cexpr.value)->negative;
+            if (cexpr.value.index() == const_expr::FLOAT)
+                get<const_expr::FLOAT>(cexpr.value)->negative = ! get<const_expr::FLOAT>(cexpr.value)->negative;
+        }
+        else
+            $$ = VARIANT(expr, UNARY_OPERATION, make_ptr(unary_operation_expr { unary_operation_expr::MINUS, into_ptr($inner) }));
     }
 
     | expr[left] "+" expr[right] {

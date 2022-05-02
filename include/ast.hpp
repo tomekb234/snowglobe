@@ -383,6 +383,7 @@ namespace sg::ast {
 
     struct int_token {
         unsigned long long value;
+        bool negative;
 
         enum marker_t {
             NONE,
@@ -393,6 +394,7 @@ namespace sg::ast {
 
     struct float_token {
         double value;
+        bool negative;
 
         enum marker_t {
             NONE,

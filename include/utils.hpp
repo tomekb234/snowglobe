@@ -7,7 +7,7 @@
 #include <vector>
 #include <variant>
 
-#define VARIANT(type, index, val) { decltype(type::value)(in_place_index<type::index>, val) }
+#define VARIANT(type, index, val) type{ decltype(type::value)(in_place_index<type::index>, val) }
 
 namespace sg::utils {
     using std::move;

@@ -6,8 +6,6 @@
 #include <string>
 
 namespace sg {
-    using std::move;
-    using std::make_unique;
     using std::ostream;
     using std::ostringstream;
     using std::endl;
@@ -20,7 +18,7 @@ namespace sg {
     const string LOCATION_COLOR = "\e[1;37m";
     const string RESET_COLOR = "\e[0m";
     #else
-    const string LEVEL_COLORS[] = { "", "" };
+    const string LEVEL_COLORS[] = { "", "", "" };
     const string LOCATION_COLOR = "";
     const string RESET_COLOR = "";
     #endif
@@ -88,16 +86,24 @@ namespace sg {
             stream << "Invalid character escape sequence \\" << string(1, ch) << endl;
         }
 
+        void multibyte_character_literal::write(ostream& stream) const {
+            stream << "Character literal " << literal << " contains multibyte character" << endl;
+        }
+
         void integer_overflow_error::write(ostream& stream) const {
-            stream << "The integer '" << number << "' does not fit in 64 bits" << endl;
+            stream << "The " << (signed_type ? "signed" : "unsigned") << " integer '" << number << "' does not fit in " << bits << " bits" << endl;
         }
 
         void float_overflow_error::write(ostream& stream) const {
-            stream << "The number '" << number << "' is out of range of double-precision format" << endl;
+            stream << "The number '" << number << "' is out of range of " << (double_precision ? "double" : "single") << "-precision format" << endl;
         }
 
         void global_name_used_error::write(ostream& stream) const {
             stream << "The global name '" << name << " is already used" << endl;
+        }
+
+        void expression_not_constant::write(ostream& stream) const {
+            stream << "Expression is not constant" << endl;
         }
     }
 }

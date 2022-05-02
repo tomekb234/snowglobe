@@ -87,17 +87,27 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
+        struct multibyte_character_literal : error {
+            string literal;
+
+            multibyte_character_literal(string literal) : literal(literal) { }
+            void write(ostream& stream) const override;
+        };
+
         struct integer_overflow_error : error {
             string number;
+            bool signed_type;
+            int bits;
 
-            integer_overflow_error(string number) : number(number) { }
+            integer_overflow_error(string number, bool signed_type, int bits) : number(number), signed_type(signed_type), bits(bits) { }
             void write(ostream& stream) const override;
         };
 
         struct float_overflow_error : error {
             string number;
+            bool double_precision;
 
-            float_overflow_error(string number) : number(number) { }
+            float_overflow_error(string number, bool double_precision) : number(number), double_precision(double_precision) { }
             void write(ostream& stream) const override;
         };
 
@@ -105,6 +115,10 @@ namespace sg {
             string name;
 
             global_name_used_error(string name) : name(name) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct expression_not_constant : error {
             void write(ostream& stream) const override;
         };
     }

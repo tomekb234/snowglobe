@@ -173,6 +173,7 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
 #include <unordered_map>
 
 using std::stoull;
+using std::stof;
 using std::stod;
 using std::out_of_range;
 using std::unordered_map;
@@ -210,7 +211,7 @@ const unordered_map<string, float_token::marker_t> float_markers = {
 static int_token::marker_t get_int_marker(const string& text) {
     auto length = text.length();
 
-    for (size_t count = 1; count < 3 && count <= length; count++) {
+    for (size_t count = 1; count <= 3 && count <= length; count++) {
         auto it = int_markers.find(text.substr(length - count));
         if (it != int_markers.end())
             return it->second;
@@ -222,7 +223,7 @@ static int_token::marker_t get_int_marker(const string& text) {
 static float_token::marker_t get_float_marker(const string& text) {
     auto length = text.length();
 
-    for (size_t count = 1; count < 3 && count <= length; count++) {
+    for (size_t count = 1; count <= 3 && count <= length; count++) {
         auto it = float_markers.find(text.substr(length - count));
         if (it != float_markers.end())
             return it->second;
@@ -233,17 +234,21 @@ static float_token::marker_t get_float_marker(const string& text) {
 
 static int_token parse_int(const string& text, int base) {
     try {
-        return { stoull(remove_underscores(text), nullptr, base), get_int_marker(text) };
+        return { stoull(remove_underscores(text), nullptr, base), false, get_int_marker(text) };
     } catch (out_of_range) {
-        throw new sg::diags::integer_overflow_error(text);
+        throw new sg::diags::integer_overflow_error(text, false, 64);
     }
 }
 
 static float_token parse_float(const string& text) {
+    auto marker = get_float_marker(text);
     try {
-        return { stod(remove_underscores(text)), get_float_marker(text) };
+        if (marker == float_token::F32)
+            return { stof(remove_underscores(text)), false, marker };
+        else
+            return { stod(remove_underscores(text)), false, marker };
     } catch (out_of_range) {
-        throw new sg::diags::float_overflow_error(text);
+        throw new sg::diags::float_overflow_error(text, marker != float_token::F32);
     }
 }
 
@@ -263,7 +268,9 @@ static char resolve_escape_sequence(char ch) {
 }
 
 static char parse_char(const string& text) {
-    return (text[1] == '\\') ? resolve_escape_sequence(text[2]) : text[1];
+    if (text.length() == 3 || (text.length() == 4 && text[1] == '\\'))
+        return (text[1] == '\\') ? resolve_escape_sequence(text[2]) : text[1];
+    throw new sg::diags::multibyte_character_literal(text);
 }
 
 static string parse_string(const string& text) {

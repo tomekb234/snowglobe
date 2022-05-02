@@ -7,10 +7,12 @@
 #include "diagnostics.hpp"
 #include <optional>
 #include <unordered_map>
+#include <utility>
 
 namespace sg {
     using std::optional;
     using std::unordered_map;
+    using std::pair;
 
     class compiler {
         struct global_name {
@@ -48,11 +50,14 @@ namespace sg {
         void compile_struct_type(const ast::struct_def& ast, prog::struct_type& struct_type);
         void compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type);
 
-        prog::constant compile_constant(const ast::expr& ast);
+        pair<prog::constant, prog::type> compile_constant_expr(const ast::expr& ast);
+        pair<prog::constant, prog::type> compile_constant_literal(const ast::const_expr& ast);
+        pair<prog::constant, prog::primitive_type> compile_int_token(const ast::int_token& ast);
+        pair<prog::constant, prog::primitive_type> compile_float_token(const ast::float_token& ast);
+
         prog::type compile_type(const ast::type& ast);
         prog::primitive_type compile_primitive_type(const ast::primitive_type& ast);
 
-        prog::type constant_type(const prog::constant& constant);
         prog::constant convert_constant(const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp);
 
         public:

@@ -1,6 +1,6 @@
 " Vim syntax file
 " Language: Snowglobe
-" Latest Revision: 03 April 2022
+" Latest Revision: 02 May 2022
 
 if exists("b:current_syntax")
 	finish
@@ -44,6 +44,7 @@ syn match		sgHexInteger			'\<0x[0-9a-fA-F][0-9a-fA-F_]*\(\(i\|u\)\(8\|16\|32\|64
 
 syn match		sgFloatLiteralType		contained 'f\(32\|64\)\?'
 syn match		sgFloat					'\<[0-9][0-9_]*\.[0-9][0-9_]*\(e\(+\|-\)\?[0-9][0-9_]*\)\?\(f\(32\|64\)\?\)\?\>' contains=sgFloatLiteralType
+syn match       sgFloat                 '\<[0-9][0-9_]*f\(32\|64\)\?\>' contains=sgFloatLiteralType
 
 " Parenthesis etc. ranges
 syn match		sgParenthesisError		')'
