@@ -50,26 +50,11 @@ namespace sg {
                     global_names[name] = { global_name::ENUM, index, false };
                     break;
                 }
+
             }
         }
 
-        // Phase 2: Prepare global function declarations
-
-        for (auto& global_def : ast.global_defs) {
-            switch (global_def->value.index()) {
-                case ast::global_def::FUNC_DEF: {
-                    auto& global_func_ast = *get<ast::global_def::FUNC_DEF>(global_def->value);
-                    auto global_func = declare_global_func(global_func_ast);
-                    auto name = global_func.name;
-                    auto index = program.global_funcs.size();
-                    program.global_funcs.push_back(into_ptr(global_func));
-                    global_names[name] = { global_name::FUNCTION, index, false };
-                    break;
-                }
-            }
-        }
-
-        // Phase 3: Compile struct and enum definitions
+        // Phase 2: Compile struct, enum definitions and constants
 
         size_t struct_type_index = 0;
         size_t enum_type_index = 0;
@@ -91,8 +76,35 @@ namespace sg {
                     global_names[enum_type.name].compiled = true;
                     break;
                 }
+
+                case ast::global_def::CONST_DEF: {
+                    auto& global_const_ast = *get<ast::global_def::CONST_DEF>(global_def->value);
+                    auto global_const = compile_global_var(global_const_ast);
+                    auto name = global_const.name;
+                    auto index = constants.size();
+                    constants.push_back(into_ptr(global_const));
+                    global_names[name] = { global_name::CONSTANT, index, true };
+                    break;
+                }
             }
         }
+
+        // Phase 3: Prepare global function declarations
+
+        for (auto& global_def : ast.global_defs) {
+            switch (global_def->value.index()) {
+                case ast::global_def::FUNC_DEF: {
+                    auto& global_func_ast = *get<ast::global_def::FUNC_DEF>(global_def->value);
+                    auto global_func = declare_global_func(global_func_ast);
+                    auto name = global_func.name;
+                    auto index = program.global_funcs.size();
+                    program.global_funcs.push_back(into_ptr(global_func));
+                    global_names[name] = { global_name::FUNCTION, index, false };
+                    break;
+                }
+            }
+        }
+
 
         // Phase 4: Compile global variable definitions
 
@@ -197,6 +209,19 @@ namespace sg {
         switch (ast.value.index()) { // TODO more constant expressions
             case ast::expr::CONST: {
                 return compile_constant_literal(*get<ast::expr::CONST>(ast.value));
+            }
+
+            case ast::expr::SOME: {
+                auto[inner_value, inner_type] = compile_constant_expr(*get<ast::expr::SOME>(ast.value));
+                auto value = VARIANT(prog::constant, SOME, into_ptr(inner_value));
+                auto type = VARIANT(prog::type, OPTIONAL, into_ptr(inner_type));
+                return { move(value), move(type) };
+            }
+
+            case ast::expr::NONE: {
+                auto value = VARIANT(prog::constant, NONE, std::monostate{ });
+                auto type = VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::NEVER }))));
+                return { move(value), move(type) };
             }
 
             default:

@@ -57,6 +57,7 @@
 %token AS "as"
 %token BOOL "bool"
 %token BREAK "break"
+%token CONST "const"
 %token CONTINUE "continue"
 %token COPYABLE "copyable"
 %token ELIF "elif"
@@ -173,6 +174,8 @@
 %nterm <vector<global_def>> global_def_seq
 %nterm <global_def> global_def
 %nterm <var_def> var_def
+%nterm <var_def> const_def
+%nterm <const_integer> const_integer
 %nterm <func_def> func_def
 %nterm <bool> optional_copying
 %nterm <func_param> func_param
@@ -249,6 +252,10 @@ global_def:
         $$ = VARIANT(global_def, VAR_DEF, into_ptr($var_def));
     }
 
+    | const_def {
+        $$ = VARIANT(global_def, CONST_DEF, into_ptr($const_def));
+    }
+
     | func_def {
         $$ = VARIANT(global_def, FUNC_DEF, into_ptr($func_def));
     }
@@ -268,6 +275,24 @@ var_def:
 
     | "var" NAME "=" expr ";" {
         $$ = { move($NAME), { }, into_ptr($expr) };
+    }
+
+const_def:
+    "const" NAME ":" type "=" expr ";" {
+        $$ = { move($NAME), { into_ptr($type) }, into_ptr($expr) };
+    }
+
+    | "const" NAME "=" expr ";" {
+        $$ = { move($NAME), { }, into_ptr($expr) };
+    }
+
+const_integer:
+    INTEGER {
+        $$ = VARIANT(const_integer, INTEGER, $INTEGER.value);
+    }
+
+    | NAME {
+        $$ = VARIANT(const_integer, NAME, move($NAME));
     }
 
 func_def:
@@ -814,8 +839,8 @@ expr:
         $$ = VARIANT(expr, DEREF, into_ptr($inner));
     }
 
-    | "[" expr[inner] ";" INTEGER "]" {
-        $$ = VARIANT(expr, SIZED_ARRAY, make_ptr(sized_array_expr { into_ptr($inner), $INTEGER.value }));
+    | "[" expr[inner] ";" const_integer "]" {
+        $$ = VARIANT(expr, SIZED_ARRAY, make_ptr(sized_array_expr { into_ptr($inner), into_ptr($const_integer) }));
     }
 
     | "@" "[" expr[value] "#" expr[size] "]" {
@@ -958,8 +983,8 @@ type:
         $$ = VARIANT(type, TUPLE, into_ptr_vector($type_seq));
     }
 
-    | "[" type[item_type] ";" INTEGER "]" {
-        $$ = VARIANT(type, ARRAY, make_ptr(array_type { into_ptr($item_type), $INTEGER.value }));
+    | "[" type[item_type] ";" const_integer "]" {
+        $$ = VARIANT(type, ARRAY, make_ptr(array_type { into_ptr($item_type), into_ptr($const_integer) }));
     }
 
     | "?" type[val_type] {

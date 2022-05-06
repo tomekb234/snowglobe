@@ -18,6 +18,7 @@ namespace sg {
         struct global_name {
             enum {
                 VARIABLE,
+                CONSTANT,
                 FUNCTION,
                 STRUCT,
                 ENUM
@@ -30,6 +31,7 @@ namespace sg {
         diagnostic_collector& diags;
         prog::program program;
         unordered_map<string, global_name> global_names;
+        vector<unique_ptr<prog::global_var>> constants;
 
         template<typename T>
         [[noreturn]] void error(T&& diag) {

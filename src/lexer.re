@@ -36,6 +36,7 @@ static string parse_string(const string& text);
 "as" { TOKEN(AS) }
 "bool" { TOKEN(BOOL) }
 "break" { TOKEN(BREAK) }
+"const" { TOKEN(CONST) }
 "continue" { TOKEN(CONTINUE) }
 "copyable" { TOKEN(COPYABLE) }
 "elif" { TOKEN(ELIF) }

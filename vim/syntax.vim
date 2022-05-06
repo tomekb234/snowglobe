@@ -21,7 +21,7 @@ syn keyword		sgBooleanValueKeyword	false true
 syn keyword		sgStructKeyword			enum struct 
 syn keyword		sgConditionalKeyword	elif else if match
 syn keyword		sgLoopKeyword			for while
-syn keyword		sgOtherKeyword			as break continue copyable func in locally none ref return reversed some swap var with
+syn keyword		sgOtherKeyword			as break const continue copyable func in locally none ref return reversed some swap var with
 
 " Character/String literals
 syn match		sgEscapeSequence		contained '\\[\\nrt0"\']'
