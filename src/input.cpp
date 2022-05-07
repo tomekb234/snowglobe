@@ -8,7 +8,7 @@ namespace sg {
 
     void lexer_input::start() {
         token = cursor;
-        token_loc = cursor_loc;
+        token_pos = cursor_pos;
 
         auto size = buffer.size();
 
@@ -35,22 +35,22 @@ namespace sg {
 
     void lexer_input::skip() {
         if (peek() == '\n') {
-            cursor_loc.line++;
-            cursor_loc.column = 1;
+            cursor_pos.line++;
+            cursor_pos.column = 1;
         } else
-            cursor_loc.column++;
+            cursor_pos.column++;
 
         cursor++;
     }
 
     void lexer_input::backup() {
         marker = cursor;
-        marker_loc = cursor_loc;
+        marker_pos = cursor_pos;
     }
 
     void lexer_input::restore() {
         cursor = marker;
-        cursor_loc = marker_loc;
+        cursor_pos = marker_pos;
     }
 
     bool lexer_input::less_than(size_t len) const {
@@ -76,11 +76,7 @@ namespace sg {
         return buffer.substr(token) + next_buffer.substr(0, cursor - size);
     }
 
-    size_t lexer_input::line() const {
-        return token_loc.line;
-    }
-
-    size_t lexer_input::column() const {
-        return token_loc.column;
+    location lexer_input::loc() const {
+        return { token_pos, cursor_pos };
     }
 }

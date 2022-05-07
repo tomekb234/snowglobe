@@ -8,14 +8,14 @@ I = include
 B = build
 G = gen
 
-input_hpp = $I/input.hpp
 location_hpp = $I/location.hpp
-ast_hpp = $I/ast.hpp
+input_hpp = $I/input.hpp $(location_hpp)
+ast_hpp = $I/ast.hpp $(location_hpp)
 program_hpp = $I/program.hpp
 utils_hpp = $I/utils.hpp
 diagnostics_hpp = $I/diagnostics.hpp $(location_hpp)
-compiler_hpp = $I/compiler.hpp $(ast_hpp) $(program_hpp) $(location_hpp) $(diagnostics_hpp)
-parser_hpp = $G/parser.cpp $(input_hpp) $(diagnostics_hpp) $(ast_hpp)
+compiler_hpp = $I/compiler.hpp $(ast_hpp) $(program_hpp) $(diagnostics_hpp)
+parser_hpp = $G/parser.cpp $(location_hpp) $(input_hpp) $(diagnostics_hpp) $(ast_hpp)
 
 $B/snowglobe: $B/main.o $B/input.o $B/lexer.o $B/parser.o $B/diagnostics.o $B/compiler.o | $B
 	$(CXX) $^ -o $@

@@ -16,11 +16,9 @@ static char parse_char(const string& text);
 static string parse_string(const string& text);
 
 #define TEXT (input.text())
-#define LOCATION (yy::location(&input.file_name, input.line(), input.column()))
-
 #define SKIP { continue; }
-#define TOKEN(token) { return yy::parser::make_##token(LOCATION); }
-#define TOKEN_WITH(token, value) { return yy::parser::make_##token(value, LOCATION); }
+#define TOKEN(token) { return yy::parser::make_##token(input.loc()); }
+#define TOKEN_WITH(token, value) { return yy::parser::make_##token(value, input.loc()); }
 #define END TOKEN(YYEOF)
 #define INVALID TOKEN(YYUNDEF)
 
@@ -164,9 +162,10 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
             */
         }
     } catch (sg::diagnostic* diag) {
-        diag->loc = { input.file_name, input.line(), input.column() };
+        auto loc = input.loc();
+        diag->loc = { loc };
         diags.add(unique_ptr<sg::diagnostic>(diag));
-        return yy::parser::make_YYerror(yy::location());
+        return yy::parser::make_YYerror(loc);
     }
 }
 
@@ -235,7 +234,7 @@ static float_token::marker_t get_float_marker(const string& text) {
 
 static int_token parse_int(const string& text, int base) {
     try {
-        return { stoull(remove_underscores(text), nullptr, base), false, get_int_marker(text) };
+        return { { }, stoull(remove_underscores(text), nullptr, base), false, get_int_marker(text) };
     } catch (out_of_range) {
         throw new sg::diags::integer_overflow_error(text, false, 64);
     }
@@ -245,9 +244,9 @@ static float_token parse_float(const string& text) {
     auto marker = get_float_marker(text);
     try {
         if (marker == float_token::F32)
-            return { stof(remove_underscores(text)), false, marker };
+            return { { }, stof(remove_underscores(text)), false, marker };
         else
-            return { stod(remove_underscores(text)), false, marker };
+            return { { }, stod(remove_underscores(text)), false, marker };
     } catch (out_of_range) {
         throw new sg::diags::float_overflow_error(text, marker != float_token::F32);
     }

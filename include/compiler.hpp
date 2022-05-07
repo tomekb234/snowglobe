@@ -3,16 +3,18 @@
 
 #include "ast.hpp"
 #include "program.hpp"
-#include "location.hpp"
 #include "diagnostics.hpp"
 #include <optional>
 #include <unordered_map>
 #include <utility>
+#include <memory>
 
 namespace sg {
     using std::optional;
     using std::unordered_map;
     using std::pair;
+    using std::move;
+    using std::make_unique;
 
     class compiler {
         struct global_name {
@@ -34,9 +36,9 @@ namespace sg {
         vector<unique_ptr<prog::global_var>> constants;
 
         template<typename T>
-        [[noreturn]] void error(T&& diag) {
-            // TODO locations
-            diags.add(move(diag));
+        [[noreturn]] void error(T&& diag, const ast::node& ast) {
+            diag.loc = { ast.loc };
+            diags.add(make_unique<T>(move(diag)));
             throw 0;
         }
 
@@ -60,7 +62,7 @@ namespace sg {
         prog::type compile_type(const ast::type& ast);
         prog::primitive_type compile_primitive_type(const ast::primitive_type& ast);
 
-        prog::constant convert_constant(const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp);
+        prog::constant convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp);
 
         public:
 

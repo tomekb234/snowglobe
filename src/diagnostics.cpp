@@ -37,9 +37,10 @@ namespace sg {
                 stream << " at ";
                 if (enable_colors)
                     stream << LOCATION_COLOR;
-                stream << diag->loc->file_name << ":";
-                stream << diag->loc->line << ":";
-                stream << diag->loc->column;
+                stream << *diag->loc->begin.file_name << ":";
+                stream << diag->loc->begin.line << ":";
+                stream << diag->loc->begin.column;
+                // TODO print relevant code with diag->loc->begin and diag->loc-end
                 if (enable_colors)
                     stream << RESET_COLOR;
             }

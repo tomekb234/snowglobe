@@ -1,6 +1,7 @@
 #ifndef AST_HPP
 #define AST_HPP
 
+#include "location.hpp"
 #include <memory>
 #include <vector>
 #include <optional>
@@ -72,11 +73,15 @@ namespace sg::ast {
     struct type_pointed;
     struct type_local;
 
-    struct program {
+    struct node {
+        location loc;
+    };
+
+    struct program : node {
         vector<ptr<global_def>> global_defs;
     };
 
-    struct global_def {
+    struct global_def : node {
         enum {
             VAR_DEF,
             CONST_DEF,
@@ -94,13 +99,13 @@ namespace sg::ast {
         > value;
     };
 
-    struct var_def {
+    struct var_def : node {
         string name;
         optional<ptr<type>> tp;
         ptr<expr> value;
     };
 
-    struct const_integer {
+    struct const_integer : node {
         enum {
             INTEGER,
             NAME
@@ -112,7 +117,7 @@ namespace sg::ast {
         > value;
     };
 
-    struct func_def {
+    struct func_def : node {
         string name;
         bool copying;
         vector<ptr<func_param>> params;
@@ -120,39 +125,39 @@ namespace sg::ast {
         ptr<func_body> body;
     };
 
-    struct func_body {
+    struct func_body : node {
         ptr<stmt_block> block;
         optional<ptr<expr>> return_value;
     };
 
-    struct func_param {
+    struct func_param : node {
         string name;
         ptr<type_local> tp;
     };
 
-    struct struct_def {
+    struct struct_def : node {
         string name;
         bool copyable;
         vector<ptr<struct_field>> fields;
     };
 
-    struct struct_field {
+    struct struct_field : node {
         string name;
         ptr<type> tp;
     };
 
-    struct enum_def {
+    struct enum_def : node {
         string name;
         bool copyable;
         vector<ptr<enum_variant>> variants;
     };
 
-    struct enum_variant {
+    struct enum_variant : node {
         string name;
         vector<ptr<type>> tps;
     };
 
-    struct stmt {
+    struct stmt : node {
         enum {
             EXPR_EVAL,
             ASSIGNMENT,
@@ -182,11 +187,11 @@ namespace sg::ast {
         > value;
     };
 
-    struct stmt_block {
+    struct stmt_block : node {
         vector<ptr<stmt>> stmts;
     };
 
-    struct assignment_stmt {
+    struct assignment_stmt : node {
         ptr<expr> lvalue;
         ptr<expr> value;
     };
@@ -206,23 +211,23 @@ namespace sg::ast {
         } operation;
     };
 
-    struct locally_block_stmt {
+    struct locally_block_stmt : node {
         vector<string> var_names;
         ptr<stmt_block> block;
     };
 
-    struct swap_stmt {
+    struct swap_stmt : node {
         ptr<expr> left;
         ptr<expr> right;
     };
 
-    struct swap_block_stmt {
+    struct swap_block_stmt : node {
         ptr<expr> left;
         ptr<expr_or_name_locally> right;
         ptr<stmt_block> block;
     };
 
-    struct expr_or_name_locally {
+    struct expr_or_name_locally : node {
         enum {
             EXPR,
             NAME_LOCALLY
@@ -234,17 +239,17 @@ namespace sg::ast {
         > value;
     };
 
-    struct if_stmt {
+    struct if_stmt : node {
         vector<ptr<if_branch>> branches;
         optional<ptr<stmt_block>> else_branch;
     };
 
-    struct if_branch {
+    struct if_branch : node {
         ptr<condition> cond;
         ptr<stmt_block> block;
     };
 
-    struct condition {
+    struct condition : node {
         enum {
             CHECK_IF_TRUE,
             CHECK_IF_PRESENT
@@ -256,24 +261,24 @@ namespace sg::ast {
         > value;
     };
 
-    struct match_stmt {
+    struct match_stmt : node {
         ptr<expr_or_name_locally> value;
         vector<ptr<match_branch>> branches;
         optional<ptr<stmt_block>> else_branch;
     };
 
-    struct match_branch {
+    struct match_branch : node {
         ptr<expr> lvalue;
         ptr<stmt_block> block;
     };
 
-    struct while_stmt {
+    struct while_stmt : node {
         ptr<condition> cond;
         ptr<stmt_block> block;
         optional<ptr<stmt_block>> else_block;
     };
 
-    struct for_stmt {
+    struct for_stmt : node {
         enum {
             RANGE,
             SLICE
@@ -285,7 +290,7 @@ namespace sg::ast {
         > value;
     };
 
-    struct for_stmt_base {
+    struct for_stmt_base : node {
         ptr<expr> lvalue;
         bool reversed;
         ptr<stmt_block> block;
@@ -303,7 +308,7 @@ namespace sg::ast {
         ptr<expr_or_name_locally> value;
     };
 
-    struct expr {
+    struct expr : node {
         enum {
             TUPLE,
             ARRAY,
@@ -359,7 +364,7 @@ namespace sg::ast {
         > value;
     };
 
-    struct expr_marked {
+    struct expr_marked : node {
         enum {
             EXPR,
             EXPR_WITH_NAME,
@@ -373,12 +378,12 @@ namespace sg::ast {
         > value;
     };
 
-    struct var_decl_expr {
+    struct var_decl_expr : node {
         string name;
         optional<ptr<type_local>> tp;
     };
 
-    struct const_expr {
+    struct const_expr : node {
         enum {
             BOOL,
             CHAR,
@@ -396,7 +401,7 @@ namespace sg::ast {
         > value;
     };
 
-    struct int_token {
+    struct int_token : node {
         unsigned long long value;
         bool negative;
 
@@ -407,7 +412,7 @@ namespace sg::ast {
         } marker;
     };
 
-    struct float_token {
+    struct float_token : node {
         double value;
         bool negative;
 
@@ -417,7 +422,7 @@ namespace sg::ast {
         } marker;
     };
 
-    struct unary_operation_expr {
+    struct unary_operation_expr : node {
         enum {
             NOT,
             MINUS,
@@ -427,7 +432,7 @@ namespace sg::ast {
         ptr<expr> value;
     };
 
-    struct binary_operation_expr {
+    struct binary_operation_expr : node {
         enum {
             AND,
             OR,
@@ -453,22 +458,22 @@ namespace sg::ast {
         ptr<expr> right;
     };
 
-    struct numeric_cast_expr {
+    struct numeric_cast_expr : node {
         ptr<expr> value;
         ptr<type_local> tp;
     };
 
-    struct sized_array_expr {
+    struct sized_array_expr : node {
         ptr<expr> value;
         ptr<const_integer> size;
     };
 
-    struct heap_slice_alloc_expr {
+    struct heap_slice_alloc_expr : node {
         ptr<expr> value;
         ptr<expr> size;
     };
 
-    struct extract_expr {
+    struct extract_expr : node {
         enum {
             FIELD,
             COORD,
@@ -482,7 +487,7 @@ namespace sg::ast {
         > value;
     };
 
-    struct ptr_extract_expr {
+    struct ptr_extract_expr : node {
         enum {
             OWNER,
             FIELD,
@@ -500,14 +505,14 @@ namespace sg::ast {
         > value;
     };
 
-    struct lambda_expr {
+    struct lambda_expr : node {
         bool copying;
         vector<ptr<func_param>> params;
         optional<ptr<type>> return_tp;
         ptr<func_body> body;
     };
 
-    struct type {
+    struct type : node {
         enum {
             USER_TYPE,
             PRIMITIVE,
@@ -535,7 +540,7 @@ namespace sg::ast {
         > value;
     };
 
-    struct primitive_type {
+    struct primitive_type : node {
         enum {
             BOOL,
             I8,
@@ -552,12 +557,12 @@ namespace sg::ast {
         } tp;
     };
 
-    struct array_type {
+    struct array_type : node {
         ptr<type> tp;
         ptr<const_integer> size;
     };
 
-    struct ptr_type {
+    struct ptr_type : node {
         enum {
             GLOBAL,
             BASIC,
@@ -573,7 +578,7 @@ namespace sg::ast {
         ptr<type_pointed> owner_tp;
     };
 
-    struct func_type {
+    struct func_type : node {
         vector<ptr<type_local>> param_tps;
         ptr<type> return_tp;
     };
@@ -589,12 +594,12 @@ namespace sg::ast {
         ptr<type_pointed> target_tp;
     };
 
-    struct type_pointed {
+    struct type_pointed : node {
         ptr<type> tp;
         bool slice;
     };
 
-    struct type_local {
+    struct type_local : node {
         ptr<type> tp;
         bool confined;
     };

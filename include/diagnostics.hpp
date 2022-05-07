@@ -14,7 +14,6 @@ namespace sg {
     using std::optional;
     using std::vector;
     using std::unique_ptr;
-    using std::make_unique;
     using std::ostream;
     using std::string;
 
@@ -40,17 +39,6 @@ namespace sg {
 
         inline void add(unique_ptr<diagnostic> diag) {
             diags.push_back(move(diag));
-        }
-
-        template<typename T>
-        void add(T&& diag) {
-            diags.push_back(make_unique<T>(move(diag)));
-        }
-
-        template<typename T>
-        void add(T&& diag, location loc) {
-            diag.loc = { loc };
-            add(move(diag));
         }
 
         void report_all(ostream& stream, bool enable_colors) const;

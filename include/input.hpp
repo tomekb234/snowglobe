@@ -1,6 +1,7 @@
 #ifndef INPUT_HPP
 #define INPUT_HPP
 
+#include "location.hpp"
 #include <istream>
 #include <string>
 
@@ -9,26 +10,19 @@ namespace sg {
     using std::string;
 
     class lexer_input {
-        struct location {
-            size_t line;
-            size_t column;
-        };
-
         istream& stream;
         string buffer;
         string next_buffer;
         size_t token;
         size_t marker;
-        size_t cursor = 0;
-        location token_loc;
-        location marker_loc;
-        location cursor_loc = { 1, 1 };
+        size_t cursor;
+        position token_pos;
+        position marker_pos;
+        position cursor_pos;
 
         public:
 
-        const string file_name;
-
-        lexer_input(istream& stream, string file_name) : stream(stream), file_name(file_name) { }
+        lexer_input(istream& stream, const string& file_name) : stream(stream), cursor(0), cursor_pos { &file_name, 1, 1 } { }
 
         void start();
         char peek() const;
@@ -38,8 +32,7 @@ namespace sg {
         bool less_than(size_t len) const;
         bool fill();
         string text() const;
-        size_t line() const;
-        size_t column() const;
+        location loc() const;
     };
 }
 

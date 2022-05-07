@@ -4,7 +4,7 @@
 #include "utils.hpp"
 #include <utility>
 #include <variant>
-#include <exception>
+#include <limits>
 
 namespace sg {
     using namespace sg::utils;
@@ -143,7 +143,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::global_name_used_error(name));
+            error(diags::global_name_used_error(name), ast);
 
         auto[value, value_tp] = compile_constant_expr(*ast.value);
 
@@ -151,7 +151,7 @@ namespace sg {
 
         if (ast.tp) {
             tp = compile_type(**ast.tp);
-            value = convert_constant(value, value_tp, tp);
+            value = convert_constant(ast, value, value_tp, tp);
         } else
             tp = move(value_tp);
 
@@ -159,27 +159,27 @@ namespace sg {
     }
 
     prog::global_func compiler::declare_global_func(const ast::func_def& ast) {
-        error(diags::not_implemented_error()); // TODO
+        error(diags::not_implemented_error(), ast); // TODO
     }
 
     prog::struct_type compiler::declare_struct_type(const ast::struct_def& ast) {
-        error(diags::not_implemented_error()); // TODO
+        error(diags::not_implemented_error(), ast); // TODO
     }
 
     prog::enum_type compiler::declare_enum_type(const ast::enum_def& ast) {
-        error(diags::not_implemented_error()); // TODO
+        error(diags::not_implemented_error(), ast); // TODO
     }
 
     void compiler::compile_global_func(const ast::func_def& ast, prog::global_func& global_func) {
-        error(diags::not_implemented_error()); // TODO
+        error(diags::not_implemented_error(), ast); // TODO
     }
 
     void compiler::compile_struct_type(const ast::struct_def& ast, prog::struct_type& struct_type) {
-        error(diags::not_implemented_error()); // TODO
+        error(diags::not_implemented_error(), ast); // TODO
     }
 
     void compiler::compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type) {
-        error(diags::not_implemented_error()); // TODO
+        error(diags::not_implemented_error(), ast); // TODO
     }
 
     template<typename T>
@@ -225,7 +225,7 @@ namespace sg {
             }
 
             default:
-                error(diags::expression_not_constant());
+                error(diags::expression_not_constant(), ast);
         }
     }
 
@@ -244,7 +244,7 @@ namespace sg {
             }
 
             case ast::const_expr::STRING: {
-                error(diags::not_implemented_error()); // TODO
+                error(diags::not_implemented_error(), ast); // TODO
             }
 
             case ast::const_expr::INT: {
@@ -258,13 +258,13 @@ namespace sg {
             }
 
             default:
-                error(diags::not_implemented_error());
+                error(diags::not_implemented_error(), ast);
         }
     }
 
     pair<prog::constant, prog::primitive_type> compiler::compile_int_token(const ast::int_token& ast) {
 #define RETURN_IF_OK(type, type_marker) {auto opt_val = try_make_number<type>(ast.value, ast.negative); if(opt_val) return { VARIANT(prog::constant, INT, encode_number(*opt_val)), { prog::primitive_type::type_marker } }; }
-#define RETURN_OR_ERROR(type, type_marker) {RETURN_IF_OK(type, type_marker) error(diags::integer_overflow_error((ast.negative ? "-" : "") + to_string(ast.value), is_signed<type>(), 8 * sizeof(type))); throw 0;}
+#define RETURN_OR_ERROR(type, type_marker) {RETURN_IF_OK(type, type_marker) error(diags::integer_overflow_error((ast.negative ? "-" : "") + to_string(ast.value), is_signed<type>(), 8 * sizeof(type)), ast); throw 0;}
 
         switch (ast.marker) {
             case ast::int_token::NONE:
@@ -349,15 +349,15 @@ namespace sg {
             case ast::type::GLOBAL_FUNC:
             case ast::type::FUNC_WITH_PTR:
             default:
-                error(diags::not_implemented_error());
+                error(diags::not_implemented_error(), ast);
         }
     }
 
     prog::primitive_type compiler::compile_primitive_type(const ast::primitive_type& ast) {
-        error(diags::not_implemented_error()); // TODO
+        error(diags::not_implemented_error(), ast); // TODO
     }
 
-    prog::constant compiler::convert_constant(const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp) {
-        error(diags::not_implemented_error()); // TODO
+    prog::constant compiler::convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp) {
+        error(diags::not_implemented_error(), ast); // TODO
     }
 }
