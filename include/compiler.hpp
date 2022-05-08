@@ -55,6 +55,8 @@ namespace sg {
         void compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type);
 
         pair<prog::constant, prog::type> compile_constant_expr(const ast::expr& ast);
+        pair<prog::constant, prog::type> compile_constant_tuple(const vector<ast::ptr<ast::expr_marked>>& asts, const ast::node& ast);
+        pair<prog::constant, prog::type> compile_constant_array(const vector<ast::ptr<ast::expr_marked>>& asts, const ast::node& ast);
         pair<prog::constant, prog::type> compile_constant_literal(const ast::const_expr& ast);
         pair<prog::constant, prog::primitive_type> compile_int_token(const ast::int_token& ast);
         pair<prog::constant, prog::primitive_type> compile_float_token(const ast::float_token& ast);
@@ -63,6 +65,7 @@ namespace sg {
         prog::primitive_type compile_primitive_type(const ast::primitive_type& ast);
 
         prog::constant convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp);
+        bool types_equal(const ast::node& ast, const prog::type& type1, const prog::type& type2);
 
         public:
 

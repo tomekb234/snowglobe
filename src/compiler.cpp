@@ -207,6 +207,14 @@ namespace sg {
 
     pair<prog::constant, prog::type> compiler::compile_constant_expr(const ast::expr& ast) {
         switch (ast.value.index()) { // TODO more constant expressions
+            case ast::expr::TUPLE: {
+                return compile_constant_tuple(get<ast::expr::TUPLE>(ast.value), ast);
+            }
+
+            case ast::expr::ARRAY: {
+                return compile_constant_array(get<ast::expr::ARRAY>(ast.value), ast);
+            }
+
             case ast::expr::CONST: {
                 return compile_constant_literal(*get<ast::expr::CONST>(ast.value));
             }
@@ -227,6 +235,55 @@ namespace sg {
             default:
                 error(diags::expression_not_constant(), ast);
         }
+    }
+    
+    pair<prog::constant, prog::type> compiler::compile_constant_tuple(const vector<ast::ptr<ast::expr_marked>>& asts, const ast::node& ast) {
+        vector<prog::ptr<prog::constant>> values;
+        vector<prog::ptr<prog::type>> types;
+
+        for (auto& item_ptr : asts) {
+            auto& expr_marked = *item_ptr;
+            switch (expr_marked.value.index()) {
+                case ast::expr_marked::EXPR: {
+                    auto[value, type] = compile_constant_expr(*get<ast::expr_marked::EXPR>(expr_marked.value));
+                    values.push_back(into_ptr(value));
+                    types.push_back(into_ptr(type));
+                    break;
+                }
+
+                default:
+                    error(diags::expression_not_constant(), ast);
+            }
+        }
+
+        return { VARIANT(prog::constant, TUPLE, move(values)), VARIANT(prog::type, TUPLE, move(types)) };
+    }
+
+    pair<prog::constant, prog::type> compiler::compile_constant_array(const vector<ast::ptr<ast::expr_marked>>& asts, const ast::node& ast) {
+        vector<prog::ptr<prog::constant>> values;
+        prog::type type;
+
+        for (auto& item_ptr : asts) {
+            auto& expr_marked = *item_ptr;
+            switch (expr_marked.value.index()) {
+                case ast::expr_marked::EXPR: {
+                    auto[item_value, item_type] = compile_constant_expr(*get<ast::expr_marked::EXPR>(expr_marked.value));
+                    if (!values.empty() && !types_equal(expr_marked, type, item_type))
+                        error(diags::different_types_in_array(), ast);
+                    if (values.empty())
+                        type = move(item_type);
+                    values.push_back(into_ptr(item_value));
+                    break;
+                }
+
+                default:
+                    error(diags::expression_not_constant(), expr_marked);
+            }
+        }
+
+        if (values.empty())
+            type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::NEVER }));
+        return { VARIANT(prog::constant, ARRAY, move(values)), VARIANT(prog::type, ARRAY, make_ptr(prog::array_type{ into_ptr(type), values.size() })) };
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_literal(const ast::const_expr& ast) {
@@ -358,6 +415,10 @@ namespace sg {
     }
 
     prog::constant compiler::convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp) {
+        error(diags::not_implemented_error(), ast); // TODO
+    }
+
+    bool compiler::types_equal(const ast::node& ast, const prog::type& type1, const prog::type& type2) {
         error(diags::not_implemented_error(), ast); // TODO
     }
 }

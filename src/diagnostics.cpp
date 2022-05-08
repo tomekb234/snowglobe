@@ -106,5 +106,9 @@ namespace sg {
         void expression_not_constant::write(ostream& stream) const {
             stream << "Expression is not constant" << endl;
         }
+
+        void different_types_in_array::write(ostream& stream) const {
+            stream << "Elements of an array have different types" << endl;
+        }
     }
 }

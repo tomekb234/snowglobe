@@ -109,6 +109,10 @@ namespace sg {
         struct expression_not_constant : error {
             void write(ostream& stream) const override;
         };
+
+        struct different_types_in_array : error {
+            void write(ostream& stream) const override;
+        };
     }
 }
 
