@@ -396,22 +396,226 @@ namespace sg {
                 return VARIANT(prog::type, PRIMITIVE, into_ptr(tp));
             }
 
-            case ast::type::USER_TYPE: // TODO
-            case ast::type::TUPLE:
-            case ast::type::ARRAY:
-            case ast::type::OPTIONAL:
-            case ast::type::PTR:
-            case ast::type::INNER_PTR:
-            case ast::type::FUNC:
-            case ast::type::GLOBAL_FUNC:
-            case ast::type::FUNC_WITH_PTR:
+            case ast::type::USER_TYPE: {
+                error(diags::not_implemented_error(), ast); // TODO
+            }
+            
+            case ast::type::TUPLE: {
+                auto types = compile_tuple_type(get<ast::type::TUPLE>(ast.value));
+                return VARIANT(prog::type, TUPLE, move(types));
+            }
+
+            case ast::type::ARRAY: {
+                auto tp = compile_array_type(*get<ast::type::ARRAY>(ast.value));
+                return VARIANT(prog::type, ARRAY, into_ptr(tp));
+            }
+
+            case ast::type::OPTIONAL: {
+                auto tp = compile_type(*get<ast::type::OPTIONAL>(ast.value));
+                return VARIANT(prog::type, OPTIONAL, into_ptr(tp));
+            }
+
+            case ast::type::PTR: {
+                auto tp = compile_ptr_type(*get<ast::type::PTR>(ast.value));
+                return VARIANT(prog::type, PTR, into_ptr(tp));
+            }
+
+            case ast::type::INNER_PTR: {
+                auto tp = compile_inner_ptr_type(*get<ast::type::INNER_PTR>(ast.value));
+                return VARIANT(prog::type, INNER_PTR, into_ptr(tp));
+            }
+
+            case ast::type::FUNC: {
+                auto tp = compile_func_type(*get<ast::type::FUNC>(ast.value));
+                return VARIANT(prog::type, FUNC, into_ptr(tp));
+            }
+
+            case ast::type::GLOBAL_FUNC: {
+                auto tp = compile_func_type(*get<ast::type::GLOBAL_FUNC>(ast.value));
+                return VARIANT(prog::type, GLOBAL_FUNC, into_ptr(tp));
+            }
+
+            case ast::type::FUNC_WITH_PTR: {
+                auto tp = compile_func_with_ptr_type(*get<ast::type::FUNC_WITH_PTR>(ast.value));
+                return VARIANT(prog::type, FUNC_WITH_PTR, into_ptr(tp));
+            }
+
             default:
-                error(diags::not_implemented_error(), ast);
+                throw 0; // unreachable state
         }
+    }
+    
+    prog::func_with_ptr_type compiler::compile_func_with_ptr_type(const ast::func_with_ptr_type& ast) {
+        auto base = compile_func_type(ast);
+
+        decltype(prog::func_with_ptr_type::kind) kind;
+
+        switch(ast.kind) {
+            case ast::func_with_ptr_type::BASIC: {
+                kind = prog::func_with_ptr_type::BASIC;
+                break;
+            }
+
+            case ast::func_with_ptr_type::SHARED: {
+                kind = prog::func_with_ptr_type::SHARED;
+                break;
+            }
+
+            case ast::func_with_ptr_type::WEAK: {
+                kind = prog::func_with_ptr_type::WEAK;
+                break;
+            }
+
+            case ast::func_with_ptr_type::UNIQUE: {
+                kind = prog::func_with_ptr_type::UNIQUE;
+                break;
+            }
+
+            default:
+                throw 0; // unreachable state
+        }
+
+        auto target_tp = compile_type_pointed(*ast.target_tp);
+
+        return { move(base.param_tps), move(base.return_tp), kind, into_ptr(target_tp) };
+    }
+
+    prog::type_local compiler::compile_type_local(const ast::type_local& ast) {
+        auto tp = compile_type(*ast.tp);
+        return { into_ptr(tp), ast.confined };
+    }
+
+    prog::func_type compiler::compile_func_type(const ast::func_type& ast) {
+        vector<prog::ptr<prog::type_local>> param_tps;
+
+        for(const auto& param_tp : ast.param_tps) {
+            auto&& tp = compile_type_local(*param_tp);
+            param_tps.push_back(into_ptr(tp));
+        }
+
+        auto return_tp = compile_type(*ast.return_tp);
+
+        return { move(param_tps), into_ptr(return_tp) };
+    }
+
+    prog::inner_ptr_type compiler::compile_inner_ptr_type(const ast::inner_ptr_type& ast) {
+        auto base = compile_ptr_type(ast);
+        auto owner_tp = compile_type_pointed(*ast.owner_tp);
+
+        return { base.kind, move(base.target_tp), into_ptr(owner_tp) };
+    }
+
+    prog::type_pointed compiler::compile_type_pointed(const ast::type_pointed& ast) {
+        prog::type&& tp = compile_type(*ast.tp);
+        return { into_ptr(tp), ast.slice };
+    }
+
+    prog::ptr_type compiler::compile_ptr_type(const ast::ptr_type& ast) {
+        decltype(prog::ptr_type::kind) kind;
+
+        switch(ast.kind) {
+            case ast::ptr_type::GLOBAL: {
+                kind = prog::ptr_type::GLOBAL;
+                break;
+            }
+
+            case ast::ptr_type::BASIC: {
+                kind = prog::ptr_type::BASIC;
+                break;
+            }
+
+            case ast::ptr_type::SHARED: {
+                kind = prog::ptr_type::SHARED;
+                break;
+            }
+
+            case ast::ptr_type::WEAK: {
+                kind = prog::ptr_type::WEAK;
+                break;
+            }
+
+            case ast::ptr_type::UNIQUE: {
+                kind = prog::ptr_type::UNIQUE;
+                break;
+            }
+
+            default:
+                throw 0; // unreachable state
+        }
+
+        auto target_tp = compile_type_pointed(*ast.target_tp);
+
+        return { kind, into_ptr(target_tp) };
+    }
+
+    prog::array_type compiler::compile_array_type(const ast::array_type& ast) {
+        prog::type&& tp = compile_type(*ast.tp);
+        return { into_ptr(tp), get<ast::const_integer::INTEGER>(ast.size->value) };
+    }
+
+    vector<prog::ptr<prog::type>> compiler::compile_tuple_type(const vector<ast::ptr<ast::type>>& ast) {
+        vector<prog::ptr<prog::type>> result;
+
+        for(const auto& ast_type : ast) {
+            prog::type&& type = compile_type(*ast_type); 
+            result.push_back(into_ptr(type));
+        }
+
+        return result;
     }
 
     prog::primitive_type compiler::compile_primitive_type(const ast::primitive_type& ast) {
-        error(diags::not_implemented_error(), ast); // TODO
+        switch(ast.tp) {
+            case ast::primitive_type::BOOL: {
+                return { prog::primitive_type::BOOL };
+            }
+
+            case ast::primitive_type::I8: {
+                return { prog::primitive_type::I8 };
+            }
+
+            case ast::primitive_type::I16: {
+                return { prog::primitive_type::I16 };
+            }
+
+            case ast::primitive_type::I32: {
+                return { prog::primitive_type::I32 };
+            }
+
+            case ast::primitive_type::I64: {
+                return { prog::primitive_type::I64 };
+            }
+            case ast::primitive_type::U8: {
+                return { prog::primitive_type::U8 };
+            }
+
+            case ast::primitive_type::U16: {
+                return { prog::primitive_type::U16 };
+            }
+
+            case ast::primitive_type::U32: {
+                return { prog::primitive_type::U32 };
+            }
+
+            case ast::primitive_type::U64: {
+                return { prog::primitive_type::U64 };
+            }
+
+            case ast::primitive_type::F32: {
+                return { prog::primitive_type::F32 };
+            }
+
+            case ast::primitive_type::F64: {
+                return { prog::primitive_type::F64 };
+            }
+
+            case ast::primitive_type::NEVER: {
+                return { prog::primitive_type::NEVER };
+            }
+            
+            default:
+                throw 0; // unreachable state
+        }
     }
 
     prog::constant compiler::convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp) {

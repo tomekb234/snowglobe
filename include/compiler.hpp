@@ -63,7 +63,15 @@ namespace sg {
 
         prog::type compile_type(const ast::type& ast);
         prog::primitive_type compile_primitive_type(const ast::primitive_type& ast);
-
+        vector<prog::ptr<prog::type>> compile_tuple_type(const vector<ast::ptr<ast::type>>& ast);
+        prog::array_type compile_array_type(const ast::array_type& ast);
+        prog::ptr_type compile_ptr_type(const ast::ptr_type& ast);
+        prog::type_pointed compile_type_pointed(const ast::type_pointed& ast);
+        prog::inner_ptr_type compile_inner_ptr_type(const ast::inner_ptr_type& ast);
+        prog::func_type compile_func_type(const ast::func_type& ast);
+        prog::type_local compile_type_local(const ast::type_local& ast);
+        prog::func_with_ptr_type compile_func_with_ptr_type(const ast::func_with_ptr_type& ast);
+        
         prog::constant convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp);
         bool types_equal(const ast::node& ast, const prog::type& type1, const prog::type& type2);
 
