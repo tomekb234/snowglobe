@@ -15,6 +15,8 @@ namespace sg {
     using std::is_signed;
     using std::is_unsigned;
     using std::to_string;
+    using std::bind;
+    using std::placeholders::_1;
 
     optional<prog::program> compiler::compile(const ast::program& ast) {
         try {
@@ -82,7 +84,7 @@ namespace sg {
                     auto global_const = compile_global_var(global_const_ast);
                     auto name = global_const.name;
                     auto index = constants.size();
-                    constants.push_back(into_ptr(global_const));
+                    constants.push_back(move(global_const));
                     global_names[name] = { global_name::CONSTANT, index, true };
                     break;
                 }
@@ -215,6 +217,10 @@ namespace sg {
                 return compile_constant_array(get<ast::expr::ARRAY>(ast.value), ast);
             }
 
+            case ast::expr::NAME: {
+                return compile_constant_name(get<ast::expr::NAME>(ast.value), ast);
+            }
+
             case ast::expr::CONST: {
                 return compile_constant_literal(*get<ast::expr::CONST>(ast.value));
             }
@@ -284,6 +290,25 @@ namespace sg {
         if (values.empty())
             type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::NEVER }));
         return { VARIANT(prog::constant, ARRAY, move(values)), VARIANT(prog::type, ARRAY, make_ptr(prog::array_type{ into_ptr(type), values.size() })) };
+    }
+
+    pair<prog::constant, prog::type> compiler::compile_constant_name(const string& name, const ast::node& ast) {
+        if (!global_names.count(name))
+            error(diags::name_not_declared_error(name), ast);
+        auto& global_name = global_names[name];
+
+        switch (global_name.kind) {
+            case global_name::VARIABLE:
+                error(diags::expression_not_constant(), ast);
+
+            case global_name::CONSTANT: {
+                auto& global_var = constants[global_name.index];
+                return { copy_constant(*global_var.value), copy_type(*global_var.tp) };
+            }
+
+            default:
+                error(diags::not_implemented_error(), ast);
+        }
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_literal(const ast::const_expr& ast) {
@@ -624,5 +649,135 @@ namespace sg {
 
     bool compiler::types_equal(const ast::node& ast, const prog::type& type1, const prog::type& type2) {
         error(diags::not_implemented_error(), ast); // TODO
+    }
+
+    prog::constant compiler::copy_constant(const prog::constant& source) {
+        switch (source.value.index()) {
+            case prog::constant::BOOL:
+                return VARIANT(prog::constant, BOOL, get<prog::constant::BOOL>(source.value));
+
+            case prog::constant::INT:
+                return VARIANT(prog::constant, INT, get<prog::constant::INT>(source.value));
+
+            case prog::constant::FLOAT:
+                return VARIANT(prog::constant, FLOAT, get<prog::constant::FLOAT>(source.value));
+
+            case prog::constant::STRUCT: {
+                auto vec = copy_ptr_vector<prog::constant>(get<prog::constant::STRUCT>(source.value), bind(&compiler::copy_constant, this, _1));
+                return VARIANT(prog::constant, STRUCT, move(vec));
+            }
+
+            case prog::constant::ENUM: {
+                auto& p = get<prog::constant::ENUM>(source.value);
+                auto vec = copy_ptr_vector<prog::constant>(p.second, bind(&compiler::copy_constant, this, _1));
+                return VARIANT(prog::constant, ENUM, make_pair( p.first, move(vec) ));
+            }
+
+            case prog::constant::TUPLE: {
+                auto vec = copy_ptr_vector<prog::constant>(get<prog::constant::TUPLE>(source.value), bind(&compiler::copy_constant, this, _1));
+                return VARIANT(prog::constant, TUPLE, move(vec));
+            }
+
+            case prog::constant::ARRAY: {
+                auto vec = copy_ptr_vector<prog::constant>(get<prog::constant::ARRAY>(source.value), bind(&compiler::copy_constant, this, _1));
+                return VARIANT(prog::constant, ARRAY, move(vec));
+            }
+
+            case prog::constant::SIZED_ARRAY: {
+                auto& p = get<prog::constant::SIZED_ARRAY>(source.value);
+                return VARIANT(prog::constant, SIZED_ARRAY, make_pair( make_ptr(copy_constant(*p.first)), p.second ));
+            }
+
+            case prog::constant::SOME:
+                return VARIANT(prog::constant, SOME, make_ptr(copy_constant(*get<prog::constant::SOME>(source.value))));
+
+            case prog::constant::NONE:
+                return VARIANT(prog::constant, NONE, ast::monostate());
+
+            case prog::constant::GLOBAL_PTR:
+                return VARIANT(prog::constant, GLOBAL_PTR, get<prog::constant::GLOBAL_PTR>(source.value));
+
+            case prog::constant::GLOBAL_INNER_PTR: {
+                auto p = get<prog::constant::GLOBAL_INNER_PTR>(source.value);
+                return VARIANT(prog::constant, GLOBAL_INNER_PTR, move(p));
+            }
+
+            case prog::constant::GLOBAL_FUNC_PTR:
+                return VARIANT(prog::constant, GLOBAL_FUNC_PTR, get<prog::constant::GLOBAL_FUNC_PTR>(source.value));
+
+            default:
+                throw 0; // unreachable state
+        }
+    }
+
+    prog::type compiler::copy_type(const prog::type& source) {
+        switch (source.value.index()) {
+            case prog::type::PRIMITIVE:
+                return VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ get<prog::type::PRIMITIVE>(source.value)->tp }));
+
+            case prog::type::STRUCT:
+                return VARIANT(prog::type, STRUCT, get<prog::type::STRUCT>(source.value));
+
+            case prog::type::ENUM:
+                return VARIANT(prog::type, ENUM, get<prog::type::ENUM>(source.value));
+
+            case prog::type::TUPLE: {
+                auto vec = copy_ptr_vector<prog::type>(get<prog::type::TUPLE>(source.value), bind(&compiler::copy_type, this, _1));
+                return VARIANT(prog::type, TUPLE, move(vec));
+            }
+
+            case prog::type::ARRAY:
+                return VARIANT(prog::type, ARRAY, make_ptr(copy_array_type(*get<prog::type::ARRAY>(source.value))));
+
+            case prog::type::OPTIONAL:
+                return VARIANT(prog::type, OPTIONAL, make_ptr(copy_type(*get<prog::type::OPTIONAL>(source.value))));
+
+            case prog::type::PTR:
+                return VARIANT(prog::type, PTR, make_ptr(copy_ptr_type(*get<prog::type::PTR>(source.value))));
+
+            case prog::type::INNER_PTR:
+                return VARIANT(prog::type, INNER_PTR, make_ptr(copy_inner_ptr_type(*get<prog::type::INNER_PTR>(source.value))));
+
+            case prog::type::FUNC:
+                return VARIANT(prog::type, FUNC, make_ptr(copy_func_type(*get<prog::type::FUNC>(source.value))));
+
+            case prog::type::GLOBAL_FUNC:
+                return VARIANT(prog::type, GLOBAL_FUNC, make_ptr(copy_func_type(*get<prog::type::GLOBAL_FUNC>(source.value))));
+
+            case prog::type::FUNC_WITH_PTR:
+                return VARIANT(prog::type, FUNC_WITH_PTR, make_ptr(copy_func_with_ptr_type(*get<prog::type::FUNC_WITH_PTR>(source.value))));
+
+            default:
+                throw 0; // unreachable state
+        }
+    }
+
+    prog::array_type compiler::copy_array_type(const prog::array_type& source) {
+        return { make_ptr(copy_type(*source.tp)), source.size };
+    }
+
+    prog::ptr_type compiler::copy_ptr_type(const prog::ptr_type& source) {
+        return { source.kind, make_ptr(copy_type_pointed(*source.target_tp)) };
+    }
+
+    prog::inner_ptr_type compiler::copy_inner_ptr_type(const prog::inner_ptr_type& source) {
+        return { /*base*/copy_ptr_type(source), make_ptr(copy_type_pointed(*source.owner_tp)) };
+    }
+
+    prog::func_type compiler::copy_func_type(const prog::func_type& source) {
+        auto vec = copy_ptr_vector<prog::type_local>(source.param_tps, bind(&compiler::copy_type_local, this, _1));
+        return { move(vec), make_ptr(copy_type(*source.return_tp)) };
+    }
+
+    prog::func_with_ptr_type compiler::copy_func_with_ptr_type(const prog::func_with_ptr_type& source) {
+        return { /*base*/copy_func_type(source), source.kind, make_ptr(copy_type_pointed(*source.target_tp)) };
+    }
+
+    prog::type_pointed compiler::copy_type_pointed(const prog::type_pointed& source) {
+        return { make_ptr(copy_type(*source.tp)), source.slice };
+    }
+
+    prog::type_local compiler::copy_type_local(const prog::type_local& source) {
+        return { make_ptr(copy_type(*source.tp)), source.confined };
     }
 }

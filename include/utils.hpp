@@ -6,6 +6,7 @@
 #include <optional>
 #include <vector>
 #include <variant>
+#include <functional>
 
 #define VARIANT(type, index, val) (type { decltype(type::value)(in_place_index<type::index>, val) })
 #define AST_VARIANT(type, index, loc, val) (type { loc, decltype(type::value)(in_place_index<type::index>, val) })
@@ -40,6 +41,14 @@ namespace sg::utils {
         vector<unique_ptr<T>> result;
         for (T& value : values)
             result.push_back(make_unique<T>(move(value)));
+        return result;
+    }
+
+    template<typename T>
+    static vector<unique_ptr<T>> copy_ptr_vector(const vector<unique_ptr<T>>& vec, std::function<T(const T&)> inner_copy_func) {
+        vector<unique_ptr<T>> result;
+        for (auto& ptr : vec)
+            result.push_back(make_unique<T>(inner_copy_func(*ptr)));
         return result;
     }
 }

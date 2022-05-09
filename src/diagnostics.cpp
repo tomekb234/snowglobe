@@ -103,6 +103,10 @@ namespace sg {
             stream << "The global name '" << name << " is already used" << endl;
         }
 
+        void name_not_declared_error::write(ostream& stream) const {
+            stream << "The name '" << name << "' was not declared" << endl;
+        }
+
         void expression_not_constant::write(ostream& stream) const {
             stream << "Expression is not constant" << endl;
         }

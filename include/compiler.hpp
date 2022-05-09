@@ -33,7 +33,7 @@ namespace sg {
         diagnostic_collector& diags;
         prog::program program;
         unordered_map<string, global_name> global_names;
-        vector<unique_ptr<prog::global_var>> constants;
+        vector<prog::global_var> constants;
 
         template<typename T>
         [[noreturn]] void error(T&& diag, const ast::node& ast) {
@@ -57,6 +57,7 @@ namespace sg {
         pair<prog::constant, prog::type> compile_constant_expr(const ast::expr& ast);
         pair<prog::constant, prog::type> compile_constant_tuple(const vector<ast::ptr<ast::expr_marked>>& asts, const ast::node& ast);
         pair<prog::constant, prog::type> compile_constant_array(const vector<ast::ptr<ast::expr_marked>>& asts, const ast::node& ast);
+        pair<prog::constant, prog::type> compile_constant_name(const string& name, const ast::node& ast);
         pair<prog::constant, prog::type> compile_constant_literal(const ast::const_expr& ast);
         pair<prog::constant, prog::primitive_type> compile_int_token(const ast::int_token& ast);
         pair<prog::constant, prog::primitive_type> compile_float_token(const ast::float_token& ast);
@@ -74,6 +75,16 @@ namespace sg {
         
         prog::constant convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp);
         bool types_equal(const ast::node& ast, const prog::type& type1, const prog::type& type2);
+
+        prog::constant copy_constant(const prog::constant& source);
+        prog::type copy_type(const prog::type& source);
+        prog::array_type copy_array_type(const prog::array_type& source);
+        prog::ptr_type copy_ptr_type(const prog::ptr_type& source);
+        prog::inner_ptr_type copy_inner_ptr_type(const prog::inner_ptr_type& source);
+        prog::func_type copy_func_type(const prog::func_type& source);
+        prog::func_with_ptr_type copy_func_with_ptr_type(const prog::func_with_ptr_type& source);
+        prog::type_pointed copy_type_pointed(const prog::type_pointed& source);
+        prog::type_local copy_type_local(const prog::type_local& source);
 
         public:
 

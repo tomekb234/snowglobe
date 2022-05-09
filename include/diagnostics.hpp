@@ -106,6 +106,13 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
+        struct name_not_declared_error : error {
+            string name;
+
+            name_not_declared_error(string name) : name(name) { }
+            void write(ostream& stream) const override;
+        };
+
         struct expression_not_constant : error {
             void write(ostream& stream) const override;
         };
