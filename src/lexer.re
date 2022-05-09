@@ -236,7 +236,7 @@ static int_token parse_int(const string& text, int base) {
     try {
         return { { }, stoull(remove_underscores(text), nullptr, base), false, get_int_marker(text) };
     } catch (out_of_range) {
-        throw new sg::diags::integer_overflow_error(text, false, 64);
+        throw new sg::diags::integer_overflow(text, false, 64);
     }
 }
 
@@ -248,7 +248,7 @@ static float_token parse_float(const string& text) {
         else
             return { { }, stod(remove_underscores(text)), false, marker };
     } catch (out_of_range) {
-        throw new sg::diags::float_overflow_error(text, marker != float_token::F32);
+        throw new sg::diags::float_overflow(text, marker != float_token::F32);
     }
 }
 
@@ -263,7 +263,7 @@ static char resolve_escape_sequence(char ch) {
         case '\\': return '\\';
 
         default:
-            throw new sg::diags::invalid_escape_sequence_error(ch);
+            throw new sg::diags::invalid_escape_sequence(ch);
     }
 }
 

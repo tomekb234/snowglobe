@@ -72,7 +72,7 @@ namespace sg {
         prog::func_type compile_func_type(const ast::func_type& ast);
         prog::type_local compile_type_local(const ast::type_local& ast);
         prog::func_with_ptr_type compile_func_with_ptr_type(const ast::func_with_ptr_type& ast);
-        
+
         prog::constant convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp);
 
         bool subtype(const prog::type& type1, const prog::type& type2, bool confined = false);
@@ -80,7 +80,7 @@ namespace sg {
         bool func_subtype(const prog::func_type& func1, const prog::func_type& func2);
         bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined = false);
         bool ptr_subkind(prog::ptr_type::kind_t kind1, prog::ptr_type::kind_t kind2, bool confined = false);
-        
+
         prog::type common_supertype(const ast::node& ast, const prog::type& type1, const prog::type& type2);
 
         prog::constant copy_constant(const prog::constant& source);

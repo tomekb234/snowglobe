@@ -39,7 +39,6 @@
     #include "utils.hpp"
 
     using namespace sg::utils;
-    using std::get;
 }
 
 // Tokens
@@ -724,16 +723,16 @@ expr:
     | "-" expr[inner] %prec UNARY_MINUS {
         bool done = false;
 
-        if ($inner.value.index() == expr::CONST) {
-            auto& constant = *get<expr::CONST>($inner.value);
+        if (INDEX_EQ($inner, CONST)) {
+            auto& constant = *GET($inner, CONST);
 
-            if (constant.value.index() == const_expr::INT) {
-                auto& number = *get<const_expr::INT>(constant.value);
+            if (INDEX_EQ(constant, INT)) {
+                auto& number = *GET(constant, INT);
                 number.negative = !number.negative;
                 number.loc = constant.loc = @$;
                 done = true;
-            } else if (constant.value.index() == const_expr::FLOAT) {
-                auto& number = *get<const_expr::FLOAT>(constant.value);
+            } else if (INDEX_EQ(constant, FLOAT)) {
+                auto& number = *GET(constant, FLOAT);
                 number.negative = !number.negative;
                 number.loc = constant.loc = @$;
                 done = true;
@@ -1056,19 +1055,19 @@ type:
     }
 
     | "func" "&" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), func_with_ptr_type::BASIC, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), @$, func_with_ptr_type::BASIC, into_ptr($type_pointed) }));
     }
 
     | "func" "*" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), func_with_ptr_type::SHARED, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), @$, func_with_ptr_type::SHARED, into_ptr($type_pointed) }));
     }
 
     | "func" "~" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), func_with_ptr_type::WEAK, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), @$, func_with_ptr_type::WEAK, into_ptr($type_pointed) }));
     }
 
     | "func" "@" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), func_with_ptr_type::UNIQUE, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), @$, func_with_ptr_type::UNIQUE, into_ptr($type_pointed) }));
     }
 
 type_seq:

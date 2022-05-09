@@ -7,9 +7,7 @@
 #include <vector>
 #include <variant>
 #include <functional>
-
-#define VARIANT(type, index, val) (type { decltype(type::value)(in_place_index<type::index>, val) })
-#define AST_VARIANT(type, index, loc, val) (type { loc, decltype(type::value)(in_place_index<type::index>, val) })
+#include <type_traits>
 
 namespace sg::utils {
     using std::move;
@@ -20,6 +18,16 @@ namespace sg::utils {
     using std::vector;
     using std::in_place_index;
     using std::make_pair;
+    using std::get;
+    using std::remove_reference;
+
+    #define UNREACHABLE { throw 0; }
+
+    #define VARIANT(type, index, val) (type { decltype(type::value)(in_place_index<type::index>, val) })
+    #define AST_VARIANT(type, index, loc, val) (type { loc, decltype(type::value)(in_place_index<type::index>, val) })
+    #define INDEX(val) ((val).value.index())
+    #define INDEX_EQ(val, index) (INDEX(val) == remove_reference<decltype(val)>::type::index)
+    #define GET(val, index) (get<remove_reference<decltype(val)>::type::index>((val).value))
 
     template<typename T>
     static unique_ptr<T> make_ptr(T&& value) {

@@ -180,7 +180,6 @@ namespace sg::prog {
         bool slice;
     };
 
-
     struct type_local {
         ptr<type> tp;
         bool confined;

@@ -49,7 +49,7 @@ namespace sg {
             error() : diagnostic(ERROR) { }
         };
 
-        struct not_implemented_error : error {
+        struct not_implemented : error {
             void write(ostream& stream) const override;
         };
 
@@ -68,10 +68,10 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
-        struct invalid_escape_sequence_error : error {
+        struct invalid_escape_sequence : error {
             char ch;
 
-            invalid_escape_sequence_error(char ch) : ch(ch) { }
+            invalid_escape_sequence(char ch) : ch(ch) { }
             void write(ostream& stream) const override;
         };
 
@@ -82,34 +82,34 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
-        struct integer_overflow_error : error {
+        struct integer_overflow : error {
             string number;
             bool signed_type;
             int bits;
 
-            integer_overflow_error(string number, bool signed_type, int bits) : number(number), signed_type(signed_type), bits(bits) { }
+            integer_overflow(string number, bool signed_type, int bits) : number(number), signed_type(signed_type), bits(bits) { }
             void write(ostream& stream) const override;
         };
 
-        struct float_overflow_error : error {
+        struct float_overflow : error {
             string number;
             bool double_precision;
 
-            float_overflow_error(string number, bool double_precision) : number(number), double_precision(double_precision) { }
+            float_overflow(string number, bool double_precision) : number(number), double_precision(double_precision) { }
             void write(ostream& stream) const override;
         };
 
-        struct global_name_used_error : error {
+        struct global_name_used : error {
             string name;
 
-            global_name_used_error(string name) : name(name) { }
+            global_name_used(string name) : name(name) { }
             void write(ostream& stream) const override;
         };
 
-        struct name_not_declared_error : error {
+        struct name_not_declared : error {
             string name;
 
-            name_not_declared_error(string name) : name(name) { }
+            name_not_declared(string name) : name(name) { }
             void write(ostream& stream) const override;
         };
 

@@ -63,7 +63,7 @@ namespace sg {
     }
 
     namespace diags {
-        void not_implemented_error::write(ostream& stream) const {
+        void not_implemented::write(ostream& stream) const {
             stream << "Not implemented yet" << endl;
         }
 
@@ -83,7 +83,7 @@ namespace sg {
             }
         }
 
-        void invalid_escape_sequence_error::write(ostream& stream) const {
+        void invalid_escape_sequence::write(ostream& stream) const {
             stream << "Invalid character escape sequence \\" << string(1, ch) << endl;
         }
 
@@ -91,19 +91,19 @@ namespace sg {
             stream << "Character literal " << literal << " contains multibyte character" << endl;
         }
 
-        void integer_overflow_error::write(ostream& stream) const {
+        void integer_overflow::write(ostream& stream) const {
             stream << "The " << (signed_type ? "signed" : "unsigned") << " integer '" << number << "' does not fit in " << bits << " bits" << endl;
         }
 
-        void float_overflow_error::write(ostream& stream) const {
+        void float_overflow::write(ostream& stream) const {
             stream << "The number '" << number << "' is out of range of " << (double_precision ? "double" : "single") << "-precision format" << endl;
         }
 
-        void global_name_used_error::write(ostream& stream) const {
+        void global_name_used::write(ostream& stream) const {
             stream << "The global name '" << name << " is already used" << endl;
         }
 
-        void name_not_declared_error::write(ostream& stream) const {
+        void name_not_declared::write(ostream& stream) const {
             stream << "The name '" << name << "' was not declared" << endl;
         }
 

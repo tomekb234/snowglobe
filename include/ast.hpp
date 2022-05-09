@@ -583,16 +583,7 @@ namespace sg::ast {
         ptr<type> return_tp;
     };
 
-    struct func_with_ptr_type : func_type {
-        enum {
-            BASIC,
-            SHARED,
-            WEAK,
-            UNIQUE
-        } kind;
-
-        ptr<type_pointed> target_tp;
-    };
+    struct func_with_ptr_type : func_type, ptr_type { };
 
     struct type_pointed : node {
         ptr<type> tp;
