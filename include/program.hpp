@@ -65,6 +65,7 @@ namespace sg::prog {
 
     struct constant {
         enum {
+            UNIT,
             BOOL,
             INT,
             FLOAT,
@@ -81,6 +82,7 @@ namespace sg::prog {
         };
 
         variant<
+            monostate, // UNIT
             bool, // BOOL
             unsigned long long, // INT
             double, // FLOAT
@@ -129,6 +131,8 @@ namespace sg::prog {
 
     struct primitive_type {
         enum {
+            NEVER,
+            UNIT,
             BOOL,
             I8,
             I16,
@@ -139,8 +143,7 @@ namespace sg::prog {
             U32,
             U64,
             F32,
-            F64,
-            NEVER
+            F64
         } tp;
     };
 
@@ -150,7 +153,7 @@ namespace sg::prog {
     };
 
     struct ptr_type {
-        enum {
+        enum kind_t {
             GLOBAL,
             BASIC,
             SHARED,
@@ -170,16 +173,7 @@ namespace sg::prog {
         ptr<type> return_tp;
     };
 
-    struct func_with_ptr_type : func_type {
-        enum {
-            BASIC,
-            SHARED,
-            WEAK,
-            UNIQUE
-        } kind;
-
-        ptr<type_pointed> target_tp;
-    };
+    struct func_with_ptr_type : func_type, ptr_type { };
 
     struct type_pointed {
         ptr<type> tp;

@@ -111,7 +111,7 @@ namespace sg {
             stream << "Expression is not constant" << endl;
         }
 
-        void different_types_in_array::write(ostream& stream) const {
+        void no_common_supertype::write(ostream& stream) const {
             stream << "Elements of an array have different types" << endl;
         }
     }

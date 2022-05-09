@@ -56,7 +56,7 @@ namespace sg {
             }
         }
 
-        // Phase 2: Compile struct, enum definitions and constants
+        // Phase 2: Compile struct, enum definitions and constants, prepare global function declarations
 
         size_t struct_type_index = 0;
         size_t enum_type_index = 0;
@@ -88,13 +88,7 @@ namespace sg {
                     global_names[name] = { global_name::CONSTANT, index, true };
                     break;
                 }
-            }
-        }
 
-        // Phase 3: Prepare global function declarations
-
-        for (auto& global_def : ast.global_defs) {
-            switch (global_def->value.index()) {
                 case ast::global_def::FUNC_DEF: {
                     auto& global_func_ast = *get<ast::global_def::FUNC_DEF>(global_def->value);
                     auto global_func = declare_global_func(global_func_ast);
@@ -107,8 +101,7 @@ namespace sg {
             }
         }
 
-
-        // Phase 4: Compile global variable definitions
+        // Phase 3: Compile global variable definitions
 
         for (auto& global_def : ast.global_defs) {
             switch (global_def->value.index()) {
@@ -124,7 +117,7 @@ namespace sg {
             }
         }
 
-        // Phase 5: Compile global function definitions
+        // Phase 4: Compile global function definitions
 
         size_t global_func_index = 0;
 
@@ -244,16 +237,16 @@ namespace sg {
     }
     
     pair<prog::constant, prog::type> compiler::compile_constant_tuple(const vector<ast::ptr<ast::expr_marked>>& asts, const ast::node& ast) {
-        vector<prog::ptr<prog::constant>> values;
-        vector<prog::ptr<prog::type>> types;
+        vector<prog::constant> values;
+        vector<prog::type> types;
 
         for (auto& item_ptr : asts) {
             auto& expr_marked = *item_ptr;
             switch (expr_marked.value.index()) {
                 case ast::expr_marked::EXPR: {
                     auto[value, type] = compile_constant_expr(*get<ast::expr_marked::EXPR>(expr_marked.value));
-                    values.push_back(into_ptr(value));
-                    types.push_back(into_ptr(type));
+                    values.push_back(move(value));
+                    types.push_back(move(type));
                     break;
                 }
 
@@ -262,7 +255,15 @@ namespace sg {
             }
         }
 
-        return { VARIANT(prog::constant, TUPLE, move(values)), VARIANT(prog::type, TUPLE, move(types)) };
+        if (values.empty()) {
+            auto value = VARIANT(prog::constant, UNIT, prog::monostate{ });
+            auto type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::UNIT }));
+            return { move(value), move(type) };
+        }
+        if (values.size() == 1)
+            return { move(values[0]), move(types[0]) };
+
+        return { VARIANT(prog::constant, TUPLE, into_ptr_vector(values)), VARIANT(prog::type, TUPLE, into_ptr_vector(types)) };
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_array(const vector<ast::ptr<ast::expr_marked>>& asts, const ast::node& ast) {
@@ -274,10 +275,11 @@ namespace sg {
             switch (expr_marked.value.index()) {
                 case ast::expr_marked::EXPR: {
                     auto[item_value, item_type] = compile_constant_expr(*get<ast::expr_marked::EXPR>(expr_marked.value));
-                    if (!values.empty() && !types_equal(expr_marked, type, item_type))
-                        error(diags::different_types_in_array(), ast);
                     if (values.empty())
                         type = move(item_type);
+                    else
+                        type = common_supertype(ast, type, item_type);
+                    
                     values.push_back(into_ptr(item_value));
                     break;
                 }
@@ -610,6 +612,7 @@ namespace sg {
             case ast::primitive_type::I64: {
                 return { prog::primitive_type::I64 };
             }
+            
             case ast::primitive_type::U8: {
                 return { prog::primitive_type::U8 };
             }
@@ -643,16 +646,390 @@ namespace sg {
         }
     }
 
-    prog::constant compiler::convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp) {
-        error(diags::not_implemented_error(), ast); // TODO
+    bool compiler::subtype(const prog::type& type1, const prog::type& type2, bool confined) {
+        switch (type1.value.index()) {
+            case prog::type::PRIMITIVE: {
+                auto& ptype1 = *get<prog::type::PRIMITIVE>(type1.value);
+
+                if (ptype1.tp == prog::primitive_type::NEVER)
+                    return true;
+                
+                if (type2.value.index() != prog::type::PRIMITIVE)
+                    break;
+                
+                auto& ptype2 = *get<prog::type::PRIMITIVE>(type2.value);
+                
+                switch (ptype1.tp) {
+                    case prog::primitive_type::UNIT: {
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::UNIT:
+                                return true;
+                        } break;
+                    }   
+                    
+                    case prog::primitive_type::BOOL:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::BOOL:
+                            case prog::primitive_type::I8:
+                            case prog::primitive_type::I16:
+                            case prog::primitive_type::I32:
+                            case prog::primitive_type::I64:
+                            case prog::primitive_type::U8:
+                            case prog::primitive_type::U16:
+                            case prog::primitive_type::U32:
+                            case prog::primitive_type::U64:
+                                return true;
+                        } break;
+
+                    case prog::primitive_type::I8:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::I8:
+                            case prog::primitive_type::I16:
+                            case prog::primitive_type::I32:
+                            case prog::primitive_type::I64:
+                                return true;
+                        } break;
+                    
+                    case prog::primitive_type::I16:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::I16:
+                            case prog::primitive_type::I32:
+                            case prog::primitive_type::I64:
+                                return true;
+                        } break;
+
+                    case prog::primitive_type::I32:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::I32:
+                            case prog::primitive_type::I64:
+                                return true;
+                        } break;
+
+                    case prog::primitive_type::I64:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::I64:
+                                return true;
+                        } break;
+                    
+                    case prog::primitive_type::U8:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::U8:
+                            case prog::primitive_type::U16:
+                            case prog::primitive_type::U32:
+                            case prog::primitive_type::U64:
+                            case prog::primitive_type::I16:
+                            case prog::primitive_type::I32:
+                            case prog::primitive_type::I64:
+                                return true;
+                        } break;
+
+                    case prog::primitive_type::U16:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::U16:
+                            case prog::primitive_type::U32:
+                            case prog::primitive_type::U64:
+                            case prog::primitive_type::I32:
+                            case prog::primitive_type::I64:
+                                return true;
+                        } break;
+                    
+                    case prog::primitive_type::U32:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::U32:
+                            case prog::primitive_type::U64:
+                            case prog::primitive_type::I64:
+                                return true;
+                        } break;
+                    
+                    case prog::primitive_type::U64:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::U64:
+                                return true;
+                        } break;
+                    
+                    case prog::primitive_type::F32:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::F32:
+                            case prog::primitive_type::F64:
+                                return true;
+                        } break;
+
+                    case prog::primitive_type::F64:
+                        switch (ptype2.tp) {
+                            case prog::primitive_type::F64:
+                                return true;
+                        } break;
+                }
+            } break;
+
+            case prog::type::STRUCT: {
+                if (type2.value.index() != prog::type::STRUCT)
+                    break;
+                if (get<prog::type::STRUCT>(type1.value) == get<prog::type::STRUCT>(type2.value))
+                    return true;
+            } break;
+            
+            case prog::type::ENUM: {
+                if (type2.value.index() != prog::type::ENUM)
+                    break;
+                if (get<prog::type::ENUM>(type1.value) == get<prog::type::ENUM>(type2.value))
+                    return true;
+            } break;
+
+            case prog::type::TUPLE: {
+                if(type2.value.index() != prog::type::TUPLE)
+                    break;
+                
+                auto& tuple1 = get<prog::type::TUPLE>(type1.value);
+                auto& tuple2 = get<prog::type::TUPLE>(type2.value);
+                
+                if(tuple1.size() != tuple2.size()) {
+                    break;
+                }
+                
+                bool ok = true;
+                
+                for(size_t i = 0; i < tuple1.size(); i++) {
+                    if(!subtype(*tuple1[i], *tuple2[i], confined)) {
+                        ok = false;
+                        break;
+                    }
+                }
+                
+                if(ok)
+                    return true;
+            } break;
+            
+            case prog::type::ARRAY: {
+                if (type2.value.index() != prog::type::ARRAY)
+                    break;
+                auto& array1 = *get<prog::type::ARRAY>(type1.value);
+                auto& array2 = *get<prog::type::ARRAY>(type2.value);
+                if (array1.size == array2.size && subtype(*array1.tp, *array2.tp, confined))
+                    return true;
+            } break;
+            
+            case prog::type::OPTIONAL: {
+                if (type2.value.index() == prog::type::PRIMITIVE && get<prog::type::PRIMITIVE>(type2.value)->tp == prog::primitive_type::BOOL)
+                    return true;
+                if (type2.value.index() != prog::type::OPTIONAL)
+                    break;
+                auto& tp1 = *get<prog::type::OPTIONAL>(type1.value);
+                auto& tp2 = *get<prog::type::OPTIONAL>(type2.value);
+                if (subtype(tp1, tp2, confined))
+                    return true;
+            } break;
+
+            case prog::type::PTR: {
+                if (type2.value.index() != prog::type::PTR)
+                    break;
+
+                auto& ptr1 = *get<prog::type::PTR>(type1.value);
+                auto& ptr2 = *get<prog::type::PTR>(type2.value);
+                
+                if(ptr_subkind(ptr1.kind, ptr2.kind, confined)) {
+                    if(ptr_target_subtype(*ptr1.target_tp, *ptr2.target_tp)) {
+                        return true;
+                    }
+                }
+                
+            } break;
+
+            case prog::type::INNER_PTR: {
+                auto& iptr1 = *get<prog::type::INNER_PTR>(type1.value);
+                auto& tar1 = *iptr1.target_tp;
+                auto& own1 = *iptr1.owner_tp;
+                
+                if (type2.value.index() == prog::type::PTR) {
+                    auto& ptr2 = *get<prog::type::PTR>(type2.value);
+                    auto& tar2 = *ptr2.target_tp;
+                    
+                    if (ptr_target_subtype(tar1, tar2) && ptr_kind_trivial(iptr1.kind, confined) && ptr_subkind(iptr1.kind, ptr2.kind, confined))
+                        return true;
+                }
+                else if (type2.value.index() == prog::type::INNER_PTR) {
+                    auto& iptr2 = *get<prog::type::INNER_PTR>(type2.value);
+                    if (ptr_subkind(iptr1.kind, iptr2.kind, confined)) {
+                        auto& tar2 = *iptr2.target_tp;
+                        auto& own2 = *iptr2.owner_tp;
+
+                        if (ptr_target_subtype(tar1, tar2) && ptr_target_subtype(own1, own2))
+                            return true;
+                    }
+                }
+            } break;
+            
+            case prog::type::FUNC: {
+                if(type2.value.index() != prog::type::FUNC)
+                    break;
+                auto& func1 = *get<prog::type::FUNC>(type1.value);
+                auto& func2 = *get<prog::type::FUNC>(type2.value);
+                return func_subtype(func1, func2);
+            } break;
+
+            case prog::type::GLOBAL_FUNC: {
+                if(type2.value.index() == prog::type::GLOBAL_FUNC) {
+                    auto& func1 = *get<prog::type::GLOBAL_FUNC>(type1.value);
+                    auto& func2 = *get<prog::type::GLOBAL_FUNC>(type2.value);
+                    return func_subtype(func1, func2);
+                }
+                
+                else if(type2.value.index() == prog::type::FUNC) {
+                    auto& func1 = *get<prog::type::GLOBAL_FUNC>(type1.value);
+                    auto& func2 = *get<prog::type::FUNC>(type2.value);
+                    return func_subtype(func1, func2);
+                }
+            } break;
+
+            case prog::type::FUNC_WITH_PTR: {
+                auto& fwp1 = *get<prog::type::FUNC_WITH_PTR>(type1.value);
+                
+                if(type2.value.index() == prog::type::FUNC_WITH_PTR) {
+                    auto& fwp2 = *get<prog::type::FUNC_WITH_PTR>(type2.value);
+                    return ptr_subkind(fwp1.kind, fwp2.kind, confined) && func_subtype(fwp1, fwp2);
+                }
+
+                else if(type2.value.index() == prog::type::FUNC && ptr_kind_trivial(fwp1.kind, confined)) {
+                    auto& func2 = *get<prog::type::FUNC>(type2.value);
+                    return func_subtype(fwp1, func2);
+                }
+            } break;
+        }
+
+        return false;
     }
 
-    bool compiler::types_equal(const ast::node& ast, const prog::type& type1, const prog::type& type2) {
-        error(diags::not_implemented_error(), ast); // TODO
+    bool compiler::ptr_target_subtype(const prog::type_pointed& type1, const prog::type_pointed& type2) {
+        if (type1.slice == type2.slice && subtype(*type1.tp, *type2.tp) && subtype(*type1.tp, *type2.tp))
+            return true;
+
+        if (!type1.slice && type2.slice && type1.tp->value.index() == prog::type::ARRAY) {
+            auto& arr1 = *get<prog::type::ARRAY>(type1.tp->value);
+            if (subtype(*arr1.tp, *type2.tp) && subtype(*type2.tp, *arr1.tp))
+                return true;
+            if (arr1.tp->value.index() == prog::type::PRIMITIVE) {
+                auto& ptype1 = *get<prog::type::PRIMITIVE>(arr1.tp->value);
+                if (ptype1.tp == prog::primitive_type::NEVER)
+                    return true;
+            }
+        }
+
+        if (type1.slice && type2.slice && type1.tp->value.index() == prog::type::PRIMITIVE) {
+            auto& ptype1 = *get<prog::type::PRIMITIVE>(type1.tp->value);
+            if (ptype1.tp == prog::primitive_type::NEVER)
+                return true;
+        }
+
+        return false;
+    }
+
+    bool compiler::func_subtype(const prog::func_type& func1, const prog::func_type& func2) {
+        if(subtype(*func1.return_tp, *func2.return_tp)) {
+            auto& args1 = func1.param_tps;
+            auto& args2 = func2.param_tps;
+
+            if(args1.size() != args2.size()) {
+                return false;
+            }
+
+            bool ok = true;
+
+            for (size_t i = 0; i < args1.size(); i++) {
+                if (args2[i]->confined != args1[i]->confined || !subtype(*args2[i]->tp, *args1[i]->tp, args1[i]->confined)) {
+                    ok = false;
+                    break;
+                }
+            }
+            
+            if(ok)
+                return true;
+        }
+    }
+
+    bool compiler::ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined) {
+        switch (kind) {
+            case prog::ptr_type::GLOBAL:
+            case prog::ptr_type::BASIC:
+                return true;
+            
+            case prog::ptr_type::SHARED:
+            case prog::ptr_type::UNIQUE:
+                return confined;
+            
+            case prog::ptr_type::WEAK:
+                return false;
+        }
+    }
+
+    bool compiler::ptr_subkind(prog::ptr_type::kind_t kind1, prog::ptr_type::kind_t kind2, bool confined) {
+        switch (kind1) {
+            case prog::ptr_type::GLOBAL:
+                switch (kind2) {
+                    case prog::ptr_type::GLOBAL:
+                    case prog::ptr_type::BASIC:
+                        return true;
+                } break;
+            
+            case prog::ptr_type::BASIC:
+                switch (kind2) {
+                    case prog::ptr_type::BASIC:
+                        return true;
+                    case prog::ptr_type::SHARED:
+                    case prog::ptr_type::WEAK:
+                    case prog::ptr_type::UNIQUE:
+                        if (confined)
+                            return true;
+                } break;
+            
+            case prog::ptr_type::SHARED:
+                switch (kind2) {
+                    case prog::ptr_type::SHARED:
+                    case prog::ptr_type::WEAK:
+                        return true;
+                    case prog::ptr_type::BASIC:
+                    case prog::ptr_type::UNIQUE:
+                        if (confined)
+                            return true;
+                } break;
+            
+            case prog::ptr_type::WEAK:
+                switch (kind2) {
+                    case prog::ptr_type::WEAK:
+                        return true;
+                } break;
+                
+            case prog::ptr_type::UNIQUE:
+                switch (kind2) {
+                    case prog::ptr_type::UNIQUE:
+                    case prog::ptr_type::SHARED:
+                    case prog::ptr_type::WEAK:
+                        return true;
+                    case prog::ptr_type::BASIC:
+                        if (confined)
+                            return true;
+                } break;
+        }
+
+        return false;
+    }
+
+    prog::type compiler::common_supertype(const ast::node& ast, const prog::type& type1, const prog::type& type2) {
+        if (subtype(type1, type2)) {
+            return copy_type(type2);
+        }
+        else if (subtype(type2, type1)) {
+            return copy_type(type1);
+        }
+        else {
+            error(diags::no_common_supertype(), ast);
+        }
     }
 
     prog::constant compiler::copy_constant(const prog::constant& source) {
         switch (source.value.index()) {
+            case prog::constant::UNIT:
+                return VARIANT(prog::constant, UNIT, prog::monostate{ });
+            
             case prog::constant::BOOL:
                 return VARIANT(prog::constant, BOOL, get<prog::constant::BOOL>(source.value));
 
@@ -770,7 +1147,7 @@ namespace sg {
     }
 
     prog::func_with_ptr_type compiler::copy_func_with_ptr_type(const prog::func_with_ptr_type& source) {
-        return { /*base*/copy_func_type(source), source.kind, make_ptr(copy_type_pointed(*source.target_tp)) };
+        return { /*base 1*/copy_func_type(source), /*base 2*/copy_ptr_type(source) }; // maybe FIXME
     }
 
     prog::type_pointed compiler::copy_type_pointed(const prog::type_pointed& source) {

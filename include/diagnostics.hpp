@@ -117,7 +117,7 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
-        struct different_types_in_array : error {
+        struct no_common_supertype : error {
             void write(ostream& stream) const override;
         };
     }
