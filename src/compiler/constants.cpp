@@ -4,12 +4,14 @@
 #include "diagnostics.hpp"
 #include "utils.hpp"
 #include <string>
+#include <variant>
 #include <limits>
 
 namespace sg {
     using namespace sg::utils;
 
     using std::to_string;
+    using std::monostate;
     using std::numeric_limits;
     using std::is_signed;
     using std::is_unsigned;
@@ -45,8 +47,8 @@ namespace sg {
             }
 
             case ast::expr::NONE: {
-                auto value = VARIANT(prog::constant, NONE, std::monostate{ });
-                auto type = VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::NEVER }))));
+                auto value = VARIANT(prog::constant, NONE, monostate());
+                auto type = VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate())));
                 return { move(value), move(type) };
             }
 
@@ -106,7 +108,7 @@ namespace sg {
         }
 
         if (values.empty())
-            type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::NEVER }));
+            type = VARIANT(prog::type, NEVER, monostate());
         return { VARIANT(prog::constant, ARRAY, move(values)), VARIANT(prog::type, ARRAY, make_ptr(prog::array_type{ into_ptr(type), values.size() })) };
     }
 

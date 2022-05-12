@@ -514,8 +514,9 @@ namespace sg::ast {
 
     struct type : node {
         enum {
-            USER_TYPE,
+            NEVER,
             PRIMITIVE,
+            USER_TYPE,
             TUPLE,
             ARRAY,
             OPTIONAL,
@@ -527,8 +528,9 @@ namespace sg::ast {
         };
 
         variant<
-            string, // USER_TYPE
+            monostate, // NEVER
             ptr<primitive_type>, // PRIMITIVE
+            string, // USER_TYPE
             vector<ptr<type>>, // TUPLE
             ptr<array_type>, // ARRAY
             ptr<type>, // OPTIONAL
@@ -553,7 +555,6 @@ namespace sg::ast {
             U64,
             F32,
             F64,
-            NEVER
         } tp;
     };
 

@@ -9,15 +9,14 @@ namespace sg {
 
     bool compiler::subtype(const prog::type& type1, const prog::type& type2, bool confined) {
         switch (INDEX(type1)) {
+            case prog::type::NEVER:
+                return true;
+
             case prog::type::PRIMITIVE: {
-                auto& ptype1 = *GET(type1, PRIMITIVE);
-
-                if (ptype1.tp == prog::primitive_type::NEVER)
-                    return true;
-
                 if (!INDEX_EQ(type2, PRIMITIVE))
                     break;
 
+                auto& ptype1 = *GET(type1, PRIMITIVE);
                 auto& ptype2 = *GET(type2, PRIMITIVE);
 
                 switch (ptype1.tp) {
@@ -284,18 +283,12 @@ namespace sg {
             auto& arr1 = *GET(*type1.tp, ARRAY);
             if (subtype(*arr1.tp, *type2.tp) && subtype(*type2.tp, *arr1.tp))
                 return true;
-            if (INDEX_EQ(*arr1.tp, PRIMITIVE)) {
-                auto& ptype1 = *GET(*arr1.tp, PRIMITIVE);
-                if (ptype1.tp == prog::primitive_type::NEVER)
-                    return true;
-            }
-        }
-
-        if (type1.slice && type2.slice && INDEX_EQ(*type1.tp, PRIMITIVE)) {
-            auto& ptype1 = *GET(*type1.tp, PRIMITIVE);
-            if (ptype1.tp == prog::primitive_type::NEVER)
+            if (INDEX_EQ(*arr1.tp, NEVER))
                 return true;
         }
+
+        if (type1.slice && type2.slice && INDEX_EQ(*type1.tp, NEVER))
+            return true;
 
         return false;
     }

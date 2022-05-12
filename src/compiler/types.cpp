@@ -3,12 +3,18 @@
 #include "program.hpp"
 #include "diagnostics.hpp"
 #include "utils.hpp"
+#include <variant>
 
 namespace sg {
     using namespace sg::utils;
 
+    using std::monostate;
+
     prog::type compiler::compile_type(const ast::type& ast) {
         switch (INDEX(ast)) {
+            case ast::type::NEVER:
+                return VARIANT(prog::type, NEVER, monostate());
+
             case ast::type::PRIMITIVE: {
                 auto tp = compile_primitive_type(*GET(ast, PRIMITIVE));
                 return VARIANT(prog::type, PRIMITIVE, into_ptr(tp));
@@ -69,9 +75,6 @@ namespace sg {
 
     prog::primitive_type compiler::compile_primitive_type(const ast::primitive_type& ast) {
         switch(ast.tp) {
-            case ast::primitive_type::NEVER:
-                return { prog::primitive_type::NEVER };
-
             case ast::primitive_type::BOOL:
                 return { prog::primitive_type::BOOL };
 

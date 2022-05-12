@@ -942,8 +942,8 @@ expr_marked_seq_nempty:
 // Type rules
 
 type:
-    NAME {
-        $$ = AST_VARIANT(type, USER_TYPE, @$, move($NAME));
+    "never" {
+        $$ = AST_VARIANT(type, NEVER, @$, monostate());
     }
 
     | "bool" {
@@ -990,8 +990,8 @@ type:
         $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::F64 }));
     }
 
-    | "never" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::NEVER }));
+    | NAME {
+        $$ = AST_VARIANT(type, USER_TYPE, @$, move($NAME));
     }
 
     | "(" type_seq ")" {
