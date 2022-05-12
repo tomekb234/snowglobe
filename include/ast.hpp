@@ -52,7 +52,7 @@ namespace sg::ast {
     struct expr;
     struct expr_marked;
     struct var_decl_expr;
-    struct const_expr;
+    struct literal_expr;
     struct int_token;
     struct float_token;
     struct unary_operation_expr;
@@ -314,9 +314,9 @@ namespace sg::ast {
             ARRAY,
             APPLICATION,
             NAME,
-            QUALIFIED_NAME,
+            VARIANT_NAME,
             VAR_DECL,
-            CONST,
+            LITERAL,
             UNARY_OPERATION,
             BINARY_OPERATION,
             NUMERIC_CAST,
@@ -325,9 +325,9 @@ namespace sg::ast {
             RETURN,
             BREAK,
             CONTINUE,
-            LOCAL_PTR,
+            REFERENCE,
             HEAP_ALLOC,
-            DEREF,
+            DEREFERENCE,
             SIZED_ARRAY,
             HEAP_SLICE_ALLOC,
             LENGTH,
@@ -341,9 +341,9 @@ namespace sg::ast {
             vector<ptr<expr_marked>>, // ARRAY
             pair<ptr<expr>, vector<ptr<expr_marked>>>, // APPLICATION
             string, // NAME
-            pair<string, string>, // QUALIFIED_NAME
+            pair<string, string>, // VARIANT_NAME
             ptr<var_decl_expr>, // VAR_DECL
-            ptr<const_expr>, // CONST
+            ptr<literal_expr>, // LITERAL
             ptr<unary_operation_expr>, // UNARY_OPERATION
             ptr<binary_operation_expr>, // BINARY_OPERATION
             ptr<numeric_cast_expr>, // NUMERIC_CAST
@@ -352,9 +352,9 @@ namespace sg::ast {
             optional<ptr<expr>>, // RETURN
             monostate, // BREAK
             monostate, // CONTINUE
-            string, // LOCAL_PTR
+            string, // REFERENCE
             ptr<expr>, // HEAP_ALLOC
-            ptr<expr>, // DEREF
+            ptr<expr>, // DEREFERENCE
             ptr<sized_array_expr>, // SIZED_ARRAY
             ptr<heap_slice_alloc_expr>, // HEAP_SLICE_ALLOC
             ptr<expr>, // LENGTH
@@ -383,7 +383,7 @@ namespace sg::ast {
         optional<ptr<type_local>> tp;
     };
 
-    struct const_expr : node {
+    struct literal_expr : node {
         enum {
             BOOL,
             CHAR,

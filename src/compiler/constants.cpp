@@ -26,18 +26,33 @@ namespace sg {
     static T decode_number(unsigned long long number);
 
     pair<prog::constant, prog::type> compiler::compile_constant_expr(const ast::expr& ast) {
-        switch (INDEX(ast)) { // TODO more constant expressions
+        switch (INDEX(ast)) {
             case ast::expr::TUPLE:
                 return compile_constant_tuple(ast, GET(ast, TUPLE));
 
             case ast::expr::ARRAY:
                 return compile_constant_array(ast, GET(ast, ARRAY));
 
+            case ast::expr::APPLICATION: {
+                auto& [receiver, args] = GET(ast, APPLICATION);
+                return compile_constant_application(ast, *receiver, args);
+            }
+
             case ast::expr::NAME:
                 return compile_constant_name(ast, GET(ast, NAME));
 
-            case ast::expr::CONST:
-                return compile_constant_literal(*GET(ast, CONST));
+            case ast::expr::VARIANT_NAME: {
+                auto& [name, variant_name] = GET(ast, VARIANT_NAME);
+                return compile_constant_variant_name(ast, name, variant_name);
+            }
+
+            case ast::expr::LITERAL:
+                return compile_constant_literal(*GET(ast, LITERAL));
+
+            case ast::expr::UNARY_OPERATION:
+            case ast::expr::BINARY_OPERATION:
+            case ast::expr::NUMERIC_CAST:
+                error(diags::not_implemented(), ast); // TODO compile-time arithmetic
 
             case ast::expr::SOME: {
                 auto[inner_value, inner_type] = compile_constant_expr(*GET(ast, SOME));
@@ -51,6 +66,21 @@ namespace sg {
                 auto type = VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate())));
                 return { move(value), move(type) };
             }
+
+            case ast::expr::REFERENCE:
+                return compile_constant_ptr(ast, GET(ast, REFERENCE));
+
+            case ast::expr::SIZED_ARRAY:
+                return compile_constant_sized_array(*GET(ast, SIZED_ARRAY));
+
+            case ast::expr::LENGTH:
+                return compile_constant_length(ast, *GET(ast, LENGTH));
+
+            case ast::expr::EXTRACT:
+                return compile_constant_extract(*GET(ast, EXTRACT));
+
+            case ast::expr::PTR_EXTRACT:
+                return compile_constant_ptr_extract(*GET(ast, PTR_EXTRACT));
 
             default:
                 error(diags::expression_not_constant(), ast);
@@ -112,6 +142,10 @@ namespace sg {
         return { VARIANT(prog::constant, ARRAY, move(values)), VARIANT(prog::type, ARRAY, make_ptr(prog::array_type{ into_ptr(type), values.size() })) };
     }
 
+    pair<prog::constant, prog::type> compiler::compile_constant_application(const ast::node& ast, const ast::expr& receiver, const vector<ast::ptr<ast::expr_marked>>& args) {
+        error(diags::not_implemented(), ast); // TODO
+    }
+
     pair<prog::constant, prog::type> compiler::compile_constant_name(const ast::node& ast, const string& name) {
         if (!global_names.count(name))
             error(diags::name_not_declared(name), ast);
@@ -126,41 +160,64 @@ namespace sg {
                 return { prog::copy_constant(*global_var.value), prog::copy_type(*global_var.tp) };
             }
 
-            default:
-                error(diags::not_implemented(), ast);
+            case global_name::FUNCTION: {
+                auto& global_func = *program.global_funcs[global_name.index];
+                return { VARIANT(prog::constant, GLOBAL_FUNC_PTR, global_name.index), VARIANT(prog::type, GLOBAL_FUNC, make_ptr(prog::copy_func_type(*global_func.tp))) };
+            }
+
+            case global_name::STRUCT:
+                return { VARIANT(prog::constant, UNIT, monostate()), VARIANT(prog::type, STRUCT_CTOR, global_name.index) };
+
+            case global_name::ENUM:
+                error(diags::invalid_expression(), ast);
         }
+
+        UNREACHABLE;
     }
 
-    pair<prog::constant, prog::type> compiler::compile_constant_literal(const ast::const_expr& ast) {
+    pair<prog::constant, prog::type> compiler::compile_constant_variant_name(const ast::node& ast, const string& name, const string& variant_name) {
+        if (!global_names.count(name))
+            error(diags::name_not_declared(name), ast);
+        auto& global_name = global_names[name];
+
+        if (global_name.kind != global_name::ENUM)
+            error(diags::invalid_kind(), ast);
+
+        auto variant_index = 0; // TODO
+
+        return { VARIANT(prog::constant, UNIT, monostate()), VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index)) };
+    }
+
+    pair<prog::constant, prog::type> compiler::compile_constant_literal(const ast::literal_expr& ast) {
         switch (INDEX(ast)) {
-            case ast::const_expr::BOOL: {
+            case ast::literal_expr::BOOL: {
                 auto value = VARIANT(prog::constant, BOOL, GET(ast, BOOL));
                 auto type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{prog::primitive_type::BOOL}));
                 return {move(value), move(type)};
             }
 
-            case ast::const_expr::CHAR: {
+            case ast::literal_expr::CHAR: {
                 auto value = VARIANT(prog::constant, INT, encode_number(static_cast<uint8_t>(GET(ast, CHAR))));
                 auto type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{prog::primitive_type::U8}));
                 return {move(value), move(type)};
             }
 
-            case ast::const_expr::STRING: {
+            case ast::literal_expr::STRING: {
                 error(diags::not_implemented(), ast); // TODO
             }
 
-            case ast::const_expr::INT: {
+            case ast::literal_expr::INT: {
                 auto[value, type] = compile_int_token(*GET(ast, INT));
                 return {move(value), VARIANT(prog::type, PRIMITIVE, into_ptr(type))};
             }
 
-            case ast::const_expr::FLOAT: {
+            case ast::literal_expr::FLOAT: {
                 auto[value, type] = compile_float_token(*GET(ast, FLOAT));
                 return {move(value), VARIANT(prog::type, PRIMITIVE, into_ptr(type))};
             }
 
             default:
-                error(diags::not_implemented(), ast);
+                error(diags::not_implemented(), ast); // TODO
         }
     }
 
@@ -238,6 +295,26 @@ namespace sg {
         }
 
         UNREACHABLE;
+    }
+
+    pair<prog::constant, prog::type> compiler::compile_constant_ptr(const ast::node& ast, const string& name) {
+        error(diags::not_implemented(), ast); // TODO
+    }
+
+    pair<prog::constant, prog::type> compiler::compile_constant_sized_array(const ast::sized_array_expr& ast) {
+        error(diags::not_implemented(), ast); // TODO
+    }
+
+    pair<prog::constant, prog::type> compiler::compile_constant_length(const ast::node& ast, const ast::expr& target) {
+        error(diags::not_implemented(), ast); // TODO
+    }
+
+    pair<prog::constant, prog::type> compiler::compile_constant_extract(const ast::extract_expr& ast) {
+        error(diags::not_implemented(), ast); // TODO
+    }
+
+    pair<prog::constant, prog::type> compiler::compile_constant_ptr_extract(const ast::ptr_extract_expr& ast) {
+        error(diags::not_implemented(), ast); // TODO
     }
 
     prog::constant compiler::convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp) {

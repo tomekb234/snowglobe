@@ -9,8 +9,6 @@ namespace sg::prog {
     using std::move;
     using std::make_pair;
     using std::monostate;
-    using std::bind;
-    using std::placeholders::_1;
 
     constant copy_constant(const constant& source) {
         switch (INDEX(source)) {
@@ -27,23 +25,23 @@ namespace sg::prog {
                 return VARIANT(constant, FLOAT, GET(source, FLOAT));
 
             case constant::STRUCT: {
-                auto vec = copy_ptr_vector<constant>(GET(source, STRUCT), bind(&copy_constant, _1));
+                auto vec = copy_ptr_vector<constant>(GET(source, STRUCT), copy_constant);
                 return VARIANT(constant, STRUCT, move(vec));
             }
 
             case constant::ENUM: {
                 auto& p = GET(source, ENUM);
-                auto vec = copy_ptr_vector<constant>(p.second, bind(&copy_constant, _1));
+                auto vec = copy_ptr_vector<constant>(p.second, copy_constant);
                 return VARIANT(constant, ENUM, make_pair(p.first, move(vec)));
             }
 
             case constant::TUPLE: {
-                auto vec = copy_ptr_vector<constant>(GET(source, TUPLE), bind(&copy_constant, _1));
+                auto vec = copy_ptr_vector<constant>(GET(source, TUPLE), copy_constant);
                 return VARIANT(constant, TUPLE, move(vec));
             }
 
             case constant::ARRAY: {
-                auto vec = copy_ptr_vector<constant>(GET(source, ARRAY), bind(&copy_constant, _1));
+                auto vec = copy_ptr_vector<constant>(GET(source, ARRAY), copy_constant);
                 return VARIANT(constant, ARRAY, move(vec));
             }
 
@@ -62,8 +60,9 @@ namespace sg::prog {
                 return VARIANT(constant, GLOBAL_PTR, GET(source, GLOBAL_PTR));
 
             case constant::GLOBAL_INNER_PTR: {
-                auto p = GET(source, GLOBAL_INNER_PTR);
-                return VARIANT(constant, GLOBAL_INNER_PTR, move(p));
+                auto& p = GET(source, GLOBAL_INNER_PTR);
+                auto vec = copy_ptr_vector<inner_location>(p.second);
+                return VARIANT(constant, GLOBAL_INNER_PTR, make_pair(p.first, move(vec)));
             }
 
             case constant::GLOBAL_FUNC_PTR:
@@ -75,6 +74,9 @@ namespace sg::prog {
 
     type copy_type(const type& source) {
         switch (INDEX(source)) {
+            case type::NEVER:
+                return VARIANT(type, NEVER, monostate());
+
             case type::PRIMITIVE:
                 return VARIANT(type, PRIMITIVE, make_ptr(primitive_type { GET(source, PRIMITIVE)->tp }));
 
@@ -85,7 +87,7 @@ namespace sg::prog {
                 return VARIANT(type, ENUM, GET(source, ENUM));
 
             case type::TUPLE: {
-                auto vec = copy_ptr_vector<type>(GET(source, TUPLE), bind(&copy_type, _1));
+                auto vec = copy_ptr_vector<type>(GET(source, TUPLE), copy_type);
                 return VARIANT(type, TUPLE, move(vec));
             }
 
@@ -109,6 +111,11 @@ namespace sg::prog {
 
             case type::FUNC_WITH_PTR:
                 return VARIANT(type, FUNC_WITH_PTR, make_ptr(copy_func_with_ptr_type(*GET(source, FUNC_WITH_PTR))));
+            case type::STRUCT_CTOR:
+                return VARIANT(type, STRUCT_CTOR, GET(source, STRUCT_CTOR));
+
+            case type::ENUM_CTOR:
+                return VARIANT(type, ENUM_CTOR, GET(source, ENUM_CTOR));
         }
 
         UNREACHABLE;
@@ -127,7 +134,7 @@ namespace sg::prog {
     }
 
     func_type copy_func_type(const func_type& source) {
-        auto vec = copy_ptr_vector<type_local>(source.param_tps, bind(&copy_type_local, _1));
+        auto vec = copy_ptr_vector<type_local>(source.param_tps, copy_type_local);
         return { move(vec), make_ptr(copy_type(*source.return_tp)) };
     }
 

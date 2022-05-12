@@ -113,6 +113,14 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
+        struct invalid_expression : error {
+            void write(ostream& stream) const override;
+        };
+
+        struct invalid_kind : error {
+            void write(ostream& stream) const override;
+        };
+
         struct expression_not_constant : error {
             void write(ostream& stream) const override;
         };

@@ -23,6 +23,6 @@ namespace sg {
         } else
             tp = move(value_tp);
 
-        return { name, into_ptr(tp), into_ptr(value) };
+        return { { name }, into_ptr(tp), into_ptr(value) };
     }
 }

@@ -25,6 +25,7 @@ namespace sg::prog {
     struct struct_type;
     struct enum_type;
     struct constant;
+    struct inner_location;
     struct type;
     struct primitive_type;
     struct array_type;
@@ -43,13 +44,14 @@ namespace sg::prog {
     };
 
     struct global_var {
-        string name;
+        optional<string> name;
         ptr<type> tp;
         ptr<constant> value;
     };
 
     struct global_func {
         string name;
+        ptr<func_type> tp;
         // TODO
     };
 
@@ -94,8 +96,24 @@ namespace sg::prog {
             ptr<constant>, // SOME
             monostate, // NONE
             size_t, // GLOBAL_PTR
-            pair<size_t, vector<size_t>>, // GLOBAL_INNER_PTR
+            pair<size_t, vector<ptr<inner_location>>>, // GLOBAL_INNER_PTR
             size_t // GLOBAL_FUNC_PTR
+        > value;
+    };
+
+    struct inner_location {
+        enum {
+            FIELD,
+            COORD,
+            INDEX,
+            RANGE
+        };
+
+        variant<
+            size_t,
+            size_t,
+            size_t,
+            pair<size_t, size_t>
         > value;
     };
 
@@ -112,7 +130,9 @@ namespace sg::prog {
             INNER_PTR,
             FUNC,
             GLOBAL_FUNC,
-            FUNC_WITH_PTR
+            FUNC_WITH_PTR,
+            STRUCT_CTOR,
+            ENUM_CTOR
         };
 
         variant<
@@ -127,7 +147,9 @@ namespace sg::prog {
             ptr<inner_ptr_type>, // INNER_PTR
             ptr<func_type>, // FUNC
             ptr<func_type>, // GLOBAL_FUNC
-            ptr<func_with_ptr_type> // FUNC_WITH_PTR
+            ptr<func_with_ptr_type>, // FUNC_WITH_PTR
+            size_t, // STRUCT_CTOR
+            pair<size_t, size_t> // ENUM_CTOR
         > value;
     };
 

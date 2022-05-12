@@ -671,7 +671,7 @@ expr:
     }
 
     | NAME[left] "::" NAME[right] {
-        $$ = AST_VARIANT(expr, QUALIFIED_NAME, @$, make_pair(move($left), move($right)));
+        $$ = AST_VARIANT(expr, VARIANT_NAME, @$, make_pair(move($left), move($right)));
     }
 
     | "var" NAME ":" type_local {
@@ -683,29 +683,29 @@ expr:
     }
 
     | "true" {
-        $$ = AST_VARIANT(expr, CONST, @$, make_ptr(AST_VARIANT(const_expr, BOOL, @$, true)));
+        $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, BOOL, @$, true)));
     }
 
     | "false" {
-        $$ = AST_VARIANT(expr, CONST, @$, make_ptr(AST_VARIANT(const_expr, BOOL, @$, false)));
+        $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, BOOL, @$, false)));
     }
 
     | CHAR {
-        $$ = AST_VARIANT(expr, CONST, @$, make_ptr(AST_VARIANT(const_expr, CHAR, @$, $CHAR)));
+        $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, CHAR, @$, $CHAR)));
     }
 
     | STRING {
-        $$ = AST_VARIANT(expr, CONST, @$, make_ptr(AST_VARIANT(const_expr, STRING, @$, move($STRING))));
+        $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, STRING, @$, move($STRING))));
     }
 
     | INTEGER {
         $INTEGER.loc = @$;
-        $$ = AST_VARIANT(expr, CONST, @$, make_ptr(AST_VARIANT(const_expr, INT, @$, into_ptr($INTEGER))));
+        $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, INT, @$, into_ptr($INTEGER))));
     }
 
     | FLOAT {
         $FLOAT.loc = @$;
-        $$ = AST_VARIANT(expr, CONST, @$, make_ptr(AST_VARIANT(const_expr, FLOAT, @$, into_ptr($FLOAT))));
+        $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, FLOAT, @$, into_ptr($FLOAT))));
     }
 
     | "!" expr[inner] {
@@ -723,18 +723,18 @@ expr:
     | "-" expr[inner] %prec UNARY_MINUS {
         bool done = false;
 
-        if (INDEX_EQ($inner, CONST)) {
-            auto& constant = *GET($inner, CONST);
+        if (INDEX_EQ($inner, LITERAL)) {
+            auto& literal = *GET($inner, LITERAL);
 
-            if (INDEX_EQ(constant, INT)) {
-                auto& number = *GET(constant, INT);
+            if (INDEX_EQ(literal, INT)) {
+                auto& number = *GET(literal, INT);
                 number.negative = !number.negative;
-                number.loc = constant.loc = @$;
+                number.loc = literal.loc = @$;
                 done = true;
-            } else if (INDEX_EQ(constant, FLOAT)) {
-                auto& number = *GET(constant, FLOAT);
+            } else if (INDEX_EQ(literal, FLOAT)) {
+                auto& number = *GET(literal, FLOAT);
                 number.negative = !number.negative;
-                number.loc = constant.loc = @$;
+                number.loc = literal.loc = @$;
                 done = true;
             }
         }
@@ -843,7 +843,7 @@ expr:
     }
 
     | "&" NAME %prec UNARY_AMP {
-        $$ = AST_VARIANT(expr, LOCAL_PTR, @$, move($NAME));
+        $$ = AST_VARIANT(expr, REFERENCE, @$, move($NAME));
     }
 
     | "@" expr[inner] {
@@ -851,7 +851,7 @@ expr:
     }
 
     | "*" expr[inner] %prec UNARY_STAR {
-        $$ = AST_VARIANT(expr, DEREF, @$, into_ptr($inner));
+        $$ = AST_VARIANT(expr, DEREFERENCE, @$, into_ptr($inner));
     }
 
     | "[" expr[inner] ";" const_integer "]" {

@@ -30,22 +30,22 @@ namespace sg::utils {
     #define GET(val, index) (get<remove_reference<decltype(val)>::type::index>((val).value))
 
     template<typename T>
-    static unique_ptr<T> make_ptr(T&& value) {
+    unique_ptr<T> make_ptr(T&& value) {
         return make_unique<T>(move(value));
     }
 
     template<typename T>
-    static unique_ptr<T> into_ptr(T& value) {
+    unique_ptr<T> into_ptr(T& value) {
         return make_unique<T>(move(value));
     }
 
     template<typename T>
-    static optional<unique_ptr<T>> into_optional_ptr(optional<T>& value) {
+    optional<unique_ptr<T>> into_optional_ptr(optional<T>& value) {
         return value ? make_optional(make_unique<T>(move(*value))) : optional<unique_ptr<T>>();
     }
 
     template<typename T>
-    static vector<unique_ptr<T>> into_ptr_vector(vector<T>& values) {
+    vector<unique_ptr<T>> into_ptr_vector(vector<T>& values) {
         vector<unique_ptr<T>> result;
         for (T& value : values)
             result.push_back(make_unique<T>(move(value)));
@@ -53,7 +53,15 @@ namespace sg::utils {
     }
 
     template<typename T>
-    static vector<unique_ptr<T>> copy_ptr_vector(const vector<unique_ptr<T>>& vec, std::function<T(const T&)> inner_copy_func) {
+    vector<unique_ptr<T>> copy_ptr_vector(const vector<unique_ptr<T>>& vec) {
+        vector<unique_ptr<T>> result;
+        for (auto& ptr : vec)
+            result.push_back(make_unique<T>(*ptr));
+        return result;
+    }
+
+    template<typename T>
+    vector<unique_ptr<T>> copy_ptr_vector(const vector<unique_ptr<T>>& vec, std::function<T(const T&)> inner_copy_func) {
         vector<unique_ptr<T>> result;
         for (auto& ptr : vec)
             result.push_back(make_unique<T>(inner_copy_func(*ptr)));

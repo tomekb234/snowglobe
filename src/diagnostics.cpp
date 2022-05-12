@@ -107,12 +107,20 @@ namespace sg {
             stream << "The name '" << name << "' was not declared" << endl;
         }
 
+        void invalid_expression::write(ostream& stream) const {
+            stream << "Invalid expression" << endl;
+        }
+
+        void invalid_kind::write(ostream& stream) const {
+            stream << "Invalid kind" << endl;
+        }
+
         void expression_not_constant::write(ostream& stream) const {
-            stream << "Expression is not constant" << endl;
+            stream << "Expression not constant" << endl;
         }
 
         void no_common_supertype::write(ostream& stream) const {
-            stream << "Elements of an array have different types" << endl;
+            stream << "No common supertype" << endl;
         }
     }
 }

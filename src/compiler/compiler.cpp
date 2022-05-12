@@ -66,7 +66,7 @@ namespace sg {
                 case ast::global_def::CONST_DEF: {
                     auto& global_const_ast = *GET(*global_def, CONST_DEF);
                     auto global_const = compile_global_var(global_const_ast);
-                    auto name = global_const.name;
+                    auto name = *global_const.name;
                     auto index = constants.size();
                     constants.push_back(move(global_const));
                     global_names[name] = { global_name::CONSTANT, index, true };
@@ -90,7 +90,7 @@ namespace sg {
                 case ast::global_def::VAR_DEF: {
                     auto& global_var_ast = *GET(*global_def, VAR_DEF);
                     auto global_var = compile_global_var(global_var_ast);
-                    auto name = global_var.name;
+                    auto name = *global_var.name;
                     auto index = program.global_vars.size();
                     program.global_vars.push_back(into_ptr(global_var));
                     global_names[name] = { global_name::VARIABLE, index, true };
