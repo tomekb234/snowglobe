@@ -17,7 +17,9 @@ diagnostics_hpp = $I/diagnostics.hpp $(location_hpp)
 compiler_hpp = $I/compiler.hpp $(ast_hpp) $(program_hpp) $(diagnostics_hpp)
 parser_hpp = $G/parser.cpp $(location_hpp) $(input_hpp) $(diagnostics_hpp) $(ast_hpp)
 
-$B/snowglobe: $B/main.o $B/input.o $B/lexer.o $B/parser.o $B/diagnostics.o $B/compiler.o | $B
+compiler = $B/compiler.o $B/variables.o $B/functions.o $B/structs.o $B/enums.o $B/constants.o $B/types.o $B/subtyping.o
+
+$B/snowglobe: $B/main.o $B/input.o $B/lexer.o $B/parser.o $B/diagnostics.o $B/program.o $(compiler) | $B
 	$(CXX) $^ -o $@
 
 $B/main.o: $S/main.cpp $(input_hpp) $(diagnostics_hpp) $(ast_hpp) $(parser_hpp) $(compiler_hpp) $(program_hpp) | $B
@@ -35,7 +37,10 @@ $B/parser.o: $G/parser.cpp $(parser_hpp) $(utils_hpp) $(location_hpp) | $B
 $B/diagnostics.o: $S/diagnostics.cpp $(diagnostics_hpp) | $B
 	$(CXXC) $< -o $@
 
-$B/compiler.o: $S/compiler.cpp $(compiler_hpp) $(ast_hpp) $(program_hpp) $(utils_hpp) | $B
+$B/program.o: $S/program.cpp $(program_hpp) $(utils_hpp) | $B
+	$(CXXC) $< -o $@
+
+$(compiler): $B/%.o: $S/compiler/%.cpp $(compiler_hpp) $(ast_hpp) $(program_hpp) $(diagnostics_hpp) $(utils_hpp) | $B
 	$(CXXC) $< -o $@
 
 $G/lexer.cpp: $S/lexer.re | $G

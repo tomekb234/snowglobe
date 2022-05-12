@@ -184,6 +184,16 @@ namespace sg::prog {
         ptr<type> tp;
         bool confined;
     };
+
+    constant copy_constant(const constant& source);
+    type copy_type(const type& source);
+    array_type copy_array_type(const array_type& source);
+    ptr_type copy_ptr_type(const ptr_type& source);
+    inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& source);
+    func_type copy_func_type(const func_type& source);
+    func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& source);
+    type_pointed copy_type_pointed(const type_pointed& source);
+    type_local copy_type_local(const type_local& source);
 }
 
 #endif
