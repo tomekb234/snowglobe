@@ -60,9 +60,15 @@ namespace sg::prog {
         // TODO
     };
 
+    struct enum_variant {
+        string name;
+        vector<ptr<type>> tps;
+    };
+
     struct enum_type {
         string name;
-        // TODO
+        bool copyable;
+        vector<ptr<enum_variant>> variants;
     };
 
     struct constant {

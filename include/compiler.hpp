@@ -70,6 +70,7 @@ namespace sg {
 
         prog::enum_type declare_enum_type(const ast::enum_def& ast);
         void compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type);
+        bool has_uncompiled_type(const prog::type& type);
 
         // Constants
 
@@ -91,16 +92,17 @@ namespace sg {
 
         // Types
 
-        prog::type compile_type(const ast::type& ast);
-        prog::type_local compile_type_local(const ast::type_local& ast);
+        prog::type compile_type(const ast::type& ast, bool allow_uncompiled = false);
+        prog::type_local compile_type_local(const ast::type_local& ast, bool allow_uncompiled = false);
+        prog::type compile_user_type(const ast::type& ast, bool allow_uncompiled = false);
         prog::primitive_type compile_primitive_type(const ast::primitive_type& ast);
-        vector<prog::ptr<prog::type>> compile_tuple_type(const vector<ast::ptr<ast::type>>& ast);
-        prog::array_type compile_array_type(const ast::array_type& ast);
+        vector<prog::ptr<prog::type>> compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled = false);
+        prog::array_type compile_array_type(const ast::array_type& ast, bool allow_uncompiled = false);
         prog::ptr_type compile_ptr_type(const ast::ptr_type& ast);
         prog::type_pointed compile_type_pointed(const ast::type_pointed& ast);
         prog::inner_ptr_type compile_inner_ptr_type(const ast::inner_ptr_type& ast);
-        prog::func_type compile_func_type(const ast::func_type& ast);
-        prog::func_with_ptr_type compile_func_with_ptr_type(const ast::func_with_ptr_type& ast);
+        prog::func_type compile_func_type(const ast::func_type& ast, bool allow_uncompiled = false);
+        prog::func_with_ptr_type compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled = false);
 
         // Subtyping
 
