@@ -113,6 +113,13 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
+        struct name_not_compiled : error {
+            string name;
+
+            name_not_compiled(string name) : name(name) { }
+            void write(ostream& stream) const override;
+        };
+
         struct invalid_expression : error {
             void write(ostream& stream) const override;
         };
@@ -126,6 +133,20 @@ namespace sg {
         };
 
         struct no_common_supertype : error {
+            void write(ostream& stream) const override;
+        };
+
+        struct invalid_argument : error {
+            size_t nargs;
+
+            invalid_argument(size_t nargs) : nargs(nargs) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct argument_reused : error {
+            size_t num;
+
+            argument_reused(size_t num) : num(num) { }
             void write(ostream& stream) const override;
         };
     }

@@ -143,7 +143,113 @@ namespace sg {
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_application(const ast::node& ast, const ast::expr& receiver, const vector<ast::ptr<ast::expr_marked>>& args) {
-        error(diags::not_implemented(), ast); // TODO
+        auto receiver_tp = compile_constant_expr(receiver).second;
+
+        switch (INDEX(receiver_tp)) {
+            case prog::type::STRUCT_CTOR: {
+                auto struct_index = GET(receiver_tp, STRUCT_CTOR);
+                auto& struct_type = program.struct_types[struct_index];
+                size_t nargs = args.size(); // FIXME should be the expected number of arguments
+
+                vector<bool> used_args(nargs, false);
+                vector<pair<prog::constant, prog::type>> compiled_args(nargs);
+
+                for (auto& arg : args) {
+                    switch (INDEX(*arg)) {
+                        case ast::expr_marked::EXPR: {
+                            size_t coord = 0;
+                            while (coord < nargs && used_args[coord])
+                                coord++;
+
+                            if (coord >= nargs)
+                                error(diags::invalid_argument(nargs), ast);
+
+                            compiled_args[coord] = compile_constant_expr(*GET(*arg, EXPR));
+                            used_args[coord] = true;
+                        } break;
+
+                        case ast::expr_marked::EXPR_WITH_NAME:
+                            error(diags::not_implemented(), ast); // TODO
+
+                        case ast::expr_marked::EXPR_WITH_COORD: {
+                            auto coord = GET(*arg, EXPR_WITH_COORD).first;
+
+                            if (coord >= nargs)
+                                error(diags::invalid_argument(nargs), ast);
+                            if (used_args[coord])
+                                error(diags::argument_reused(coord), ast);
+
+                            compiled_args[coord] = compile_constant_expr(*GET(*arg, EXPR_WITH_COORD).second);
+                            used_args[coord] = true;
+                        } break;
+                    }
+                }
+
+                // TODO check types and convert values
+
+                vector<prog::ptr<prog::constant>> result;
+                for (auto& compiled_arg : compiled_args)
+                    result.push_back(into_ptr(compiled_arg.first));
+
+                return { VARIANT(prog::constant, STRUCT, move(result)), VARIANT(prog::type, STRUCT, struct_index) };
+            }
+
+            case prog::type::ENUM_CTOR: {
+                auto [enum_index, variant_index] = GET(receiver_tp, ENUM_CTOR);
+                auto& enum_type = program.enum_types[enum_index];
+                size_t nargs = args.size(); // FIXME should be the expected number of arguments
+
+                vector<bool> used_args(nargs, false);
+                vector<pair<prog::constant, prog::type>> compiled_args(nargs);
+
+                for (auto& arg : args) {
+                    switch (INDEX(*arg)) {
+                        case ast::expr_marked::EXPR: {
+                            size_t coord = 0;
+                            while (coord < nargs && used_args[coord])
+                                coord++;
+
+                            if (coord >= nargs)
+                                error(diags::invalid_argument(nargs), ast);
+
+                            compiled_args[coord] = compile_constant_expr(*GET(*arg, EXPR));
+                            used_args[coord] = true;
+                        } break;
+
+                        case ast::expr_marked::EXPR_WITH_NAME:
+                            error(diags::invalid_expression(), ast);
+
+                        case ast::expr_marked::EXPR_WITH_COORD: {
+                            auto coord = GET(*arg, EXPR_WITH_COORD).first;
+
+                            if (coord >= nargs)
+                                error(diags::invalid_argument(nargs), ast);
+                            if (used_args[coord])
+                                error(diags::argument_reused(coord), ast);
+
+                            compiled_args[coord] = compile_constant_expr(*GET(*arg, EXPR_WITH_COORD).second);
+                            used_args[coord] = true;
+                        } break;
+                    }
+                }
+
+                // TODO check types and convert values
+
+                vector<prog::ptr<prog::constant>> result;
+                for (auto& compiled_arg : compiled_args)
+                    result.push_back(into_ptr(compiled_arg.first));
+
+                return { VARIANT(prog::constant, ENUM, { variant_index, move(result) }), VARIANT(prog::type, ENUM, enum_index) };
+            }
+
+            case prog::type::FUNC:
+            case prog::type::GLOBAL_FUNC:
+            case prog::type::FUNC_WITH_PTR:
+                error(diags::expression_not_constant(), ast);
+
+            default:
+                error(diags::invalid_expression(), ast);
+        }
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_name(const ast::node& ast, const string& name) {
@@ -165,8 +271,11 @@ namespace sg {
                 return { VARIANT(prog::constant, GLOBAL_FUNC_PTR, global_name.index), VARIANT(prog::type, GLOBAL_FUNC, make_ptr(prog::copy_func_type(*global_func.tp))) };
             }
 
-            case global_name::STRUCT:
+            case global_name::STRUCT: {
+                if (!global_name.compiled)
+                    error(diags::name_not_compiled(name), ast);
                 return { VARIANT(prog::constant, UNIT, monostate()), VARIANT(prog::type, STRUCT_CTOR, global_name.index) };
+            }
 
             case global_name::ENUM:
                 error(diags::invalid_expression(), ast);
@@ -182,6 +291,8 @@ namespace sg {
 
         if (global_name.kind != global_name::ENUM)
             error(diags::invalid_kind(), ast);
+        if (!global_name.compiled)
+            error(diags::name_not_compiled(name), ast);
 
         auto variant_index = 0; // TODO
 

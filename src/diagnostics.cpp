@@ -107,6 +107,10 @@ namespace sg {
             stream << "The name '" << name << "' was not declared" << endl;
         }
 
+        void name_not_compiled::write(ostream& stream) const {
+            stream << "The name '" << name << "' was declared but is not yet compiled" << endl;
+        }
+
         void invalid_expression::write(ostream& stream) const {
             stream << "Invalid expression" << endl;
         }
@@ -121,6 +125,14 @@ namespace sg {
 
         void no_common_supertype::write(ostream& stream) const {
             stream << "No common supertype" << endl;
+        }
+
+        void invalid_argument::write(ostream& stream) const {
+            stream << "Invalid argument. Expected " << nargs << " arguments" << endl;
+        }
+
+        void argument_reused::write(ostream& stream) const {
+            stream << "Reused argument number " << num << endl;
         }
     }
 }
