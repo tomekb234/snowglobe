@@ -314,7 +314,26 @@ namespace sg {
             }
 
             case ast::literal_expr::STRING: {
-                error(diags::not_implemented(), ast); // TODO
+                auto str = GET(ast, STRING);
+                auto size = str.length();
+
+                auto char_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::U8 }));
+                auto type = VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(char_type), size }));
+
+                vector<prog::ptr<prog::constant>> chars;
+                for (char ch : str)
+                    chars.push_back(make_ptr(VARIANT(prog::constant, INT, encode_number(static_cast<uint8_t>(ch)))));
+
+                auto value = VARIANT(prog::constant, ARRAY, move(chars));
+
+                auto index = program.global_vars.size();
+                program.global_vars.push_back(make_ptr(prog::global_var { optional<string>(), make_ptr(copy_type(type)), into_ptr(value) }));
+
+                auto type_pointed = prog::type_pointed { into_ptr(type), false };
+                auto ptr_type = VARIANT(prog::type, PTR, make_ptr(prog::ptr_type { prog::ptr_type::GLOBAL, into_ptr(type_pointed) }));
+                auto ptr = VARIANT(prog::constant, GLOBAL_PTR, index);
+
+                return { move(ptr), move(ptr_type) };
             }
 
             case ast::literal_expr::INT: {

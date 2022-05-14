@@ -3,9 +3,11 @@
 #include "program.hpp"
 #include "diagnostics.hpp"
 #include "utils.hpp"
+#include <queue>
 
 namespace sg {
     using namespace sg::utils;
+    using std::queue;
 
     optional<prog::program> compiler::compile(const ast::program& ast) {
         try {
@@ -20,6 +22,9 @@ namespace sg {
     void compiler::compile_program(const ast::program& ast) {
         // Phase 1: Prepare struct and enum declarations
 
+        queue<size_t> struct_type_indices;
+        queue<size_t> enum_type_indices;
+
         for (auto& global_def : ast.global_defs) {
             switch (INDEX(*global_def)) {
                 case ast::global_def::STRUCT_DEF: {
@@ -29,6 +34,7 @@ namespace sg {
                     auto index = program.struct_types.size();
                     program.struct_types.push_back(into_ptr(struct_type));
                     global_names[name] = { global_name::STRUCT, index, false };
+                    struct_type_indices.push(index);
                 } break;
 
                 case ast::global_def::ENUM_DEF: {
@@ -38,27 +44,29 @@ namespace sg {
                     auto index = program.enum_types.size();
                     program.enum_types.push_back(into_ptr(enum_type));
                     global_names[name] = { global_name::ENUM, index, false };
+                    enum_type_indices.push(index);
                 } break;
             }
         }
 
-        // Phase 2: Compile struct, enum definitions and constants, prepare global function declarations
+        // Phase 2: Compile struct and enum definitions. Compile constants. Prepare global function declarations
 
-        size_t struct_type_index = 0;
-        size_t enum_type_index = 0;
+        queue<size_t> global_func_indices;
 
         for (auto& global_def : ast.global_defs) {
             switch (INDEX(*global_def)) {
                 case ast::global_def::STRUCT_DEF: {
                     auto& struct_type_ast = *GET(*global_def, STRUCT_DEF);
-                    auto& struct_type = *program.struct_types[struct_type_index++];
+                    auto& struct_type = *program.struct_types[struct_type_indices.front()];
+                    struct_type_indices.pop();
                     compile_struct_type(struct_type_ast, struct_type);
                     global_names[struct_type.name].compiled = true;
                 } break;
 
                 case ast::global_def::ENUM_DEF: {
                     auto& enum_type_ast = *GET(*global_def, ENUM_DEF);
-                    auto& enum_type = *program.enum_types[enum_type_index++];
+                    auto& enum_type = *program.enum_types[enum_type_indices.front()];
+                    enum_type_indices.pop();
                     compile_enum_type(enum_type_ast, enum_type);
                     global_names[enum_type.name].compiled = true;
                 } break;
@@ -79,6 +87,7 @@ namespace sg {
                     auto index = program.global_funcs.size();
                     program.global_funcs.push_back(into_ptr(global_func));
                     global_names[name] = { global_name::FUNCTION, index, false };
+                    global_func_indices.push(index);
                 } break;
             }
         }
@@ -100,13 +109,12 @@ namespace sg {
 
         // Phase 4: Compile global function definitions
 
-        size_t global_func_index = 0;
-
         for (auto& global_def : ast.global_defs) {
             switch (INDEX(*global_def)) {
                 case ast::global_def::FUNC_DEF: {
                     auto& global_func_ast = *GET(*global_def, FUNC_DEF);
-                    auto& global_func = *program.global_funcs[global_func_index++];
+                    auto& global_func = *program.global_funcs[global_func_indices.front()];
+                    global_func_indices.pop();
                     compile_global_func(global_func_ast, global_func);
                     global_names[global_func.name].compiled = true;
                 } break;
