@@ -239,7 +239,7 @@ namespace sg {
                 for (auto& compiled_arg : compiled_args)
                     result.push_back(into_ptr(compiled_arg.first));
 
-                return { VARIANT(prog::constant, ENUM, { variant_index, move(result) }), VARIANT(prog::type, ENUM, enum_index) };
+                return { VARIANT(prog::constant, ENUM, make_pair(variant_index, move(result))), VARIANT(prog::type, ENUM, enum_index) };
             }
 
             case prog::type::FUNC:
