@@ -35,13 +35,6 @@ namespace sg {
         unordered_map<string, global_name> global_names;
         vector<prog::global_var> constants;
 
-        template<typename T>
-        [[noreturn]] void error(T&& diag, const ast::node& ast) {
-            diag.loc = { ast.loc };
-            diags.add(make_unique<T>(move(diag)));
-            throw 0;
-        }
-
         void compile_program(const ast::program& ast);
 
         public:
@@ -54,28 +47,28 @@ namespace sg {
 
         // Utilities
 
+        template<typename T>
+        [[noreturn]] void error(T&& diag, const ast::node& ast) {
+            diag.loc = { ast.loc };
+            diags.add(make_unique<T>(move(diag)));
+            throw 0;
+        }
+
         global_name& get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled = false);
         global_name& get_global_name(const ast::node& ast, const string& name, global_name::kind_t expected_kind, bool allow_uncompiled = false);
 
-        // Variables
+        // Global variables, structs and enums
 
         prog::global_var compile_global_var(const ast::var_def& ast);
+        prog::struct_type declare_struct_type(const ast::struct_def& ast);
+        prog::enum_type declare_enum_type(const ast::enum_def& ast);
+        void compile_struct_type(const ast::struct_def& ast, prog::struct_type& struct_type);
+        void compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type);
 
         // Functions
 
         prog::global_func declare_global_func(const ast::func_def& ast);
         void compile_global_func(const ast::func_def& ast, prog::global_func& global_func);
-
-        // Structs
-
-        prog::struct_type declare_struct_type(const ast::struct_def& ast);
-        void compile_struct_type(const ast::struct_def& ast, prog::struct_type& struct_type);
-
-        // Enums
-
-        prog::enum_type declare_enum_type(const ast::enum_def& ast);
-        void compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type);
-        bool has_uncompiled_type(const prog::type& type);
 
         // Constants
 

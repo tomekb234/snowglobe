@@ -17,7 +17,7 @@ diagnostics_hpp = $I/diagnostics.hpp $(location_hpp)
 compiler_hpp = $I/compiler.hpp $(ast_hpp) $(program_hpp) $(diagnostics_hpp)
 parser_hpp = $G/parser.cpp $(location_hpp) $(input_hpp) $(diagnostics_hpp) $(ast_hpp)
 
-compiler = $B/compiler.o $B/variables.o $B/functions.o $B/structs.o $B/enums.o $B/constants.o $B/types.o $B/subtyping.o
+compiler = $B/compiler.o $B/globals.o $B/functions.o $B/constants.o $B/types.o $B/subtyping.o
 
 $B/snowglobe: $B/main.o $B/input.o $B/lexer.o $B/parser.o $B/diagnostics.o $B/program.o $(compiler) | $B
 	$(CXX) $^ -o $@
