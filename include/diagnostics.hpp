@@ -14,8 +14,10 @@ namespace sg {
     using std::optional;
     using std::vector;
     using std::unique_ptr;
+    using std::istream;
     using std::ostream;
     using std::string;
+    using std::reference_wrapper;
 
     struct diagnostic {
         enum level_t {
@@ -41,7 +43,7 @@ namespace sg {
             diags.push_back(move(diag));
         }
 
-        void report_all(ostream& stream, bool enable_colors) const;
+        void report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const;
     };
 
     namespace diags { // TODO make some of these messages more detailed

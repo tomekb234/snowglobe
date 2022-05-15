@@ -10,42 +10,75 @@ namespace sg {
     using std::ostringstream;
     using std::endl;
     using std::string;
+    using std::string_view;
 
     const string LEVEL_TEXTS[] = { "Note", "Warning", "Error" };
 
+    struct COLORS {
+        string LEVELS[3] = { "", "", "" };
+        string LOCATION = "";
+        string CODE_OUTSIDE = "";
+        string CODE_INSIDE = "";
+        string RESET = "";
+    };
+    const COLORS INACTIVE_COLORS = { { "", "", "" }, "", "", "", "" };
     #ifdef __unix__
-    const string LEVEL_COLORS[] = { "\e[1;36m", "\e[1;33m", "\e[1;31m" };
-    const string LOCATION_COLOR = "\e[1;37m";
-    const string RESET_COLOR = "\e[0m";
+    const COLORS ACTIVE_COLORS = {
+        .LEVELS = { "\e[1;36m", "\e[1;33m", "\e[1;31m" },
+        .LOCATION = "\e[1;37m",
+        .CODE_OUTSIDE = "\e[2m",
+        .CODE_INSIDE = "\e[1;35m",
+        .RESET = "\e[0m"
+    };
     #else
-    const string LEVEL_COLORS[] = { "", "", "" };
-    const string LOCATION_COLOR = "";
-    const string RESET_COLOR = "";
+    const COLORS ACTIVE_COLORS = INACTIVE_COLORS;
     #endif
 
-    void diagnostic_collector::report_all(ostream& stream, bool enable_colors) const {
+    void diagnostic_collector::report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const {
+        // Select color table
+        const COLORS colors = enable_colors ? ACTIVE_COLORS : INACTIVE_COLORS;
+
+        // Prepare line buffer
+        vector<string> source_lines;
+        if (source_file) {
+            string source_line_buffer;
+            while (!getline(source_file->get(), source_line_buffer).eof())
+                source_lines.push_back(move(source_line_buffer));
+        }
+
         for (auto& diag : diags) {
             // Header
-            if (enable_colors)
-                stream << LEVEL_COLORS[diag->level];
-            stream << LEVEL_TEXTS[diag->level];
-            if (enable_colors)
-                stream << RESET_COLOR;
+            stream << colors.LEVELS[diag->level] << LEVEL_TEXTS[diag->level] << colors.RESET;
 
             // Location
             if (diag->loc) {
                 stream << " at ";
-                if (enable_colors)
-                    stream << LOCATION_COLOR;
+                stream << colors.LOCATION;
                 stream << *diag->loc->begin.file_name << ":";
                 stream << diag->loc->begin.line << ":";
                 stream << diag->loc->begin.column;
-                // TODO print relevant code with diag->loc->begin and diag->loc-end
-                if (enable_colors)
-                    stream << RESET_COLOR;
+                stream << colors.RESET;
             }
 
             stream << ":" << endl;
+
+            // Code fragment
+            if (diag->loc && source_file) {
+                stream << colors.CODE_OUTSIDE;
+                auto& [begin, end] = *diag->loc;
+
+                for (size_t it = begin.line; it <= end.line; it++) {
+                    string_view line = source_lines[it - 1];
+                    size_t fragment_begin = it==begin.line ? begin.column-1 : 0;
+                    size_t fragment_end = it==end.line ? end.column-1 : line.length();
+
+                    stream << "\t| " << line.substr(0, fragment_begin);
+                    stream << colors.RESET << colors.CODE_INSIDE << line.substr(fragment_begin, fragment_end-fragment_begin);
+                    stream << colors.RESET << colors.CODE_OUTSIDE << line.substr(fragment_end) << endl;
+                }
+
+                stream << colors.RESET;
+            }
 
             // Indented message text
             ostringstream buf;
