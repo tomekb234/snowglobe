@@ -164,6 +164,7 @@ namespace sg {
         auto size = items_ast.size();
         vector<bool> used_items(size, false);
         vector<prog::constant> values(size);
+        vector<prog::type> types(size);
         prog::type common_type = VARIANT(prog::type, NEVER, monostate());
 
         for (auto& item_ast : items_ast) {
@@ -192,14 +193,16 @@ namespace sg {
                 error(diags::reused_argument(index), ast);
 
             auto[value, type] = compile_constant(*value_ast);
-            values[index] = move(value);
             common_type = common_supertype(ast, common_type, type);
+            values[index] = move(value);
+            types[index] = move(type);
             used_items[index] = true;
         }
 
         for (size_t index = 0; index < size; index++) {
             if (!used_items[index])
                 error(diags::missing_argument(index), ast);
+            values[index] = convert_constant(ast, move(values[index]), types[index], common_type);
         }
 
         auto value = VARIANT(prog::constant, ARRAY, into_ptr_vector(values));
