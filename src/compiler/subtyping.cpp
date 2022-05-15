@@ -148,34 +148,36 @@ namespace sg {
             } break;
 
             case prog::type::TUPLE: {
-                if(!INDEX_EQ(type2, TUPLE))
+                if (!INDEX_EQ(type2, TUPLE))
                     break;
 
                 auto& tuple1 = GET(type1, TUPLE);
                 auto& tuple2 = GET(type2, TUPLE);
+                auto size = tuple1.size();
 
-                if(tuple1.size() != tuple2.size()) {
+                if (size != tuple2.size())
                     break;
-                }
 
                 bool ok = true;
 
-                for(size_t i = 0; i < tuple1.size(); i++) {
-                    if(!subtype(*tuple1[i], *tuple2[i], confined)) {
+                for (size_t index = 0; index < size; index++) {
+                    if (!subtype(*tuple1[index], *tuple2[index], confined)) {
                         ok = false;
                         break;
                     }
                 }
 
-                if(ok)
+                if (ok)
                     return true;
             } break;
 
             case prog::type::ARRAY: {
                 if (!INDEX_EQ(type2, ARRAY))
                     break;
+
                 auto& array1 = *GET(type1, ARRAY);
                 auto& array2 = *GET(type2, ARRAY);
+
                 if (array1.size == array2.size && subtype(*array1.tp, *array2.tp, confined))
                     return true;
             } break;
@@ -185,9 +187,11 @@ namespace sg {
                     return true;
                 if (!INDEX_EQ(type2, OPTIONAL))
                     break;
-                auto& tp1 = *GET(type1, OPTIONAL);
-                auto& tp2 = *GET(type2, OPTIONAL);
-                if (subtype(tp1, tp2, confined))
+
+                auto& inner1 = *GET(type1, OPTIONAL);
+                auto& inner2 = *GET(type2, OPTIONAL);
+
+                if (subtype(inner1, inner2, confined))
                     return true;
             } break;
 
@@ -198,33 +202,31 @@ namespace sg {
                 auto& ptr1 = *GET(type1, PTR);
                 auto& ptr2 = *GET(type2, PTR);
 
-                if(ptr_subkind(ptr1.kind, ptr2.kind, confined)) {
-                    if(ptr_target_subtype(*ptr1.target_tp, *ptr2.target_tp)) {
-                        return true;
-                    }
-                }
-
+                if (ptr_subkind(ptr1.kind, ptr2.kind, confined) && ptr_target_subtype(*ptr1.target_tp, *ptr2.target_tp))
+                    return true;
             } break;
 
             case prog::type::INNER_PTR: {
-                auto& iptr1 = *GET(type1, INNER_PTR);
-                auto& tar1 = *iptr1.target_tp;
-                auto& own1 = *iptr1.owner_tp;
+                auto& inptr1 = *GET(type1, INNER_PTR);
+                auto& target1 = *inptr1.target_tp;
+                auto& owner1 = *inptr1.owner_tp;
 
                 if (INDEX_EQ(type2, PTR)) {
                     auto& ptr2 = *GET(type2, PTR);
-                    auto& tar2 = *ptr2.target_tp;
+                    auto& target2 = *ptr2.target_tp;
 
-                    if (ptr_target_subtype(tar1, tar2) && ptr_kind_trivial(iptr1.kind, confined) && ptr_subkind(iptr1.kind, ptr2.kind, confined))
+                    if (ptr_target_subtype(target1, target2) && ptr_kind_trivial(inptr1.kind, confined) && ptr_subkind(inptr1.kind, ptr2.kind, confined))
                         return true;
                 }
-                else if (INDEX_EQ(type2, INNER_PTR)) {
-                    auto& iptr2 = *GET(type2, INNER_PTR);
-                    if (ptr_subkind(iptr1.kind, iptr2.kind, confined)) {
-                        auto& tar2 = *iptr2.target_tp;
-                        auto& own2 = *iptr2.owner_tp;
 
-                        if (ptr_target_subtype(tar1, tar2) && ptr_target_subtype(own1, own2))
+                else if (INDEX_EQ(type2, INNER_PTR)) {
+                    auto& inptr2 = *GET(type2, INNER_PTR);
+
+                    if (ptr_subkind(inptr1.kind, inptr2.kind, confined)) {
+                        auto& target2 = *inptr2.target_tp;
+                        auto& owner2 = *inptr2.owner_tp;
+
+                        if (ptr_target_subtype(target1, target2) && ptr_target_subtype(owner1, owner2))
                             return true;
                     }
                 }
@@ -233,43 +235,53 @@ namespace sg {
             case prog::type::FUNC: {
                 if(!INDEX_EQ(type2, FUNC))
                     break;
+
                 auto& func1 = *GET(type1, FUNC);
                 auto& func2 = *GET(type2, FUNC);
+
                 if (func_subtype(func1, func2))
                     return true;
             } break;
 
             case prog::type::GLOBAL_FUNC: {
-                if(INDEX_EQ(type2, GLOBAL_FUNC)) {
+                if (INDEX_EQ(type2, GLOBAL_FUNC)) {
                     auto& func1 = *GET(type1, GLOBAL_FUNC);
                     auto& func2 = *GET(type2, GLOBAL_FUNC);
+
                     if (func_subtype(func1, func2))
                         return true;
                 }
 
-                else if(INDEX_EQ(type2, FUNC)) {
+                else if (INDEX_EQ(type2, FUNC)) {
                     auto& func1 = *GET(type1, GLOBAL_FUNC);
                     auto& func2 = *GET(type2, FUNC);
+
                     if (func_subtype(func1, func2))
                         return true;
                 }
             } break;
 
             case prog::type::FUNC_WITH_PTR: {
-                auto& fwp1 = *GET(type1, FUNC_WITH_PTR);
+                auto& fptr1 = *GET(type1, FUNC_WITH_PTR);
 
-                if(INDEX_EQ(type2, FUNC_WITH_PTR)) {
-                    auto& fwp2 = *GET(type2, FUNC_WITH_PTR);
-                    if (ptr_subkind(fwp1.kind, fwp2.kind, confined) && func_subtype(fwp1, fwp2))
+                if (INDEX_EQ(type2, FUNC_WITH_PTR)) {
+                    auto& fptr2 = *GET(type2, FUNC_WITH_PTR);
+
+                    if (ptr_subkind(fptr1.kind, fptr2.kind, confined) && func_subtype(fptr1, fptr2))
                         return true;
                 }
 
-                else if(INDEX_EQ(type2, FUNC) && ptr_kind_trivial(fwp1.kind, confined)) {
+                else if (INDEX_EQ(type2, FUNC) && ptr_kind_trivial(fptr1.kind, confined)) {
                     auto& func2 = *GET(type2, FUNC);
-                    if (func_subtype(fwp1, func2))
+
+                    if (func_subtype(fptr1, func2))
                         return true;
                 }
             } break;
+
+            case prog::type::STRUCT_CTOR:
+            case prog::type::ENUM_CTOR:
+                break; // TODO
         }
 
         return false;
@@ -280,10 +292,11 @@ namespace sg {
             return true;
 
         if (!type1.slice && type2.slice && INDEX_EQ(*type1.tp, ARRAY)) {
-            auto& arr1 = *GET(*type1.tp, ARRAY);
-            if (subtype(*arr1.tp, *type2.tp) && subtype(*type2.tp, *arr1.tp))
+            auto& array1 = *GET(*type1.tp, ARRAY);
+
+            if (subtype(*array1.tp, *type2.tp) && subtype(*type2.tp, *array1.tp))
                 return true;
-            if (INDEX_EQ(*arr1.tp, NEVER))
+            if (INDEX_EQ(*array1.tp, NEVER))
                 return true;
         }
 
@@ -295,23 +308,23 @@ namespace sg {
 
     bool compiler::func_subtype(const prog::func_type& func1, const prog::func_type& func2) {
         if (subtype(*func1.return_tp, *func2.return_tp)) {
-            auto& args1 = func1.param_tps;
-            auto& args2 = func2.param_tps;
+            auto& params1 = func1.param_tps;
+            auto& params2 = func2.param_tps;
 
-            if(args1.size() != args2.size()) {
+            if (params1.size() != params2.size()) {
                 return false;
             }
 
             bool ok = true;
 
-            for (size_t i = 0; i < args1.size(); i++) {
-                if (args2[i]->confined != args1[i]->confined || !subtype(*args2[i]->tp, *args1[i]->tp, args1[i]->confined)) {
+            for (size_t i = 0; i < params1.size(); i++) {
+                if (params2[i]->confined != params1[i]->confined || !subtype(*params2[i]->tp, *params1[i]->tp, params1[i]->confined)) {
                     ok = false;
                     break;
                 }
             }
 
-            if(ok)
+            if (ok)
                 return true;
         }
 
@@ -347,6 +360,7 @@ namespace sg {
                 switch (kind2) {
                     case prog::ptr_type::BASIC:
                         return true;
+
                     case prog::ptr_type::SHARED:
                     case prog::ptr_type::WEAK:
                     case prog::ptr_type::UNIQUE:
@@ -360,6 +374,7 @@ namespace sg {
                     case prog::ptr_type::SHARED:
                     case prog::ptr_type::WEAK:
                         return true;
+
                     case prog::ptr_type::BASIC:
                     case prog::ptr_type::UNIQUE:
                         if (confined)
@@ -380,6 +395,7 @@ namespace sg {
                     case prog::ptr_type::SHARED:
                     case prog::ptr_type::WEAK:
                         return true;
+
                     case prog::ptr_type::BASIC:
                         if (confined)
                             return true;

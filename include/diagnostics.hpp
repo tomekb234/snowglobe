@@ -44,7 +44,7 @@ namespace sg {
         void report_all(ostream& stream, bool enable_colors) const;
     };
 
-    namespace diags {
+    namespace diags { // TODO make some of these messages more detailed
         struct error : diagnostic {
             error() : diagnostic(ERROR) { }
         };
@@ -128,6 +128,14 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
+        struct invalid_type : error {
+            void write(ostream& stream) const override;
+        };
+
+        struct not_subtype : error {
+            void write(ostream& stream) const override;
+        };
+
         struct expression_not_constant : error {
             void write(ostream& stream) const override;
         };
@@ -137,16 +145,27 @@ namespace sg {
         };
 
         struct invalid_argument : error {
-            size_t nargs;
+            size_t num_args;
 
-            invalid_argument(size_t nargs) : nargs(nargs) { }
+            invalid_argument(size_t num_args) : num_args(num_args) { }
             void write(ostream& stream) const override;
         };
 
-        struct argument_reused : error {
-            size_t num;
+        struct reused_argument : error {
+            size_t index;
 
-            argument_reused(size_t num) : num(num) { }
+            reused_argument(size_t index) : index(index) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct missing_argument : error {
+            size_t index;
+
+            missing_argument(size_t index) : index(index) { }
+            void write(ostream& stream) const override;
+        };
+
+        struct invalid_enum_variant : error {
             void write(ostream& stream) const override;
         };
     }

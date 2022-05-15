@@ -13,11 +13,10 @@ namespace sg {
 
     void compiler::compile_struct_type(const ast::struct_def& ast, prog::struct_type& struct_type) {
         vector<prog::ptr<prog::struct_field>> fields;
-        
+
         for (auto& ast_field : ast.fields) {
-            auto&& tp = compile_type(*ast_field->tp);
-            
-            prog::struct_field field = { ast_field->name, into_ptr(tp) };
+            auto type = compile_type(*ast_field->tp);
+            auto field = prog::struct_field { ast_field->name, into_ptr(type) };
             fields.push_back(into_ptr(field));
         }
 

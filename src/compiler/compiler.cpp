@@ -121,4 +121,27 @@ namespace sg {
             }
         }
     }
+
+    compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled) {
+        auto it = global_names.find(name);
+
+        if (it == global_names.end())
+            error(diags::name_not_declared(name), ast);
+
+        auto& global_name = it->second;
+
+        if (!allow_uncompiled && !global_name.compiled)
+            error(diags::name_not_compiled(name), ast);
+
+        return global_name;
+    }
+
+    compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, global_name::kind_t expected_kind, bool allow_uncompiled) {
+        auto& global_name = get_global_name(ast, name, allow_uncompiled);
+
+        if (global_name.kind != expected_kind)
+            error(diags::invalid_kind(), ast);
+
+        return global_name;
+    }
 }

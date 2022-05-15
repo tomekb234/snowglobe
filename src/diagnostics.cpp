@@ -119,6 +119,14 @@ namespace sg {
             stream << "Invalid kind" << endl;
         }
 
+        void invalid_type::write(ostream& stream) const {
+            stream << "Invalid type" << endl;
+        }
+
+        void not_subtype::write(ostream& stream) const {
+            stream << "No subtype relation" << endl;
+        }
+
         void expression_not_constant::write(ostream& stream) const {
             stream << "Expression not constant" << endl;
         }
@@ -128,11 +136,19 @@ namespace sg {
         }
 
         void invalid_argument::write(ostream& stream) const {
-            stream << "Invalid argument. Expected " << nargs << " arguments" << endl;
+            stream << "Invalid argument. Expected " << num_args << " arguments" << endl;
         }
 
-        void argument_reused::write(ostream& stream) const {
-            stream << "Reused argument number " << num << endl;
+        void reused_argument::write(ostream& stream) const {
+            stream << "Reused argument with index " << index << endl;
+        }
+
+        void missing_argument::write(ostream& stream) const {
+            stream << "Missing argument with index " << index << endl;
+        }
+
+        void invalid_enum_variant::write(ostream& stream) const {
+            stream << "Invalid enum variant" << endl;
         }
     }
 }

@@ -16,13 +16,12 @@ namespace sg {
                 return VARIANT(prog::type, NEVER, monostate());
 
             case ast::type::PRIMITIVE: {
-                auto tp = compile_primitive_type(*GET(ast, PRIMITIVE));
-                return VARIANT(prog::type, PRIMITIVE, into_ptr(tp));
+                auto type = compile_primitive_type(*GET(ast, PRIMITIVE));
+                return VARIANT(prog::type, PRIMITIVE, into_ptr(type));
             }
 
-            case ast::type::USER_TYPE: {
+            case ast::type::USER_TYPE:
                 return compile_user_type(ast, allow_uncompiled);
-            }
 
             case ast::type::TUPLE: {
                 auto types = compile_tuple_type(GET(ast, TUPLE), allow_uncompiled);
@@ -30,38 +29,38 @@ namespace sg {
             }
 
             case ast::type::ARRAY: {
-                auto tp = compile_array_type(*GET(ast, ARRAY), allow_uncompiled);
-                return VARIANT(prog::type, ARRAY, into_ptr(tp));
+                auto type = compile_array_type(*GET(ast, ARRAY), allow_uncompiled);
+                return VARIANT(prog::type, ARRAY, into_ptr(type));
             }
 
             case ast::type::OPTIONAL: {
-                auto tp = compile_type(*GET(ast, OPTIONAL), allow_uncompiled);
-                return VARIANT(prog::type, OPTIONAL, into_ptr(tp));
+                auto type = compile_type(*GET(ast, OPTIONAL), allow_uncompiled);
+                return VARIANT(prog::type, OPTIONAL, into_ptr(type));
             }
 
             case ast::type::PTR: {
-                auto tp = compile_ptr_type(*GET(ast, PTR));
-                return VARIANT(prog::type, PTR, into_ptr(tp));
+                auto type = compile_ptr_type(*GET(ast, PTR));
+                return VARIANT(prog::type, PTR, into_ptr(type));
             }
 
             case ast::type::INNER_PTR: {
-                auto tp = compile_inner_ptr_type(*GET(ast, INNER_PTR));
-                return VARIANT(prog::type, INNER_PTR, into_ptr(tp));
+                auto type = compile_inner_ptr_type(*GET(ast, INNER_PTR));
+                return VARIANT(prog::type, INNER_PTR, into_ptr(type));
             }
 
             case ast::type::FUNC: {
-                auto tp = compile_func_type(*GET(ast, FUNC), allow_uncompiled);
-                return VARIANT(prog::type, FUNC, into_ptr(tp));
+                auto type = compile_func_type(*GET(ast, FUNC), allow_uncompiled);
+                return VARIANT(prog::type, FUNC, into_ptr(type));
             }
 
             case ast::type::GLOBAL_FUNC: {
-                auto tp = compile_func_type(*GET(ast, GLOBAL_FUNC), allow_uncompiled);
-                return VARIANT(prog::type, GLOBAL_FUNC, into_ptr(tp));
+                auto type = compile_func_type(*GET(ast, GLOBAL_FUNC), allow_uncompiled);
+                return VARIANT(prog::type, GLOBAL_FUNC, into_ptr(type));
             }
 
             case ast::type::FUNC_WITH_PTR: {
-                auto tp = compile_func_with_ptr_type(*GET(ast, FUNC_WITH_PTR), allow_uncompiled);
-                return VARIANT(prog::type, FUNC_WITH_PTR, into_ptr(tp));
+                auto type = compile_func_with_ptr_type(*GET(ast, FUNC_WITH_PTR), allow_uncompiled);
+                return VARIANT(prog::type, FUNC_WITH_PTR, into_ptr(type));
             }
         }
 
@@ -69,42 +68,28 @@ namespace sg {
     }
 
     prog::type compiler::compile_user_type(const ast::type& ast, bool allow_uncompiled) {
-        string tp = GET(ast, USER_TYPE);
-        
-        auto it = global_names.find(tp);
-        if (it == global_names.end()) {
-            error(diags::name_not_declared(tp), ast);
+        auto name = GET(ast, USER_TYPE);
+        auto& global_name = get_global_name(ast, name, allow_uncompiled);
+
+        switch (global_name.kind) {
+            case global_name::ENUM:
+                return VARIANT(prog::type, ENUM, global_name.index);
+
+            case global_name::STRUCT:
+                return VARIANT(prog::type, STRUCT, global_name.index);
+
+            default:
+                error(diags::invalid_kind(), ast);
         }
-
-        auto& type_obj = it->second;
-
-        if(!allow_uncompiled) {
-            if (!type_obj.compiled) {
-                error(diags::name_not_compiled(tp), ast);
-            }
-        }
-
-        switch (type_obj.kind) {
-            case sg::compiler::global_name::ENUM: {
-                return VARIANT(prog::type, ENUM, type_obj.index);
-            }
-
-            case sg::compiler::global_name::STRUCT: {
-                return VARIANT(prog::type, STRUCT, type_obj.index);
-            }
-
-        }
-
-        UNREACHABLE;
     }
 
     prog::type_local compiler::compile_type_local(const ast::type_local& ast, bool allow_uncompiled) {
-        auto tp = compile_type(*ast.tp, allow_uncompiled);
-        return { into_ptr(tp), ast.confined };
+        auto type = compile_type(*ast.tp, allow_uncompiled);
+        return { into_ptr(type), ast.confined };
     }
 
     prog::primitive_type compiler::compile_primitive_type(const ast::primitive_type& ast) {
-        switch(ast.tp) {
+        switch (ast.tp) {
             case ast::primitive_type::BOOL:
                 return { prog::primitive_type::BOOL };
 
@@ -143,19 +128,16 @@ namespace sg {
     }
 
     vector<prog::ptr<prog::type>> compiler::compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled) {
-        vector<prog::ptr<prog::type>> result;
-
-        for(const auto& ast_type : ast) {
-            prog::type&& type = compile_type(*ast_type, allow_uncompiled); 
-            result.push_back(into_ptr(type));
-        }
-
-        return result;
+        vector<prog::ptr<prog::type>> types;
+        for (auto& type_ast : ast)
+            types.push_back(make_ptr(compile_type(*type_ast, allow_uncompiled)));
+        return types;
     }
 
     prog::array_type compiler::compile_array_type(const ast::array_type& ast, bool allow_uncompiled) {
-        prog::type&& tp = compile_type(*ast.tp, allow_uncompiled);
-        return { into_ptr(tp), GET(*ast.size, INTEGER) }; // TODO named constants
+        auto type = compile_type(*ast.tp, allow_uncompiled);
+        auto size = compile_constant_size(*ast.size);
+        return { into_ptr(type), size };
     }
 
     prog::ptr_type compiler::compile_ptr_type(const ast::ptr_type& ast) {
@@ -164,6 +146,7 @@ namespace sg {
         switch(ast.kind) {
             case ast::ptr_type::GLOBAL:
                 kind = prog::ptr_type::GLOBAL;
+                break;
 
             case ast::ptr_type::BASIC:
                 kind = prog::ptr_type::BASIC;
@@ -182,34 +165,28 @@ namespace sg {
                 break;
         }
 
-        auto target_tp = compile_type_pointed(*ast.target_tp);
-
-        return { kind, into_ptr(target_tp) };
+        auto type = compile_type_pointed(*ast.target_tp);
+        return { kind, into_ptr(type) };
     }
 
     prog::type_pointed compiler::compile_type_pointed(const ast::type_pointed& ast) {
-        prog::type&& tp = compile_type(*ast.tp, true);
-        return { into_ptr(tp), ast.slice };
+        auto type = compile_type(*ast.tp, true);
+        return { into_ptr(type), ast.slice };
     }
 
     prog::inner_ptr_type compiler::compile_inner_ptr_type(const ast::inner_ptr_type& ast) {
         auto base = compile_ptr_type(ast);
-        auto owner_tp = compile_type_pointed(*ast.owner_tp);
-
-        return { base.kind, move(base.target_tp), into_ptr(owner_tp) };
+        auto owner_type = compile_type_pointed(*ast.owner_tp);
+        return { base.kind, move(base.target_tp), into_ptr(owner_type) };
     }
 
     prog::func_type compiler::compile_func_type(const ast::func_type& ast, bool allow_uncompiled) {
-        vector<prog::ptr<prog::type_local>> param_tps;
+        vector<prog::ptr<prog::type_local>> param_types;
+        for (auto& type_ast : ast.param_tps)
+            param_types.push_back(make_ptr(compile_type_local(*type_ast, allow_uncompiled)));
 
-        for(const auto& param_tp : ast.param_tps) {
-            auto&& tp = compile_type_local(*param_tp, allow_uncompiled);
-            param_tps.push_back(into_ptr(tp));
-        }
-
-        auto return_tp = compile_type(*ast.return_tp, allow_uncompiled);
-
-        return { move(param_tps), into_ptr(return_tp) };
+        auto return_type = compile_type(*ast.return_tp, allow_uncompiled);
+        return { move(param_types), into_ptr(return_type) };
     }
 
     prog::func_with_ptr_type compiler::compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled) {
@@ -218,6 +195,10 @@ namespace sg {
         decltype(prog::func_with_ptr_type::kind) kind;
 
         switch(ast.kind) {
+            case ast::ptr_type::GLOBAL:
+                kind = prog::ptr_type::GLOBAL;
+                break;
+
             case ast::func_with_ptr_type::BASIC:
                 kind = prog::func_with_ptr_type::BASIC;
                 break;
@@ -235,8 +216,7 @@ namespace sg {
                 break;
         }
 
-        auto target_tp = compile_type_pointed(*ast.target_tp);
-
-        return { move(base.param_tps), move(base.return_tp), kind, into_ptr(target_tp) };
+        auto type = compile_type_pointed(*ast.target_tp);
+        return { move(base.param_tps), move(base.return_tp), kind, into_ptr(type) };
     }
 }

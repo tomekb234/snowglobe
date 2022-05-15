@@ -34,8 +34,8 @@ namespace sg {
                 return compile_constant_array(ast, GET(ast, ARRAY));
 
             case ast::expr::APPLICATION: {
-                auto& [receiver, args] = GET(ast, APPLICATION);
-                return compile_constant_application(ast, *receiver, args);
+                auto& [receiver_ast, args_ast] = GET(ast, APPLICATION);
+                return compile_constant_application(ast, *receiver_ast, args_ast);
             }
 
             case ast::expr::NAME:
@@ -87,159 +87,219 @@ namespace sg {
         }
     }
 
-    pair<prog::constant, prog::type> compiler::compile_constant_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items) {
-        vector<prog::constant> values;
-        vector<prog::type> types;
+    pair<prog::constant, prog::type> compiler::compile_constant_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast) {
+        auto size = items_ast.size();
+        vector<bool> used_items(size, false);
+        vector<prog::constant> values(size);
+        vector<prog::type> types(size);
 
-        for (auto& item_ptr : items) {
-            auto& expr_marked = *item_ptr;
-            switch (INDEX(expr_marked)) {
+        for (auto& item_ast : items_ast) {
+            size_t index = 0;
+            ast::expr* value_ast;
+
+            switch (INDEX(*item_ast)) {
                 case ast::expr_marked::EXPR: {
-                    auto[value, type] = compile_constant_expr(*GET(expr_marked, EXPR));
-                    values.push_back(move(value));
-                    types.push_back(move(type));
+                    while (index < size && used_items[index])
+                        index++;
+                    value_ast = GET(*item_ast, EXPR).get();
                 } break;
 
-                default:
-                    error(diags::expression_not_constant(), ast);
+                case ast::expr_marked::EXPR_WITH_NAME:
+                    error(diags::invalid_expression(), ast);
+
+                case ast::expr_marked::EXPR_WITH_COORD: {
+                    index = GET(*item_ast, EXPR_WITH_COORD).first;
+                    value_ast = GET(*item_ast, EXPR_WITH_COORD).second.get();
+                } break;
             }
+
+            if (index >= size)
+                error(diags::invalid_argument(size), ast);
+            if (used_items[index])
+                error(diags::reused_argument(index), ast);
+
+            auto[value, type] = compile_constant_expr(*value_ast);
+            values[index] = move(value);
+            types[index] = move(type);
+            used_items[index] = true;
         }
 
-        if (values.empty()) {
-            auto value = VARIANT(prog::constant, UNIT, prog::monostate{ });
-            auto type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::UNIT }));
+        for (size_t index = 0; index < size; index++) {
+            if (!used_items[index])
+                error(diags::missing_argument(index), ast);
+        }
+
+        if (size == 0) {
+            auto value = VARIANT(prog::constant, UNIT, prog::monostate());
+            auto type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::UNIT }));
             return { move(value), move(type) };
         }
-        if (values.size() == 1)
+
+        if (size == 1)
             return { move(values[0]), move(types[0]) };
 
-        return { VARIANT(prog::constant, TUPLE, into_ptr_vector(values)), VARIANT(prog::type, TUPLE, into_ptr_vector(types)) };
+        auto value = VARIANT(prog::constant, TUPLE, into_ptr_vector(values));
+        auto type = VARIANT(prog::type, TUPLE, into_ptr_vector(types));
+        return { move(value), move(type) };
     }
 
-    pair<prog::constant, prog::type> compiler::compile_constant_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items) {
-        vector<prog::ptr<prog::constant>> values;
-        prog::type type;
+    pair<prog::constant, prog::type> compiler::compile_constant_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast) {
+        auto size = items_ast.size();
+        vector<bool> used_items(size, false);
+        vector<prog::constant> values(size);
+        prog::type common_type = VARIANT(prog::type, NEVER, monostate());
 
-        for (auto& item_ptr : items) {
-            auto& expr_marked = *item_ptr;
-            switch (INDEX(expr_marked)) {
+        for (auto& item_ast : items_ast) {
+            size_t index = 0;
+            ast::expr* value_ast;
+
+            switch (INDEX(*item_ast)) {
                 case ast::expr_marked::EXPR: {
-                    auto[item_value, item_type] = compile_constant_expr(*GET(expr_marked, EXPR));
-                    if (values.empty())
-                        type = move(item_type);
-                    else
-                        type = common_supertype(ast, type, item_type);
-                    values.push_back(into_ptr(item_value));
+                    while (index < size && used_items[index])
+                        index++;
+                    value_ast = GET(*item_ast, EXPR).get();
                 } break;
 
-                default:
-                    error(diags::expression_not_constant(), expr_marked);
+                case ast::expr_marked::EXPR_WITH_NAME:
+                    error(diags::invalid_expression(), ast);
+
+                case ast::expr_marked::EXPR_WITH_COORD: {
+                    index = GET(*item_ast, EXPR_WITH_COORD).first;
+                    value_ast = GET(*item_ast, EXPR_WITH_COORD).second.get();
+                } break;
             }
+
+            if (index >= size)
+                error(diags::invalid_argument(size), ast);
+            if (used_items[index])
+                error(diags::reused_argument(index), ast);
+
+            auto[value, type] = compile_constant_expr(*value_ast);
+            values[index] = move(value);
+            common_type = common_supertype(ast, common_type, type);
+            used_items[index] = true;
         }
 
-        if (values.empty())
-            type = VARIANT(prog::type, NEVER, monostate());
-        return { VARIANT(prog::constant, ARRAY, move(values)), VARIANT(prog::type, ARRAY, make_ptr(prog::array_type{ into_ptr(type), values.size() })) };
+        for (size_t index = 0; index < size; index++) {
+            if (!used_items[index])
+                error(diags::missing_argument(index), ast);
+        }
+
+        auto value = VARIANT(prog::constant, ARRAY, into_ptr_vector(values));
+        auto type = VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(common_type), values.size() }));
+        return { move(value), move(type) };
     }
 
-    pair<prog::constant, prog::type> compiler::compile_constant_application(const ast::node& ast, const ast::expr& receiver, const vector<ast::ptr<ast::expr_marked>>& args) {
-        auto receiver_tp = compile_constant_expr(receiver).second;
+    pair<prog::constant, prog::type> compiler::compile_constant_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast) {
+        auto receiver_type = compile_constant_expr(receiver_ast).second;
 
-        switch (INDEX(receiver_tp)) {
+        switch (INDEX(receiver_type)) {
             case prog::type::STRUCT_CTOR: {
-                auto struct_index = GET(receiver_tp, STRUCT_CTOR);
-                auto& struct_type = program.struct_types[struct_index];
-                size_t nargs = args.size(); // FIXME should be the expected number of arguments
+                auto struct_index = GET(receiver_type, STRUCT_CTOR);
+                auto& struct_type = *program.struct_types[struct_index];
 
-                vector<bool> used_args(nargs, false);
-                vector<pair<prog::constant, prog::type>> compiled_args(nargs);
+                size_t num_args = struct_type.fields.size();
+                vector<bool> used_args(num_args, false);
+                vector<pair<prog::constant, prog::type>> args(num_args);
 
-                for (auto& arg : args) {
-                    switch (INDEX(*arg)) {
+                for (auto& arg_ast : args_ast) {
+                    size_t index = 0;
+                    ast::expr* value_ast;
+
+                    switch (INDEX(*arg_ast)) {
                         case ast::expr_marked::EXPR: {
-                            size_t coord = 0;
-                            while (coord < nargs && used_args[coord])
-                                coord++;
-
-                            if (coord >= nargs)
-                                error(diags::invalid_argument(nargs), ast);
-
-                            compiled_args[coord] = compile_constant_expr(*GET(*arg, EXPR));
-                            used_args[coord] = true;
+                            while (index < num_args && used_args[index])
+                                index++;
+                            value_ast = GET(*arg_ast, EXPR).get();
                         } break;
 
-                        case ast::expr_marked::EXPR_WITH_NAME:
-                            error(diags::not_implemented(), ast); // TODO
+                        case ast::expr_marked::EXPR_WITH_NAME: {
+                            auto name = GET(*arg_ast, EXPR_WITH_NAME).first;
+                            while (index < num_args && name != struct_type.fields[index]->name)
+                                index++;
+                            value_ast = GET(*arg_ast, EXPR_WITH_NAME).second.get();
+                        } break;
 
                         case ast::expr_marked::EXPR_WITH_COORD: {
-                            auto coord = GET(*arg, EXPR_WITH_COORD).first;
-
-                            if (coord >= nargs)
-                                error(diags::invalid_argument(nargs), ast);
-                            if (used_args[coord])
-                                error(diags::argument_reused(coord), ast);
-
-                            compiled_args[coord] = compile_constant_expr(*GET(*arg, EXPR_WITH_COORD).second);
-                            used_args[coord] = true;
-                        } break;
+                            index = GET(*arg_ast, EXPR_WITH_COORD).first;
+                            value_ast = GET(*arg_ast, EXPR_WITH_COORD).second.get();
+                            break;
+                        }
                     }
+
+                    if (index >= num_args)
+                        error(diags::invalid_argument(num_args), ast);
+                    if (used_args[index])
+                        error(diags::reused_argument(index), ast);
+
+                    args[index] = compile_constant_expr(*value_ast);
+                    used_args[index] = true;
                 }
 
-                // TODO check types and convert values
-
                 vector<prog::ptr<prog::constant>> result;
-                for (auto& compiled_arg : compiled_args)
-                    result.push_back(into_ptr(compiled_arg.first));
+                for (size_t index = 0; index < num_args; index++) {
+                    if (!used_args[index])
+                        error(diags::missing_argument(index), ast);
+                    auto& [value, type] = args[index];
+                    auto& declared_type = *struct_type.fields[index]->tp;
+                    result.push_back(make_ptr(convert_constant(ast, move(value), type, declared_type)));
+                }
 
-                return { VARIANT(prog::constant, STRUCT, move(result)), VARIANT(prog::type, STRUCT, struct_index) };
+                auto value = VARIANT(prog::constant, STRUCT, move(result));
+                auto type = VARIANT(prog::type, STRUCT, struct_index);
+                return { move(value), move(type) };
             }
 
             case prog::type::ENUM_CTOR: {
-                auto [enum_index, variant_index] = GET(receiver_tp, ENUM_CTOR);
-                auto& enum_type = program.enum_types[enum_index];
-                size_t nargs = args.size(); // FIXME should be the expected number of arguments
+                auto [enum_index, variant_index] = GET(receiver_type, ENUM_CTOR);
+                auto& enum_type = *program.enum_types[enum_index];
+                auto& variant = *enum_type.variants[variant_index];
 
-                vector<bool> used_args(nargs, false);
-                vector<pair<prog::constant, prog::type>> compiled_args(nargs);
+                size_t num_args = variant.tps.size();
+                vector<bool> used_args(num_args, false);
+                vector<pair<prog::constant, prog::type>> args(num_args);
 
-                for (auto& arg : args) {
-                    switch (INDEX(*arg)) {
+                for (auto& arg_ast : args_ast) {
+                    size_t index = 0;
+                    ast::expr* value_ast;
+
+                    switch (INDEX(*arg_ast)) {
                         case ast::expr_marked::EXPR: {
-                            size_t coord = 0;
-                            while (coord < nargs && used_args[coord])
-                                coord++;
-
-                            if (coord >= nargs)
-                                error(diags::invalid_argument(nargs), ast);
-
-                            compiled_args[coord] = compile_constant_expr(*GET(*arg, EXPR));
-                            used_args[coord] = true;
+                            while (index < num_args && used_args[index])
+                                index++;
+                            value_ast = GET(*arg_ast, EXPR).get();
                         } break;
 
                         case ast::expr_marked::EXPR_WITH_NAME:
                             error(diags::invalid_expression(), ast);
 
                         case ast::expr_marked::EXPR_WITH_COORD: {
-                            auto coord = GET(*arg, EXPR_WITH_COORD).first;
-
-                            if (coord >= nargs)
-                                error(diags::invalid_argument(nargs), ast);
-                            if (used_args[coord])
-                                error(diags::argument_reused(coord), ast);
-
-                            compiled_args[coord] = compile_constant_expr(*GET(*arg, EXPR_WITH_COORD).second);
-                            used_args[coord] = true;
+                            index = GET(*arg_ast, EXPR_WITH_COORD).first;
+                            value_ast = GET(*arg_ast, EXPR_WITH_COORD).second.get();
                         } break;
                     }
+
+                    if (index >= num_args)
+                        error(diags::invalid_argument(num_args), ast);
+                    if (used_args[index])
+                        error(diags::reused_argument(index), ast);
+
+                    args[index] = compile_constant_expr(*value_ast);
+                    used_args[index] = true;
                 }
 
-                // TODO check types and convert values
-
                 vector<prog::ptr<prog::constant>> result;
-                for (auto& compiled_arg : compiled_args)
-                    result.push_back(into_ptr(compiled_arg.first));
+                for (size_t index = 0; index < num_args; index++) {
+                    if (!used_args[index])
+                        error(diags::missing_argument(index), ast);
+                    auto& [value, type] = args[index];
+                    auto& declared_type = *variant.tps[index];
+                    result.push_back(make_ptr(convert_constant(ast, move(value), type, declared_type)));
+                }
 
-                return { VARIANT(prog::constant, ENUM, make_pair(variant_index, move(result))), VARIANT(prog::type, ENUM, enum_index) };
+                auto value = VARIANT(prog::constant, ENUM, make_pair(variant_index, move(result)));
+                auto type = VARIANT(prog::type, ENUM, enum_index);
+                return { move(value), move(type) };
             }
 
             case prog::type::FUNC:
@@ -253,9 +313,7 @@ namespace sg {
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_name(const ast::node& ast, const string& name) {
-        if (!global_names.count(name))
-            error(diags::name_not_declared(name), ast);
-        auto& global_name = global_names[name];
+        auto& global_name = get_global_name(ast, name, false);
 
         switch (global_name.kind) {
             case global_name::VARIABLE:
@@ -268,13 +326,15 @@ namespace sg {
 
             case global_name::FUNCTION: {
                 auto& global_func = *program.global_funcs[global_name.index];
-                return { VARIANT(prog::constant, GLOBAL_FUNC_PTR, global_name.index), VARIANT(prog::type, GLOBAL_FUNC, make_ptr(prog::copy_func_type(*global_func.tp))) };
+                auto value = VARIANT(prog::constant, GLOBAL_FUNC_PTR, global_name.index);
+                auto type = VARIANT(prog::type, GLOBAL_FUNC, make_ptr(prog::copy_func_type(*global_func.tp)));
+                return { move(value), move(type) };
             }
 
             case global_name::STRUCT: {
-                if (!global_name.compiled)
-                    error(diags::name_not_compiled(name), ast);
-                return { VARIANT(prog::constant, UNIT, monostate()), VARIANT(prog::type, STRUCT_CTOR, global_name.index) };
+                auto value = VARIANT(prog::constant, UNIT, monostate());
+                auto type = VARIANT(prog::type, STRUCT_CTOR, global_name.index);
+                return { move(value), move(type) };
             }
 
             case global_name::ENUM:
@@ -285,18 +345,20 @@ namespace sg {
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_variant_name(const ast::node& ast, const string& name, const string& variant_name) {
-        if (!global_names.count(name))
-            error(diags::name_not_declared(name), ast);
-        auto& global_name = global_names[name];
+        auto& global_name = get_global_name(ast, name, global_name::ENUM, false);
+        auto& enum_type = *program.enum_types[global_name.index];
+        auto num_variants = enum_type.variants.size();
 
-        if (global_name.kind != global_name::ENUM)
-            error(diags::invalid_kind(), ast);
-        if (!global_name.compiled)
-            error(diags::name_not_compiled(name), ast);
+        size_t variant_index = 0;
+        while (variant_index < num_variants && name != enum_type.variants[variant_index]->name)
+            variant_index++;
 
-        auto variant_index = 0; // TODO
+        if (variant_index >= num_variants)
+            error(diags::invalid_enum_variant(), ast);
 
-        return { VARIANT(prog::constant, UNIT, monostate()), VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index)) };
+        auto value = VARIANT(prog::constant, UNIT, monostate());
+        auto type = VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index));
+        return { move(value), move(type) };
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_literal(const ast::literal_expr& ast) {
@@ -318,37 +380,36 @@ namespace sg {
                 auto size = str.length();
 
                 auto char_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::U8 }));
-                auto type = VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(char_type), size }));
+                auto array_type = VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(char_type), size }));
 
-                vector<prog::ptr<prog::constant>> chars;
+                vector<prog::ptr<prog::constant>> char_values;
                 for (char ch : str)
-                    chars.push_back(make_ptr(VARIANT(prog::constant, INT, encode_number(static_cast<uint8_t>(ch)))));
-
-                auto value = VARIANT(prog::constant, ARRAY, move(chars));
+                    char_values.push_back(make_ptr(VARIANT(prog::constant, INT, encode_number(static_cast<uint8_t>(ch)))));
+                auto array_value = VARIANT(prog::constant, ARRAY, move(char_values));
 
                 auto index = program.global_vars.size();
-                program.global_vars.push_back(make_ptr(prog::global_var { optional<string>(), make_ptr(copy_type(type)), into_ptr(value) }));
+                program.global_vars.push_back(make_ptr(prog::global_var { optional<string>(), make_ptr(copy_type(array_type)), into_ptr(array_value) }));
 
-                auto type_pointed = prog::type_pointed { into_ptr(type), false };
-                auto ptr_type = VARIANT(prog::type, PTR, make_ptr(prog::ptr_type { prog::ptr_type::GLOBAL, into_ptr(type_pointed) }));
-                auto ptr = VARIANT(prog::constant, GLOBAL_PTR, index);
-
-                return { move(ptr), move(ptr_type) };
+                auto value = VARIANT(prog::constant, GLOBAL_PTR, index);
+                auto type_pointed = prog::type_pointed { into_ptr(array_type), false };
+                auto type = VARIANT(prog::type, PTR, make_ptr(prog::ptr_type { prog::ptr_type::GLOBAL, into_ptr(type_pointed) }));
+                return { move(value), move(type) };
             }
 
             case ast::literal_expr::INT: {
-                auto[value, type] = compile_int_token(*GET(ast, INT));
-                return {move(value), VARIANT(prog::type, PRIMITIVE, into_ptr(type))};
+                auto[value, primitive_type] = compile_int_token(*GET(ast, INT));
+                auto type = VARIANT(prog::type, PRIMITIVE, into_ptr(primitive_type));
+                return { move(value), move(type) };
             }
 
             case ast::literal_expr::FLOAT: {
-                auto[value, type] = compile_float_token(*GET(ast, FLOAT));
-                return {move(value), VARIANT(prog::type, PRIMITIVE, into_ptr(type))};
+                auto[value, primitive_type] = compile_float_token(*GET(ast, FLOAT));
+                auto type = VARIANT(prog::type, PRIMITIVE, into_ptr(primitive_type));
+                return { move(value), move(type) };
             }
-
-            default:
-                error(diags::not_implemented(), ast); // TODO
         }
+
+        UNREACHABLE;
     }
 
     pair<prog::constant, prog::primitive_type> compiler::compile_int_token(const ast::int_token& ast) {
@@ -410,7 +471,7 @@ namespace sg {
     }
 
     pair<prog::constant, prog::primitive_type> compiler::compile_float_token(const ast::float_token& ast) {
-        double value = ast.negative ? -ast.value : ast.value;
+        auto value = ast.negative ? -ast.value : ast.value;
 
         switch (ast.marker) {
             case ast::float_token::NONE:
@@ -447,8 +508,23 @@ namespace sg {
         error(diags::not_implemented(), ast); // TODO
     }
 
-    prog::constant compiler::convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp) {
-        error(diags::not_implemented(), ast); // TODO
+    size_t compiler::compile_constant_size(const ast::const_integer& ast) {
+        switch (INDEX(ast)) {
+            case ast::const_integer::INTEGER:
+                return GET(ast, INTEGER);
+
+            case ast::const_integer::NAME:
+                error(diags::not_implemented(), ast); // TODO
+        }
+
+        UNREACHABLE;
+    }
+
+    prog::constant compiler::convert_constant(const ast::node& ast, prog::constant value, const prog::type& type, const prog::type& new_type) {
+        if (!subtype(type, new_type))
+            error(diags::not_subtype(), ast);
+
+        return value; // TODO perform actual conversion
     }
 
     template<typename T>

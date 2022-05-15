@@ -13,16 +13,15 @@ namespace sg {
 
     void compiler::compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type) {
         vector<prog::ptr<prog::enum_variant>> variants;
-        
-        for (auto& ast_variant : ast.variants) {
-            vector<prog::ptr<prog::type>> tps;
 
-            for (const auto& ast_type : ast_variant->tps) {
-                auto&& tp = compile_type(*ast_type);
-                tps.push_back(into_ptr(tp));
+        for (auto& variant_ast : ast.variants) {
+            vector<prog::ptr<prog::type>> types;
+            for (const auto& type_ast : variant_ast->tps) {
+                auto type = compile_type(*type_ast);
+                types.push_back(into_ptr(type));
             }
 
-            prog::enum_variant variant = { ast_variant->name, move(tps) };
+            auto variant = prog::enum_variant { variant_ast->name, move(types) };
             variants.push_back(into_ptr(variant));
         }
 

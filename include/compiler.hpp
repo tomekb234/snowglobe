@@ -18,7 +18,7 @@ namespace sg {
 
     class compiler {
         struct global_name {
-            enum {
+            enum kind_t {
                 VARIABLE,
                 CONSTANT,
                 FUNCTION,
@@ -52,6 +52,11 @@ namespace sg {
 
         private:
 
+        // Utilities
+
+        global_name& get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled = false);
+        global_name& get_global_name(const ast::node& ast, const string& name, global_name::kind_t expected_kind, bool allow_uncompiled = false);
+
         // Variables
 
         prog::global_var compile_global_var(const ast::var_def& ast);
@@ -75,9 +80,9 @@ namespace sg {
         // Constants
 
         pair<prog::constant, prog::type> compile_constant_expr(const ast::expr& ast);
-        pair<prog::constant, prog::type> compile_constant_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items);
-        pair<prog::constant, prog::type> compile_constant_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items);
-        pair<prog::constant, prog::type> compile_constant_application(const ast::node& ast, const ast::expr& receiver, const vector<ast::ptr<ast::expr_marked>>& args);
+        pair<prog::constant, prog::type> compile_constant_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
+        pair<prog::constant, prog::type> compile_constant_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
+        pair<prog::constant, prog::type> compile_constant_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
         pair<prog::constant, prog::type> compile_constant_name(const ast::node& ast, const string& name);
         pair<prog::constant, prog::type> compile_constant_variant_name(const ast::node& ast, const string& name, const string& variant_name);
         pair<prog::constant, prog::type> compile_constant_literal(const ast::literal_expr& ast);
@@ -85,10 +90,11 @@ namespace sg {
         pair<prog::constant, prog::primitive_type> compile_float_token(const ast::float_token& ast);
         pair<prog::constant, prog::type> compile_constant_ptr(const ast::node& ast, const string& name);
         pair<prog::constant, prog::type> compile_constant_sized_array(const ast::sized_array_expr& ast);
-        pair<prog::constant, prog::type> compile_constant_length(const ast::node& ast, const ast::expr& target);
+        pair<prog::constant, prog::type> compile_constant_length(const ast::node& ast, const ast::expr& target_ast);
         pair<prog::constant, prog::type> compile_constant_extract(const ast::extract_expr& ast);
         pair<prog::constant, prog::type> compile_constant_ptr_extract(const ast::ptr_extract_expr& ast);
-        prog::constant convert_constant(const ast::node& ast, const prog::constant& constant, const prog::type& from_tp, const prog::type& to_tp);
+        size_t compile_constant_size(const ast::const_integer& ast);
+        prog::constant convert_constant(const ast::node& ast, prog::constant value, const prog::type& type, const prog::type& new_type);
 
         // Types
 
