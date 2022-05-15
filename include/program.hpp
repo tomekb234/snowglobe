@@ -23,7 +23,9 @@ namespace sg::prog {
     struct global_var;
     struct global_func;
     struct struct_type;
+    struct struct_field;
     struct enum_type;
+    struct enum_variant;
     struct constant;
     struct inner_location;
     struct type;
@@ -55,9 +57,15 @@ namespace sg::prog {
         // TODO
     };
 
+    struct struct_field {
+        string name;
+        ptr<type> tp;
+    };
+
     struct struct_type {
         string name;
-        // TODO
+        bool copyable;
+        vector<ptr<struct_field>> fields;
     };
 
     struct enum_variant {
