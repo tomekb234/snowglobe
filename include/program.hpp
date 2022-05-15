@@ -27,7 +27,6 @@ namespace sg::prog {
     struct enum_type;
     struct enum_variant;
     struct constant;
-    struct inner_location;
     struct type;
     struct primitive_type;
     struct array_type;
@@ -92,8 +91,7 @@ namespace sg::prog {
             SIZED_ARRAY,
             SOME,
             NONE,
-            GLOBAL_PTR,
-            GLOBAL_INNER_PTR,
+            GLOBAL_VAR_PTR,
             GLOBAL_FUNC_PTR
         };
 
@@ -109,25 +107,8 @@ namespace sg::prog {
             pair<ptr<constant>, size_t>, // SIZED_ARRAY
             ptr<constant>, // SOME
             monostate, // NONE
-            size_t, // GLOBAL_PTR
-            pair<size_t, vector<ptr<inner_location>>>, // GLOBAL_INNER_PTR
+            size_t, // GLOBAL_VAR_PTR
             size_t // GLOBAL_FUNC_PTR
-        > value;
-    };
-
-    struct inner_location {
-        enum {
-            FIELD,
-            COORD,
-            INDEX,
-            RANGE
-        };
-
-        variant<
-            size_t,
-            size_t,
-            size_t,
-            pair<size_t, size_t>
         > value;
     };
 

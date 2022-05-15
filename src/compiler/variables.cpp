@@ -13,7 +13,7 @@ namespace sg {
         if (global_names.count(name))
             error(diags::global_name_used(name), ast);
 
-        auto[value, value_type] = compile_constant_expr(*ast.value);
+        auto[value, value_type] = compile_constant(*ast.value);
 
         prog::type type;
 

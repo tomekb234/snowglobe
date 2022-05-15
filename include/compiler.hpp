@@ -79,7 +79,7 @@ namespace sg {
 
         // Constants
 
-        pair<prog::constant, prog::type> compile_constant_expr(const ast::expr& ast);
+        pair<prog::constant, prog::type> compile_constant(const ast::expr& ast);
         pair<prog::constant, prog::type> compile_constant_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
         pair<prog::constant, prog::type> compile_constant_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
         pair<prog::constant, prog::type> compile_constant_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
@@ -88,11 +88,6 @@ namespace sg {
         pair<prog::constant, prog::type> compile_constant_literal(const ast::literal_expr& ast);
         pair<prog::constant, prog::primitive_type> compile_int_token(const ast::int_token& ast);
         pair<prog::constant, prog::primitive_type> compile_float_token(const ast::float_token& ast);
-        pair<prog::constant, prog::type> compile_constant_ptr(const ast::node& ast, const string& name);
-        pair<prog::constant, prog::type> compile_constant_sized_array(const ast::sized_array_expr& ast);
-        pair<prog::constant, prog::type> compile_constant_length(const ast::node& ast, const ast::expr& target_ast);
-        pair<prog::constant, prog::type> compile_constant_extract(const ast::extract_expr& ast);
-        pair<prog::constant, prog::type> compile_constant_ptr_extract(const ast::ptr_extract_expr& ast);
         size_t compile_constant_size(const ast::const_integer& ast);
         prog::constant convert_constant(const ast::node& ast, prog::constant value, const prog::type& type, const prog::type& new_type);
 

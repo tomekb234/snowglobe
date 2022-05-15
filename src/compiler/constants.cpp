@@ -25,7 +25,7 @@ namespace sg {
     template<typename T>
     static T decode_number(unsigned long long number);
 
-    pair<prog::constant, prog::type> compiler::compile_constant_expr(const ast::expr& ast) {
+    pair<prog::constant, prog::type> compiler::compile_constant(const ast::expr& ast) {
         switch (INDEX(ast)) {
             case ast::expr::TUPLE:
                 return compile_constant_tuple(ast, GET(ast, TUPLE));
@@ -55,7 +55,7 @@ namespace sg {
                 error(diags::not_implemented(), ast); // TODO compile-time arithmetic
 
             case ast::expr::SOME: {
-                auto[inner_value, inner_type] = compile_constant_expr(*GET(ast, SOME));
+                auto[inner_value, inner_type] = compile_constant(*GET(ast, SOME));
                 auto value = VARIANT(prog::constant, SOME, into_ptr(inner_value));
                 auto type = VARIANT(prog::type, OPTIONAL, into_ptr(inner_type));
                 return { move(value), move(type) };
@@ -67,20 +67,37 @@ namespace sg {
                 return { move(value), move(type) };
             }
 
-            case ast::expr::REFERENCE:
-                return compile_constant_ptr(ast, GET(ast, REFERENCE));
+            case ast::expr::REFERENCE: {
+                auto& name = GET(ast, REFERENCE);
+                auto& global_name = get_global_name(ast, name, global_name::VARIABLE);
+                auto& target_type = *program.global_vars[global_name.index]->tp;
+                auto type_pointed = prog::type_pointed { make_ptr(prog::copy_type(target_type)), false };
+                auto ptr_type = prog::ptr_type { prog::ptr_type::GLOBAL, into_ptr(type_pointed) };
+                auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, global_name.index);
+                auto type = VARIANT(prog::type, PTR, into_ptr(ptr_type));
+                return { move(value), move(type) };
+            }
 
-            case ast::expr::SIZED_ARRAY:
-                return compile_constant_sized_array(*GET(ast, SIZED_ARRAY));
+            case ast::expr::SIZED_ARRAY: {
+                auto& array_ast = *GET(ast, SIZED_ARRAY);
+                auto [inner_value, inner_type] = compile_constant(*array_ast.value);
+                auto size = compile_constant_size(*array_ast.size);
+                auto array_type = prog::array_type { into_ptr(inner_type), size };
+                auto value = VARIANT(prog::constant, SIZED_ARRAY, make_pair(into_ptr(inner_value), size));
+                auto type = VARIANT(prog::type, ARRAY, into_ptr(array_type));
+                return { move(value), move(type) };
+            }
 
-            case ast::expr::LENGTH:
-                return compile_constant_length(ast, *GET(ast, LENGTH));
-
-            case ast::expr::EXTRACT:
-                return compile_constant_extract(*GET(ast, EXTRACT));
-
-            case ast::expr::PTR_EXTRACT:
-                return compile_constant_ptr_extract(*GET(ast, PTR_EXTRACT));
+            case ast::expr::LENGTH: {
+                auto& target = *GET(ast, LENGTH);
+                auto target_type = compile_constant(target).second;
+                if (!INDEX_EQ(target_type, ARRAY))
+                    error(diags::invalid_type(), ast);
+                auto size = GET(target_type, ARRAY)->size;
+                auto value = VARIANT(prog::constant, INT, encode_number(size));
+                auto type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::U64 }));
+                return { move(value), move(type) };
+            }
 
             default:
                 error(diags::expression_not_constant(), ast);
@@ -118,7 +135,7 @@ namespace sg {
             if (used_items[index])
                 error(diags::reused_argument(index), ast);
 
-            auto[value, type] = compile_constant_expr(*value_ast);
+            auto[value, type] = compile_constant(*value_ast);
             values[index] = move(value);
             types[index] = move(type);
             used_items[index] = true;
@@ -174,7 +191,7 @@ namespace sg {
             if (used_items[index])
                 error(diags::reused_argument(index), ast);
 
-            auto[value, type] = compile_constant_expr(*value_ast);
+            auto[value, type] = compile_constant(*value_ast);
             values[index] = move(value);
             common_type = common_supertype(ast, common_type, type);
             used_items[index] = true;
@@ -191,7 +208,7 @@ namespace sg {
     }
 
     pair<prog::constant, prog::type> compiler::compile_constant_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast) {
-        auto receiver_type = compile_constant_expr(receiver_ast).second;
+        auto receiver_type = compile_constant(receiver_ast).second;
 
         switch (INDEX(receiver_type)) {
             case prog::type::STRUCT_CTOR: {
@@ -214,7 +231,7 @@ namespace sg {
                         } break;
 
                         case ast::expr_marked::EXPR_WITH_NAME: {
-                            auto name = GET(*arg_ast, EXPR_WITH_NAME).first;
+                            auto& name = GET(*arg_ast, EXPR_WITH_NAME).first;
                             while (index < num_args && name != struct_type.fields[index]->name)
                                 index++;
                             value_ast = GET(*arg_ast, EXPR_WITH_NAME).second.get();
@@ -232,7 +249,7 @@ namespace sg {
                     if (used_args[index])
                         error(diags::reused_argument(index), ast);
 
-                    args[index] = compile_constant_expr(*value_ast);
+                    args[index] = compile_constant(*value_ast);
                     used_args[index] = true;
                 }
 
@@ -284,7 +301,7 @@ namespace sg {
                     if (used_args[index])
                         error(diags::reused_argument(index), ast);
 
-                    args[index] = compile_constant_expr(*value_ast);
+                    args[index] = compile_constant(*value_ast);
                     used_args[index] = true;
                 }
 
@@ -390,7 +407,7 @@ namespace sg {
                 auto index = program.global_vars.size();
                 program.global_vars.push_back(make_ptr(prog::global_var { optional<string>(), make_ptr(copy_type(array_type)), into_ptr(array_value) }));
 
-                auto value = VARIANT(prog::constant, GLOBAL_PTR, index);
+                auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, index);
                 auto type_pointed = prog::type_pointed { into_ptr(array_type), false };
                 auto type = VARIANT(prog::type, PTR, make_ptr(prog::ptr_type { prog::ptr_type::GLOBAL, into_ptr(type_pointed) }));
                 return { move(value), move(type) };
@@ -488,33 +505,37 @@ namespace sg {
         UNREACHABLE;
     }
 
-    pair<prog::constant, prog::type> compiler::compile_constant_ptr(const ast::node& ast, const string& name) {
-        error(diags::not_implemented(), ast); // TODO
-    }
-
-    pair<prog::constant, prog::type> compiler::compile_constant_sized_array(const ast::sized_array_expr& ast) {
-        error(diags::not_implemented(), ast); // TODO
-    }
-
-    pair<prog::constant, prog::type> compiler::compile_constant_length(const ast::node& ast, const ast::expr& target) {
-        error(diags::not_implemented(), ast); // TODO
-    }
-
-    pair<prog::constant, prog::type> compiler::compile_constant_extract(const ast::extract_expr& ast) {
-        error(diags::not_implemented(), ast); // TODO
-    }
-
-    pair<prog::constant, prog::type> compiler::compile_constant_ptr_extract(const ast::ptr_extract_expr& ast) {
-        error(diags::not_implemented(), ast); // TODO
-    }
-
     size_t compiler::compile_constant_size(const ast::const_integer& ast) {
         switch (INDEX(ast)) {
             case ast::const_integer::INTEGER:
                 return GET(ast, INTEGER);
 
-            case ast::const_integer::NAME:
-                error(diags::not_implemented(), ast); // TODO
+            case ast::const_integer::NAME: {
+                auto& global_name = get_global_name(ast, GET(ast, NAME), global_name::CONSTANT);
+                auto& global_var = constants[global_name.index];
+
+                if (!INDEX_EQ(*global_var.value, INT))
+                    error(diags::invalid_type(), ast);
+
+                auto value = GET(*global_var.value, INT);
+
+                switch (GET(*global_var.tp, PRIMITIVE)->tp) {
+                    case prog::primitive_type::U8:
+                        return decode_number<uint8_t>(value);
+
+                    case prog::primitive_type::U16:
+                        return decode_number<uint16_t>(value);
+
+                    case prog::primitive_type::U32:
+                        return decode_number<uint32_t>(value);
+
+                    case prog::primitive_type::U64:
+                        return decode_number<uint64_t>(value);
+
+                    default:
+                        error(diags::invalid_type(), ast);
+                }
+            }
         }
 
         UNREACHABLE;

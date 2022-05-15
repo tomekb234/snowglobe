@@ -56,14 +56,8 @@ namespace sg::prog {
             case constant::NONE:
                 return VARIANT(constant, NONE, monostate());
 
-            case constant::GLOBAL_PTR:
-                return VARIANT(constant, GLOBAL_PTR, GET(source, GLOBAL_PTR));
-
-            case constant::GLOBAL_INNER_PTR: {
-                auto& p = GET(source, GLOBAL_INNER_PTR);
-                auto vec = copy_ptr_vector<inner_location>(p.second);
-                return VARIANT(constant, GLOBAL_INNER_PTR, make_pair(p.first, move(vec)));
-            }
+            case constant::GLOBAL_VAR_PTR:
+                return VARIANT(constant, GLOBAL_VAR_PTR, GET(source, GLOBAL_VAR_PTR));
 
             case constant::GLOBAL_FUNC_PTR:
                 return VARIANT(constant, GLOBAL_FUNC_PTR, GET(source, GLOBAL_FUNC_PTR));

@@ -277,6 +277,13 @@ namespace sg {
                     if (func_subtype(fptr1, func2))
                         return true;
                 }
+
+                else if (INDEX_EQ(type2, PTR)) {
+                    auto& ptr2 = *GET(type2, PTR);
+
+                    if (ptr_subkind(fptr1.kind, ptr2.kind, confined) && ptr_target_subtype(*fptr1.target_tp, *ptr2.target_tp))
+                        return true;
+                }
             } break;
 
             case prog::type::STRUCT_CTOR:
