@@ -15,14 +15,12 @@ namespace sg {
     const string LEVEL_TEXTS[] = { "Note", "Warning", "Error" };
 
     struct COLORS {
-        string LEVELS[3] = { "", "", "" };
-        string LOCATION = "";
-        string CODE_OUTSIDE = "";
-        string CODE_INSIDE = "";
-        string RESET = "";
+        string LEVELS[3];
+        string LOCATION;
+        string CODE_OUTSIDE, CODE_INSIDE;
+        string RESET;
     };
     const COLORS INACTIVE_COLORS = { { "", "", "" }, "", "", "", "" };
-    #ifdef __unix__
     const COLORS ACTIVE_COLORS = {
         .LEVELS = { "\e[1;36m", "\e[1;33m", "\e[1;31m" },
         .LOCATION = "\e[1;37m",
@@ -30,9 +28,6 @@ namespace sg {
         .CODE_INSIDE = "\e[1;35m",
         .RESET = "\e[0m"
     };
-    #else
-    const COLORS ACTIVE_COLORS = INACTIVE_COLORS;
-    #endif
 
     void diagnostic_collector::report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const {
         // Select color table
@@ -182,6 +177,10 @@ namespace sg {
 
         void invalid_enum_variant::write(ostream& stream) const {
             stream << "Invalid enum variant" << endl;
+        }
+
+        void invalid_size_constant_type::write(ostream& stream) const {
+            stream << "Size constant is not of unsigned integer type" << endl;
         }
     }
 }

@@ -518,7 +518,7 @@ namespace sg {
                 auto& global_var = constants[global_name.index];
 
                 if (!INDEX_EQ(*global_var.value, INT))
-                    error(diags::invalid_type(), ast);
+                    error(diags::invalid_size_constant_type(), ast);
 
                 auto value = GET(*global_var.value, INT);
 
@@ -536,7 +536,7 @@ namespace sg {
                         return decode_number<uint64_t>(value);
 
                     default:
-                        error(diags::invalid_type(), ast);
+                        error(diags::invalid_size_constant_type(), ast);
                 }
             }
         }

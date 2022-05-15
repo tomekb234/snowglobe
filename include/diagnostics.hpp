@@ -170,6 +170,10 @@ namespace sg {
         struct invalid_enum_variant : error {
             void write(ostream& stream) const override;
         };
+
+        struct invalid_size_constant_type : error {
+            void write(ostream& stream) const override;
+        };
     }
 }
 
