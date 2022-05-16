@@ -7,6 +7,7 @@
 #include <variant>
 #include <string>
 #include <utility>
+#include <ostream>
 
 namespace sg::prog {
     template<typename T>
@@ -18,6 +19,7 @@ namespace sg::prog {
     using std::monostate;
     using std::string;
     using std::pair;
+    using std::ostream;
 
     struct program;
     struct global_var;
@@ -212,6 +214,8 @@ namespace sg::prog {
     func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& source);
     type_pointed copy_type_pointed(const type_pointed& source);
     type_local copy_type_local(const type_local& source);
+
+    void print_type(ostream& stream, const program& prog, const type& tp);
 }
 
 #endif

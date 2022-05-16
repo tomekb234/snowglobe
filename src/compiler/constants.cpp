@@ -370,7 +370,7 @@ namespace sg {
         auto num_variants = enum_type.variants.size();
 
         size_t variant_index = 0;
-        while (variant_index < num_variants && name != enum_type.variants[variant_index]->name)
+        while (variant_index < num_variants && variant_name != enum_type.variants[variant_index]->name)
             variant_index++;
 
         if (variant_index >= num_variants)

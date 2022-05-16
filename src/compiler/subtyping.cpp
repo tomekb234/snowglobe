@@ -295,7 +295,7 @@ namespace sg {
     }
 
     bool compiler::ptr_target_subtype(const prog::type_pointed& type1, const prog::type_pointed& type2) {
-        if (type1.slice == type2.slice && subtype(*type1.tp, *type2.tp) && subtype(*type1.tp, *type2.tp))
+        if (type1.slice == type2.slice && subtype(*type1.tp, *type2.tp) && subtype(*type2.tp, *type1.tp))
             return true;
 
         if (!type1.slice && type2.slice && INDEX_EQ(*type1.tp, ARRAY)) {
