@@ -27,7 +27,12 @@ namespace sg {
     }
 
     prog::struct_type compiler::declare_struct_type(const ast::struct_def& ast) {
-        return { ast.name, ast.copyable };
+        auto name = ast.name;
+
+        if (global_names.count(name))
+            error(diags::global_name_used(name), ast);
+
+        return { name, ast.copyable, { } };
     }
 
     void compiler::compile_struct_type(const ast::struct_def& ast, prog::struct_type& struct_type) {
@@ -43,7 +48,12 @@ namespace sg {
     }
 
     prog::enum_type compiler::declare_enum_type(const ast::enum_def& ast) {
-        return { ast.name, ast.copyable };
+        auto name = ast.name;
+
+        if (global_names.count(name))
+            error(diags::global_name_used(name), ast);
+
+        return { ast.name, ast.copyable, { } };
     }
 
     void compiler::compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type) {

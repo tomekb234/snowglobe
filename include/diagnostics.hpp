@@ -30,6 +30,7 @@ namespace sg {
 
         diagnostic(level_t level) : level(level) { }
         diagnostic(level_t level, location loc) : level(level), loc(loc) { }
+        virtual ~diagnostic() { }
 
         virtual void write(ostream& stream) const = 0;
     };

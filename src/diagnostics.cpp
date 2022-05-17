@@ -128,7 +128,7 @@ namespace sg {
         }
 
         void global_name_used::write(ostream& stream) const {
-            stream << "The global name '" << name << " is already used" << endl;
+            stream << "The global name '" << name << "' is already used" << endl;
         }
 
         void name_not_declared::write(ostream& stream) const {

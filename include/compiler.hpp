@@ -35,7 +35,7 @@ namespace sg {
         unordered_map<string, global_name> global_names;
         vector<prog::global_var> constants;
 
-        void compile_program(const ast::program& ast);
+        bool compile_program(const ast::program& ast);
 
         public:
 
