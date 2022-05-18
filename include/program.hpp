@@ -66,6 +66,7 @@ namespace sg::prog {
     struct struct_type {
         string name;
         bool copyable;
+        bool trivially_copyable;
         vector<ptr<struct_field>> fields;
     };
 
@@ -77,6 +78,7 @@ namespace sg::prog {
     struct enum_type {
         string name;
         bool copyable;
+        bool trivially_copyable;
         vector<ptr<enum_variant>> variants;
     };
 

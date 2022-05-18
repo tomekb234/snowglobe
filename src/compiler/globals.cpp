@@ -32,7 +32,7 @@ namespace sg {
         if (global_names.count(name))
             error(diags::global_name_used(name), ast);
 
-        return { name, ast.copyable, { } };
+        return { name, ast.copyable, true, { } };
     }
 
     void compiler::compile_struct_type(const ast::struct_def& ast, prog::struct_type& struct_type) {
@@ -42,6 +42,8 @@ namespace sg {
             auto type = compile_type(*ast_field->tp);
             if (struct_type.copyable && !type_copyable(type))
                 error(diags::type_not_copyable(), *ast_field->tp);
+            if (!type_trivially_copyable(type))
+                struct_type.trivially_copyable = false;
             auto field = prog::struct_field { ast_field->name, into_ptr(type) };
             fields.push_back(into_ptr(field));
         }
@@ -55,7 +57,7 @@ namespace sg {
         if (global_names.count(name))
             error(diags::global_name_used(name), ast);
 
-        return { ast.name, ast.copyable, { } };
+        return { ast.name, ast.copyable, true, { } };
     }
 
     void compiler::compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type) {
@@ -67,6 +69,8 @@ namespace sg {
                 auto type = compile_type(*type_ast);
                 if (enum_type.copyable && !type_copyable(type))
                     error(diags::type_not_copyable(), *type_ast);
+                if (!type_trivially_copyable(type))
+                    enum_type.trivially_copyable = false;
                 types.push_back(into_ptr(type));
             }
 

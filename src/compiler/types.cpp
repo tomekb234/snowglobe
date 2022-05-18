@@ -267,4 +267,52 @@ namespace sg {
 
         UNREACHABLE;
     }
+
+    bool compiler::type_trivially_copyable(const prog::type& type) {
+        switch (INDEX(type)) {
+            case prog::type::NEVER:
+            case prog::type::PRIMITIVE:
+                return true;
+
+            case prog::type::STRUCT:
+                return program.struct_types[GET(type, STRUCT)]->trivially_copyable;
+
+            case prog::type::ENUM:
+                return program.struct_types[GET(type, ENUM)]->trivially_copyable;
+
+            case prog::type::TUPLE: {
+                for (auto& type_ptr : GET(type, TUPLE))
+                    if (!type_trivially_copyable(*type_ptr))
+                        return false;
+                return true;
+            }
+
+            case prog::type::ARRAY:
+                return type_trivially_copyable(*GET(type, ARRAY)->tp);
+
+            case prog::type::OPTIONAL:
+                return type_trivially_copyable(*GET(type, OPTIONAL));
+
+            case prog::type::PTR:
+                return GET(type, PTR)->kind == prog::ptr_type::GLOBAL;
+
+            case prog::type::INNER_PTR:
+                return GET(type, INNER_PTR)->kind == prog::ptr_type::GLOBAL;
+
+            case prog::type::FUNC:
+                return false;
+
+            case prog::type::GLOBAL_FUNC:
+                return true;
+
+            case prog::type::FUNC_WITH_PTR:
+                return false;
+
+            case prog::type::STRUCT_CTOR:
+            case prog::type::ENUM_CTOR:
+                return true;
+        }
+
+        UNREACHABLE;
+    }
 }
