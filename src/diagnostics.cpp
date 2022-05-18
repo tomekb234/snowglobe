@@ -127,8 +127,20 @@ namespace sg {
             stream << "The number '" << number << "' is out of range of " << (double_precision ? "double" : "single") << "-precision format" << endl;
         }
 
-        void global_name_used::write(ostream& stream) const {
-            stream << "The global name '" << name << "' is already used" << endl;
+        void name_used::write(ostream& stream) const {
+            string kind_str;
+            switch (kind) {
+                case GLOBAL:
+                    kind_str = "global";
+                    break;
+                case FIELD:
+                    kind_str = "field";
+                    break;
+                case VARIANT:
+                    kind_str = "variant";
+                    break;
+            }
+            stream << "The " << kind_str << " name '" << name << "' is already used" << endl;
         }
 
         void name_not_declared::write(ostream& stream) const {
@@ -177,6 +189,10 @@ namespace sg {
 
         void invalid_enum_variant::write(ostream& stream) const {
             stream << "Invalid enum variant" << endl;
+        }
+
+        void invalid_struct_field::write(ostream& stream) const {
+            stream << "Invalid struct field" << endl;
         }
 
         void invalid_size_constant_type::write(ostream& stream) const {

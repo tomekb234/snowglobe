@@ -8,6 +8,7 @@
 #include <string>
 #include <utility>
 #include <ostream>
+#include <unordered_map>
 
 namespace sg::prog {
     template<typename T>
@@ -20,6 +21,7 @@ namespace sg::prog {
     using std::string;
     using std::pair;
     using std::ostream;
+    using std::unordered_map;
 
     struct program;
     struct global_var;
@@ -67,6 +69,7 @@ namespace sg::prog {
         string name;
         bool copyable;
         bool trivially_copyable;
+        unordered_map<string, size_t> field_names;
         vector<ptr<struct_field>> fields;
     };
 
@@ -79,6 +82,7 @@ namespace sg::prog {
         string name;
         bool copyable;
         bool trivially_copyable;
+        unordered_map<string, size_t> variant_names;
         vector<ptr<enum_variant>> variants;
     };
 

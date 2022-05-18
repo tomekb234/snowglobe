@@ -235,8 +235,9 @@ namespace sg {
 
                         case ast::expr_marked::EXPR_WITH_NAME: {
                             auto& name = GET(*arg_ast, EXPR_WITH_NAME).first;
-                            while (index < num_args && name != struct_type.fields[index]->name)
-                                index++;
+                            if (!struct_type.field_names.count(name))
+                                error(diags::invalid_struct_field(), *arg_ast);
+                            index = struct_type.field_names[name];
                             value_ast = GET(*arg_ast, EXPR_WITH_NAME).second.get();
                         } break;
 
@@ -367,14 +368,10 @@ namespace sg {
     pair<prog::constant, prog::type> compiler::compile_constant_variant_name(const ast::node& ast, const string& name, const string& variant_name) {
         auto& global_name = get_global_name(ast, name, global_name::ENUM, false);
         auto& enum_type = *program.enum_types[global_name.index];
-        auto num_variants = enum_type.variants.size();
 
-        size_t variant_index = 0;
-        while (variant_index < num_variants && variant_name != enum_type.variants[variant_index]->name)
-            variant_index++;
-
-        if (variant_index >= num_variants)
+        if (!enum_type.variant_names.count(variant_name))
             error(diags::invalid_enum_variant(), ast);
+        size_t variant_index = enum_type.variant_names[variant_name];
 
         auto value = VARIANT(prog::constant, UNIT, monostate());
         auto type = VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index));

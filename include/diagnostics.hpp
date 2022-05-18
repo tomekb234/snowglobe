@@ -102,10 +102,11 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
-        struct global_name_used : error {
+        struct name_used : error {
             string name;
+            enum kind_t {GLOBAL, FIELD, VARIANT} kind;
 
-            global_name_used(string name) : name(name) { }
+            name_used(string name, kind_t kind) : name(name), kind(kind) { }
             void write(ostream& stream) const override;
         };
 
@@ -169,6 +170,10 @@ namespace sg {
         };
 
         struct invalid_enum_variant : error {
+            void write(ostream& stream) const override;
+        };
+
+        struct invalid_struct_field : error {
             void write(ostream& stream) const override;
         };
 
