@@ -182,5 +182,9 @@ namespace sg {
         void invalid_size_constant_type::write(ostream& stream) const {
             stream << "Size constant is not of unsigned integer type" << endl;
         }
+
+        void type_not_copyable::write(ostream& stream) const {
+            stream << "Type is not copyable" << endl;
+        }
     }
 }

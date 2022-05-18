@@ -219,4 +219,52 @@ namespace sg {
         auto type = compile_type_pointed(*ast.target_tp);
         return { move(base.param_tps), move(base.return_tp), kind, into_ptr(type) };
     }
+
+
+    bool compiler::type_copyable(const prog::type& type) {
+        switch (INDEX(type)) {
+            case prog::type::NEVER:
+            case prog::type::PRIMITIVE:
+                return true;
+
+            case prog::type::STRUCT:
+                return program.struct_types[GET(type, STRUCT)]->copyable;
+
+            case prog::type::ENUM:
+                return program.enum_types[GET(type, ENUM)]->copyable;
+
+            case prog::type::TUPLE: {
+                for (auto& type_ptr : GET(type, TUPLE))
+                    if (!type_copyable(*type_ptr))
+                        return false;
+                return true;
+            }
+
+            case prog::type::ARRAY:
+                return type_copyable(*GET(type, ARRAY)->tp);
+
+            case prog::type::OPTIONAL:
+                return type_copyable(*GET(type, OPTIONAL));
+
+            case prog::type::PTR:
+                return GET(type, PTR)->kind != prog::ptr_type::UNIQUE;
+
+            case prog::type::INNER_PTR:
+                return GET(type, INNER_PTR)->kind != prog::ptr_type::UNIQUE;
+
+            case prog::type::FUNC:
+            case prog::type::GLOBAL_FUNC:
+                return true;
+
+            case prog::type::FUNC_WITH_PTR:
+                return GET(type, FUNC_WITH_PTR)->kind != prog::ptr_type::UNIQUE;
+
+            case prog::type::STRUCT_CTOR:
+            case prog::type::ENUM_CTOR:
+                return true;
+
+        }
+
+        UNREACHABLE;
+    }
 }

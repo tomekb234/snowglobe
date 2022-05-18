@@ -175,6 +175,10 @@ namespace sg {
         struct invalid_size_constant_type : error {
             void write(ostream& stream) const override;
         };
+
+        struct type_not_copyable : error {
+            void write(ostream& stream) const override;
+        };
     }
 }
 

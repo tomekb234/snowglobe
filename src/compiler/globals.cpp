@@ -40,6 +40,8 @@ namespace sg {
 
         for (auto& ast_field : ast.fields) {
             auto type = compile_type(*ast_field->tp);
+            if (struct_type.copyable && !type_copyable(type))
+                error(diags::type_not_copyable(), *ast_field->tp);
             auto field = prog::struct_field { ast_field->name, into_ptr(type) };
             fields.push_back(into_ptr(field));
         }
@@ -63,6 +65,8 @@ namespace sg {
             vector<prog::ptr<prog::type>> types;
             for (const auto& type_ast : variant_ast->tps) {
                 auto type = compile_type(*type_ast);
+                if (enum_type.copyable && !type_copyable(type))
+                    error(diags::type_not_copyable(), *type_ast);
                 types.push_back(into_ptr(type));
             }
 

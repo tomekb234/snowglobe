@@ -98,6 +98,8 @@ namespace sg {
         prog::func_type compile_func_type(const ast::func_type& ast, bool allow_uncompiled = false);
         prog::func_with_ptr_type compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled = false);
 
+        bool type_copyable(const prog::type& type);
+
         // Subtyping
 
         bool subtype(const prog::type& type1, const prog::type& type2, bool confined = false);
