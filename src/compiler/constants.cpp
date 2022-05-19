@@ -373,6 +373,12 @@ namespace sg {
             error(diags::invalid_enum_variant(), ast);
         size_t variant_index = enum_type.variant_names[variant_name];
 
+        if (enum_type.variants[variant_index]->tps.empty()) {
+            auto value = VARIANT(prog::constant, ENUM, make_pair(variant_index, vector<prog::ptr<prog::constant>>{ }));
+            auto type = VARIANT(prog::type, ENUM, global_name.index);
+            return { move(value), move(type) };
+        }
+
         auto value = VARIANT(prog::constant, UNIT, monostate());
         auto type = VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index));
         return { move(value), move(type) };
