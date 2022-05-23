@@ -236,7 +236,7 @@ namespace sg {
                         case ast::expr_marked::EXPR_WITH_NAME: {
                             auto& name = GET(*arg_ast, EXPR_WITH_NAME).first;
                             if (!struct_type.field_names.count(name))
-                                error(diags::invalid_struct_field(), *arg_ast);
+                                error(diags::invalid_struct_field(struct_type.name, name), *arg_ast);
                             index = struct_type.field_names[name];
                             value_ast = GET(*arg_ast, EXPR_WITH_NAME).second.get();
                         } break;
@@ -370,7 +370,7 @@ namespace sg {
         auto& enum_type = *program.enum_types[global_name.index];
 
         if (!enum_type.variant_names.count(variant_name))
-            error(diags::invalid_enum_variant(), ast);
+            error(diags::invalid_enum_variant(name, variant_name), ast);
         size_t variant_index = enum_type.variant_names[variant_name];
 
         if (enum_type.variants[variant_index]->tps.empty()) {
@@ -549,7 +549,7 @@ namespace sg {
 
     prog::constant compiler::convert_constant(const ast::node& ast, prog::constant value, const prog::type& type, const prog::type& new_type) {
         if (!subtype(type, new_type))
-            error(diags::not_subtype(), ast);
+            error(diags::not_subtype(program, type, new_type), ast);
 
         return value; // TODO perform actual conversion
     }

@@ -2,22 +2,18 @@
 #define DIAGNOSTICS_HPP
 
 #include "location.hpp"
-#include <utility>
-#include <optional>
-#include <vector>
-#include <memory>
-#include <ostream>
 #include <string>
+#include <memory>
+#include <optional>
+#include <iosfwd>
+#include <vector>
 
 namespace sg {
-    using std::move;
-    using std::optional;
-    using std::vector;
-    using std::unique_ptr;
-    using std::istream;
-    using std::ostream;
     using std::string;
-    using std::reference_wrapper;
+    using std::unique_ptr;
+    using std::optional;
+    using std::ostream;
+    using std::vector;
 
     struct diagnostic {
         enum level_t {
@@ -36,40 +32,36 @@ namespace sg {
     };
 
     class diagnostic_collector {
-        vector<unique_ptr<diagnostic>> diags;
-
         public:
-
-        inline void add(unique_ptr<diagnostic> diag) {
-            diags.push_back(move(diag));
-        }
-
-        void report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const;
+        virtual void add(unique_ptr<diagnostic> diag) = 0;
     };
 
-    namespace diags { // TODO make some of these messages more detailed
+
+    namespace diags {
+        // base/common diagnostics
+
         struct error : diagnostic {
             error() : diagnostic(ERROR) { }
+        };
+
+        struct warning : diagnostic {
+            warning() : diagnostic(WARNING) { }
         };
 
         struct not_implemented : error {
             void write(ostream& stream) const override;
         };
 
-        struct parser_error : error {
-            string message;
+        struct integer_overflow : error {
+            string number;
+            bool signed_type;
+            int bits;
 
-            parser_error(string message) : message(message) { }
+            integer_overflow(string number, bool signed_type, int bits) : number(number), signed_type(signed_type), bits(bits) { }
             void write(ostream& stream) const override;
         };
 
-        struct syntax_error : error {
-            optional<string> unexpected;
-            vector<string> expected;
-
-            syntax_error(optional<string> unexpected, vector<string> expected) : unexpected(unexpected), expected(expected) { }
-            void write(ostream& stream) const override;
-        };
+        // lexer diagnostics
 
         struct invalid_escape_sequence : error {
             char ch;
@@ -85,15 +77,6 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
-        struct integer_overflow : error {
-            string number;
-            bool signed_type;
-            int bits;
-
-            integer_overflow(string number, bool signed_type, int bits) : number(number), signed_type(signed_type), bits(bits) { }
-            void write(ostream& stream) const override;
-        };
-
         struct float_overflow : error {
             string number;
             bool double_precision;
@@ -102,86 +85,20 @@ namespace sg {
             void write(ostream& stream) const override;
         };
 
-        struct name_used : error {
-            string name;
-            enum kind_t {GLOBAL, FIELD, VARIANT} kind;
+        // parser diagnostics
 
-            name_used(string name, kind_t kind) : name(name), kind(kind) { }
+        struct parser_error : error {
+            string message;
+
+            parser_error(string message) : message(message) { }
             void write(ostream& stream) const override;
         };
 
-        struct name_not_declared : error {
-            string name;
+        struct syntax_error : error {
+            optional<string> unexpected;
+            vector<string> expected;
 
-            name_not_declared(string name) : name(name) { }
-            void write(ostream& stream) const override;
-        };
-
-        struct name_not_compiled : error {
-            string name;
-
-            name_not_compiled(string name) : name(name) { }
-            void write(ostream& stream) const override;
-        };
-
-        struct invalid_expression : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct invalid_kind : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct invalid_type : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct not_subtype : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct expression_not_constant : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct no_common_supertype : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct invalid_argument : error {
-            size_t num_args;
-
-            invalid_argument(size_t num_args) : num_args(num_args) { }
-            void write(ostream& stream) const override;
-        };
-
-        struct reused_argument : error {
-            size_t index;
-
-            reused_argument(size_t index) : index(index) { }
-            void write(ostream& stream) const override;
-        };
-
-        struct missing_argument : error {
-            size_t index;
-
-            missing_argument(size_t index) : index(index) { }
-            void write(ostream& stream) const override;
-        };
-
-        struct invalid_enum_variant : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct invalid_struct_field : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct invalid_size_constant_type : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct type_not_copyable : error {
+            syntax_error(optional<string> unexpected, vector<string> expected) : unexpected(unexpected), expected(expected) { }
             void write(ostream& stream) const override;
         };
     }

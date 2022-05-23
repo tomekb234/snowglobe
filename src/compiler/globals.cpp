@@ -45,7 +45,7 @@ namespace sg {
 
             auto type = compile_type(*ast_field->tp);
             if (struct_type.copyable && !type_copyable(type))
-                error(diags::type_not_copyable(), *ast_field->tp);
+                error(diags::type_not_copyable(program, type), *ast_field->tp);
             if (!type_trivially_copyable(type))
                 struct_type.trivially_copyable = false;
 
@@ -79,7 +79,7 @@ namespace sg {
             for (const auto& type_ast : variant_ast->tps) {
                 auto type = compile_type(*type_ast);
                 if (enum_type.copyable && !type_copyable(type))
-                    error(diags::type_not_copyable(), *type_ast);
+                    error(diags::type_not_copyable(program, type), *type_ast);
                 if (!type_trivially_copyable(type))
                     enum_type.trivially_copyable = false;
                 types.push_back(into_ptr(type));

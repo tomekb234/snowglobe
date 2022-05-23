@@ -420,7 +420,7 @@ namespace sg {
         if (subtype(type2, type1, confined))
             return prog::copy_type(type1);
 
-        error(diags::no_common_supertype(), ast);
+        error(diags::no_common_supertype(program, type1, type2), ast);
     }
 }
 

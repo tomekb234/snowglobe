@@ -1,15 +1,14 @@
-#include "diagnostics.hpp"
-#include <utility>
-#include <memory>
+#include "diagnostic_printer.hpp"
+#include "compiler.hpp"
+#include <vector>
 #include <ostream>
+#include <istream>
 #include <sstream>
-#include <string>
 
 namespace sg {
-    using std::ostream;
     using std::ostringstream;
+    using std::vector;
     using std::endl;
-    using std::string;
     using std::string_view;
 
     const string LEVEL_TEXTS[] = { "Note", "Warning", "Error" };
@@ -29,7 +28,8 @@ namespace sg {
         .RESET = "\e[0m"
     };
 
-    void diagnostic_collector::report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const {
+
+    void diagnostic_printer::report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const {
         // Select color table
         const COLORS colors = enable_colors ? ACTIVE_COLORS : INACTIVE_COLORS;
 
@@ -90,9 +90,30 @@ namespace sg {
         }
     }
 
+    void diagnostic_printer::add(unique_ptr<diagnostic> diag) {
+        diags.push_back(move(diag));
+    }
+
+
     namespace diags {
         void not_implemented::write(ostream& stream) const {
             stream << "Not implemented yet" << endl;
+        }
+
+        void integer_overflow::write(ostream& stream) const {
+            stream << "The " << (signed_type ? "signed" : "unsigned") << " integer '" << number << "' does not fit in " << bits << " bits" << endl;
+        }
+
+        void invalid_escape_sequence::write(ostream& stream) const {
+            stream << "Invalid character escape sequence \\" << string(1, ch) << endl;
+        }
+
+        void multibyte_character_literal::write(ostream& stream) const {
+            stream << "Character literal " << literal << " contains multibyte character" << endl;
+        }
+
+        void float_overflow::write(ostream& stream) const {
+            stream << "The number '" << number << "' is out of range of " << (double_precision ? "double" : "single") << "-precision format" << endl;
         }
 
         void parser_error::write(ostream& stream) const {
@@ -109,22 +130,6 @@ namespace sg {
                     stream << " " << exp;
                 stream << endl;
             }
-        }
-
-        void invalid_escape_sequence::write(ostream& stream) const {
-            stream << "Invalid character escape sequence \\" << string(1, ch) << endl;
-        }
-
-        void multibyte_character_literal::write(ostream& stream) const {
-            stream << "Character literal " << literal << " contains multibyte character" << endl;
-        }
-
-        void integer_overflow::write(ostream& stream) const {
-            stream << "The " << (signed_type ? "signed" : "unsigned") << " integer '" << number << "' does not fit in " << bits << " bits" << endl;
-        }
-
-        void float_overflow::write(ostream& stream) const {
-            stream << "The number '" << number << "' is out of range of " << (double_precision ? "double" : "single") << "-precision format" << endl;
         }
 
         void name_used::write(ostream& stream) const {
@@ -164,7 +169,11 @@ namespace sg {
         }
 
         void not_subtype::write(ostream& stream) const {
-            stream << "No subtype relation" << endl;
+            stream << "Type '";
+            prog::print_type(stream, program, subtype);
+            stream << "' is not subtype of '";
+            prog::print_type(stream, program, supertype);
+            stream << "'" << endl;
         }
 
         void expression_not_constant::write(ostream& stream) const {
@@ -172,7 +181,11 @@ namespace sg {
         }
 
         void no_common_supertype::write(ostream& stream) const {
-            stream << "No common supertype" << endl;
+            stream << "Types '";
+            prog::print_type(stream, program, type1);
+            stream << "' and '";
+            prog::print_type(stream, program, type2);
+            stream << "' have no common supertype" << endl;
         }
 
         void invalid_argument::write(ostream& stream) const {
@@ -188,11 +201,11 @@ namespace sg {
         }
 
         void invalid_enum_variant::write(ostream& stream) const {
-            stream << "Invalid enum variant" << endl;
+            stream << "The enum '" << enum_name << "' does not have a variant named '" << variant_name << "'" << endl;
         }
 
         void invalid_struct_field::write(ostream& stream) const {
-            stream << "Invalid struct field" << endl;
+            stream << "The struct '" << struct_name << "' does not have a field named '" << field_name << "'" << endl;
         }
 
         void invalid_size_constant_type::write(ostream& stream) const {
@@ -200,7 +213,9 @@ namespace sg {
         }
 
         void type_not_copyable::write(ostream& stream) const {
-            stream << "Type is not copyable" << endl;
+            stream << "Type '";
+            prog::print_type(stream, program, type);
+            stream << "' is not copyable" << endl;
         }
     }
 }

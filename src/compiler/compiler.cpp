@@ -9,14 +9,8 @@ namespace sg {
     using namespace sg::utils;
     using std::queue;
 
-    optional<prog::program> compiler::compile(const ast::program& ast) {
-        program = { };
-        if (!compile_program(ast))
-            return { };
-        return { move(program) };
-    }
-
     bool compiler::compile_program(const ast::program& ast) {
+        program = { };
         bool error_occured = false;
 
         // Phase 1: Prepare struct and enum declarations

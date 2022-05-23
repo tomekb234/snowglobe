@@ -1,5 +1,5 @@
 #include "input.hpp"
-#include "diagnostics.hpp"
+#include "diagnostic_printer.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
 #include "compiler.hpp"
@@ -28,16 +28,16 @@ int main(int argc, const char** argv) {
     bool ok = true;
 
     sg::lexer_input input(file, file_name);
-    sg::diagnostic_collector diags;
+    sg::diagnostic_printer diags;
     sg::ast::program ast;
+    sg::prog::program prog;
 
     yy::parser parser(input, diags, ast);
 
     if (parser.parse() == 0) {
-        sg::compiler compiler(diags);
-        auto program = compiler.compile(ast);
+        bool compiler_success = sg::compiler(prog, diags).compile_program(ast);
 
-        if (program) {
+        if (compiler_success) {
             // TODO
         } else
             ok = false;
