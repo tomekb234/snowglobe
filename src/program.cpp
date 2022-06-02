@@ -26,8 +26,11 @@ namespace sg::prog {
             case constant::INT:
                 return VARIANT(constant, INT, GET(source, INT));
 
-            case constant::FLOAT:
-                return VARIANT(constant, FLOAT, GET(source, FLOAT));
+            case constant::FLOAT32:
+                return VARIANT(constant, FLOAT32, GET(source, FLOAT32));
+
+            case constant::FLOAT64:
+                return VARIANT(constant, FLOAT64, GET(source, FLOAT64));
 
             case constant::STRUCT: {
                 auto vec = copy_ptr_vector<constant>(GET(source, STRUCT), copy_constant);

@@ -1,5 +1,7 @@
-#include "diagnostic_printer.hpp"
-#include "compiler.hpp"
+#include "diagnostics.hpp"
+#include "lexer_diagnostics.hpp"
+#include "parser_diagnostics.hpp"
+#include "compiler_diagnostics.hpp"
 #include <vector>
 #include <ostream>
 #include <istream>
@@ -11,27 +13,27 @@ namespace sg {
     using std::endl;
     using std::string_view;
 
-    const string LEVEL_TEXTS[] = { "Note", "Warning", "Error" };
+    const string LEVELS[] = { "Note", "Warning", "Error" };
 
-    struct COLORS {
-        string LEVELS[3];
-        string LOCATION;
-        string CODE_OUTSIDE, CODE_INSIDE;
-        string RESET;
-    };
-    const COLORS INACTIVE_COLORS = { { "", "", "" }, "", "", "", "" };
-    const COLORS ACTIVE_COLORS = {
-        .LEVELS = { "\e[1;36m", "\e[1;33m", "\e[1;31m" },
-        .LOCATION = "\e[1;37m",
-        .CODE_OUTSIDE = "\e[2m",
-        .CODE_INSIDE = "\e[1;35m",
-        .RESET = "\e[0m"
+    struct color_map {
+        string levels[3];
+        string location;
+        string code_context;
+        string code;
+        string reset;
     };
 
+    const color_map ACTIVE_COLORS = {
+        .levels = { "\e[1;36m", "\e[1;33m", "\e[1;31m" },
+        .location = "\e[1;37m",
+        .code_context = "\e[2m",
+        .code = "\e[1;35m",
+        .reset = "\e[0m"
+    };
 
-    void diagnostic_printer::report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const {
+    void diagnostic_collector::report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const {
         // Select color table
-        const COLORS colors = enable_colors ? ACTIVE_COLORS : INACTIVE_COLORS;
+        const color_map colors = enable_colors ? ACTIVE_COLORS : color_map { };
 
         // Prepare line buffer
         vector<string> source_lines;
@@ -43,36 +45,38 @@ namespace sg {
 
         for (auto& diag : diags) {
             // Header
-            stream << colors.LEVELS[diag->level] << LEVEL_TEXTS[diag->level] << colors.RESET;
+            stream << colors.levels[diag->level] << LEVELS[diag->level] << colors.reset;
 
             // Location
             if (diag->loc) {
                 stream << " at ";
-                stream << colors.LOCATION;
+                stream << colors.location;
                 stream << *diag->loc->begin.file_name << ":";
                 stream << diag->loc->begin.line << ":";
                 stream << diag->loc->begin.column;
-                stream << colors.RESET;
+                stream << colors.reset;
             }
 
             stream << ":" << endl;
 
             // Code fragment
             if (diag->loc && source_file) {
-                stream << colors.CODE_OUTSIDE;
+                // TODO check if filename matches
+
+                stream << colors.code_context;
                 auto& [begin, end] = *diag->loc;
 
                 for (size_t it = begin.line; it <= end.line; it++) {
-                    string_view line = source_lines[it - 1];
-                    size_t fragment_begin = it==begin.line ? begin.column-1 : 0;
-                    size_t fragment_end = it==end.line ? end.column-1 : line.length();
+                    auto line = string_view(source_lines[it - 1]);
+                    auto fragment_begin = it==begin.line ? begin.column-1 : 0;
+                    auto fragment_end = it==end.line ? end.column-1 : line.length();
 
                     stream << "\t| " << line.substr(0, fragment_begin);
-                    stream << colors.RESET << colors.CODE_INSIDE << line.substr(fragment_begin, fragment_end-fragment_begin);
-                    stream << colors.RESET << colors.CODE_OUTSIDE << line.substr(fragment_end) << endl;
+                    stream << colors.reset << colors.code << line.substr(fragment_begin, fragment_end-fragment_begin);
+                    stream << colors.reset << colors.code_context << line.substr(fragment_end) << endl;
                 }
 
-                stream << colors.RESET;
+                stream << colors.reset;
             }
 
             // Indented message text
@@ -90,18 +94,17 @@ namespace sg {
         }
     }
 
-    void diagnostic_printer::add(unique_ptr<diagnostic> diag) {
-        diags.push_back(move(diag));
-    }
-
-
     namespace diags {
         void not_implemented::write(ostream& stream) const {
             stream << "Not implemented yet" << endl;
         }
 
-        void integer_overflow::write(ostream& stream) const {
-            stream << "The " << (signed_type ? "signed" : "unsigned") << " integer '" << number << "' does not fit in " << bits << " bits" << endl;
+        void int_token_overflow::write(ostream& stream) const {
+            stream << "The number '" << number << "' does not fit in 64-bit integer type" << endl;
+        }
+
+        void float_token_overflow::write(ostream& stream) const {
+            stream << "The number '" << number << "' does not fit in double-precision floating-point type" << endl;
         }
 
         void invalid_escape_sequence::write(ostream& stream) const {
@@ -109,11 +112,7 @@ namespace sg {
         }
 
         void multibyte_character_literal::write(ostream& stream) const {
-            stream << "Character literal " << literal << " contains multibyte character" << endl;
-        }
-
-        void float_overflow::write(ostream& stream) const {
-            stream << "The number '" << number << "' is out of range of " << (double_precision ? "double" : "single") << "-precision format" << endl;
+            stream << "The character literal " << literal << " contains a multibyte character" << endl;
         }
 
         void parser_error::write(ostream& stream) const {
@@ -178,6 +177,14 @@ namespace sg {
 
         void expression_not_constant::write(ostream& stream) const {
             stream << "Expression not constant" << endl;
+        }
+
+        void int_overflow::write(ostream& stream) const {
+            stream << "The number '" << (negative ? "-" : "") << value << "' does not fit in " << (signed_type ? "signed" : "unsigned") << " " << bits << "-bit integer type" << endl;
+        }
+
+        void single_float_overflow::write(ostream& stream) const {
+            stream << "The number '" << value << "' does not fit in single-precision floating-point type" << endl;
         }
 
         void no_common_supertype::write(ostream& stream) const {

@@ -23,7 +23,7 @@ namespace sg::ast {
     struct program;
     struct global_def;
     struct var_def;
-    struct const_integer;
+    struct const_int;
     struct func_def;
     struct func_body;
     struct func_param;
@@ -105,9 +105,9 @@ namespace sg::ast {
         ptr<expr> value;
     };
 
-    struct const_integer : node {
+    struct const_int : node {
         enum {
-            INTEGER,
+            INT,
             NAME
         };
 
@@ -465,7 +465,7 @@ namespace sg::ast {
 
     struct sized_array_expr : node {
         ptr<expr> value;
-        ptr<const_integer> size;
+        ptr<const_int> size;
     };
 
     struct heap_slice_alloc_expr : node {
@@ -560,7 +560,7 @@ namespace sg::ast {
 
     struct array_type : node {
         ptr<type> tp;
-        ptr<const_integer> size;
+        ptr<const_int> size;
     };
 
     struct ptr_type : node {

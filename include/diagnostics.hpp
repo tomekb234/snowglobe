@@ -14,6 +14,8 @@ namespace sg {
     using std::optional;
     using std::ostream;
     using std::vector;
+    using std::reference_wrapper;
+    using std::istream;
 
     struct diagnostic {
         enum level_t {
@@ -32,14 +34,18 @@ namespace sg {
     };
 
     class diagnostic_collector {
+        vector<unique_ptr<diagnostic>> diags;
+
         public:
-        virtual void add(unique_ptr<diagnostic> diag) = 0;
+
+        inline void add(unique_ptr<diagnostic> diag) {
+            diags.push_back(move(diag));
+        }
+
+        void report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const;
     };
 
-
     namespace diags {
-        // base/common diagnostics
-
         struct error : diagnostic {
             error() : diagnostic(ERROR) { }
         };
@@ -49,56 +55,6 @@ namespace sg {
         };
 
         struct not_implemented : error {
-            void write(ostream& stream) const override;
-        };
-
-        struct integer_overflow : error {
-            string number;
-            bool signed_type;
-            int bits;
-
-            integer_overflow(string number, bool signed_type, int bits) : number(number), signed_type(signed_type), bits(bits) { }
-            void write(ostream& stream) const override;
-        };
-
-        // lexer diagnostics
-
-        struct invalid_escape_sequence : error {
-            char ch;
-
-            invalid_escape_sequence(char ch) : ch(ch) { }
-            void write(ostream& stream) const override;
-        };
-
-        struct multibyte_character_literal : error {
-            string literal;
-
-            multibyte_character_literal(string literal) : literal(literal) { }
-            void write(ostream& stream) const override;
-        };
-
-        struct float_overflow : error {
-            string number;
-            bool double_precision;
-
-            float_overflow(string number, bool double_precision) : number(number), double_precision(double_precision) { }
-            void write(ostream& stream) const override;
-        };
-
-        // parser diagnostics
-
-        struct parser_error : error {
-            string message;
-
-            parser_error(string message) : message(message) { }
-            void write(ostream& stream) const override;
-        };
-
-        struct syntax_error : error {
-            optional<string> unexpected;
-            vector<string> expected;
-
-            syntax_error(optional<string> unexpected, vector<string> expected) : unexpected(unexpected), expected(expected) { }
             void write(ostream& stream) const override;
         };
     }

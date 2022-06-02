@@ -1,5 +1,5 @@
 #include "input.hpp"
-#include "diagnostic_printer.hpp"
+#include "diagnostics.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
 #include "compiler.hpp"
@@ -28,7 +28,7 @@ int main(int argc, const char** argv) {
     bool ok = true;
 
     sg::lexer_input input(file, file_name);
-    sg::diagnostic_printer diags;
+    sg::diagnostic_collector diags;
     sg::ast::program ast;
     sg::prog::program prog;
 

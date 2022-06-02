@@ -44,7 +44,7 @@
 // Tokens
 
 %token <string> NAME
-%token <int_token> INTEGER
+%token <int_token> INT
 %token <float_token> FLOAT
 %token <char> CHAR
 %token <string> STRING
@@ -170,7 +170,7 @@
 %nterm <global_def> global_def
 %nterm <var_def> var_def
 %nterm <var_def> const_def
-%nterm <const_integer> const_integer
+%nterm <const_int> const_int
 %nterm <func_def> func_def
 %nterm <bool> optional_copying
 %nterm <func_param> func_param
@@ -281,13 +281,13 @@ const_def:
         $$ = { @$, move($NAME), { }, into_ptr($expr) };
     }
 
-const_integer:
-    INTEGER {
-        $$ = AST_VARIANT(const_integer, INTEGER, @$, $INTEGER.value);
+const_int:
+    INT {
+        $$ = AST_VARIANT(const_int, INT, @$, $INT.value);
     }
 
     | NAME {
-        $$ = AST_VARIANT(const_integer, NAME, @$, move($NAME));
+        $$ = AST_VARIANT(const_int, NAME, @$, move($NAME));
     }
 
 func_def:
@@ -698,9 +698,9 @@ expr:
         $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, STRING, @$, move($STRING))));
     }
 
-    | INTEGER {
-        $INTEGER.loc = @$;
-        $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, INT, @$, into_ptr($INTEGER))));
+    | INT {
+        $INT.loc = @$;
+        $$ = AST_VARIANT(expr, LITERAL, @$, make_ptr(AST_VARIANT(literal_expr, INT, @$, into_ptr($INT))));
     }
 
     | FLOAT {
@@ -854,8 +854,8 @@ expr:
         $$ = AST_VARIANT(expr, DEREFERENCE, @$, into_ptr($inner));
     }
 
-    | "[" expr[inner] ";" const_integer "]" {
-        $$ = AST_VARIANT(expr, SIZED_ARRAY, @$, make_ptr(sized_array_expr { @$, into_ptr($inner), into_ptr($const_integer) }));
+    | "[" expr[inner] ";" const_int "]" {
+        $$ = AST_VARIANT(expr, SIZED_ARRAY, @$, make_ptr(sized_array_expr { @$, into_ptr($inner), into_ptr($const_int) }));
     }
 
     | "@" "[" expr[value] "#" expr[size] "]" {
@@ -870,8 +870,8 @@ expr:
         $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, FIELD, @$, make_pair(into_ptr($inner), move($NAME)))));
     }
 
-    | expr[inner] "." INTEGER {
-        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, COORD, @$, make_pair(into_ptr($inner), $INTEGER.value))));
+    | expr[inner] "." INT {
+        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, COORD, @$, make_pair(into_ptr($inner), $INT.value))));
     }
 
     | expr[left] "[" expr[right] "]" {
@@ -886,8 +886,8 @@ expr:
         $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, FIELD, @$, make_pair(into_ptr($inner), move($NAME)))));
     }
 
-    | expr[inner] "->" INTEGER {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, COORD, @$, make_pair(into_ptr($inner), $INTEGER.value))));
+    | expr[inner] "->" INT {
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, COORD, @$, make_pair(into_ptr($inner), $INT.value))));
     }
 
     | expr[left] "[" "ref" expr[right] "]" {
@@ -918,8 +918,8 @@ expr_marked:
         $$ = expr_marked { AST_VARIANT(expr_marked, EXPR_WITH_NAME, @$, make_pair(move($NAME), into_ptr($expr))) };
     }
 
-    | INTEGER ":" expr {
-        $$ = expr_marked { AST_VARIANT(expr_marked, EXPR_WITH_COORD, @$, make_pair($INTEGER.value, into_ptr($expr))) };
+    | INT ":" expr {
+        $$ = expr_marked { AST_VARIANT(expr_marked, EXPR_WITH_COORD, @$, make_pair($INT.value, into_ptr($expr))) };
     }
 
 expr_marked_seq:
@@ -998,8 +998,8 @@ type:
         $$ = AST_VARIANT(type, TUPLE, @$, into_ptr_vector($type_seq));
     }
 
-    | "[" type[item_type] ";" const_integer "]" {
-        $$ = AST_VARIANT(type, ARRAY, @$, make_ptr(array_type { @$, into_ptr($item_type), into_ptr($const_integer) }));
+    | "[" type[item_type] ";" const_int "]" {
+        $$ = AST_VARIANT(type, ARRAY, @$, make_ptr(array_type { @$, into_ptr($item_type), into_ptr($const_int) }));
     }
 
     | "?" type[val_type] {
@@ -1126,6 +1126,7 @@ type_local_seq_nempty:
 
 // Error reporting
 
+#include "parser_diagnostics.hpp"
 #include <string>
 #include <vector>
 #include <optional>

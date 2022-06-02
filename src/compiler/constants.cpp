@@ -1,7 +1,7 @@
 #include "compiler.hpp"
+#include "compiler_diagnostics.hpp"
 #include "ast.hpp"
 #include "program.hpp"
-#include "diagnostics.hpp"
 #include "utils.hpp"
 #include <string>
 #include <variant>
@@ -10,7 +10,6 @@
 namespace sg {
     using namespace sg::utils;
 
-    using std::to_string;
     using std::monostate;
     using std::numeric_limits;
     using std::is_signed;
@@ -443,7 +442,7 @@ namespace sg {
 
         #define RETURN_OR_ERROR(type, type_marker) { \
             RETURN_IF_OK(type, type_marker) \
-            error(diags::integer_overflow((ast.negative ? "-" : "") + to_string(ast.value), is_signed<type>(), 8 * sizeof(type)), ast); \
+            error(diags::int_overflow(ast.value, ast.negative, is_signed<type>(), 8 * sizeof(type)), ast); \
         }
 
         switch (ast.marker) {
@@ -500,23 +499,28 @@ namespace sg {
             case ast::float_token::NONE:
             case ast::float_token::F:
             case ast::float_token::F64: {
-                return { VARIANT(prog::constant, FLOAT, value), {prog::primitive_type::F64} };
+                return { VARIANT(prog::constant, FLOAT64, value), {prog::primitive_type::F64} };
             }
 
             case ast::float_token::F32: {
-                return { VARIANT(prog::constant, FLOAT, value), {prog::primitive_type::F32} };
+                auto single = static_cast<float>(value);
+
+                if (value != single)
+                    error(diags::single_float_overflow(value), ast);
+
+                return { VARIANT(prog::constant, FLOAT32, single), {prog::primitive_type::F32} };
             }
         }
 
         UNREACHABLE;
     }
 
-    size_t compiler::compile_constant_size(const ast::const_integer& ast) {
+    size_t compiler::compile_constant_size(const ast::const_int& ast) {
         switch (INDEX(ast)) {
-            case ast::const_integer::INTEGER:
-                return GET(ast, INTEGER);
+            case ast::const_int::INT:
+                return GET(ast, INT);
 
-            case ast::const_integer::NAME: {
+            case ast::const_int::NAME: {
                 auto& global_name = get_global_name(ast, GET(ast, NAME), global_name::CONSTANT);
                 auto& global_var = constants[global_name.index];
 

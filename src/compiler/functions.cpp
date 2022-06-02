@@ -1,7 +1,7 @@
 #include "compiler.hpp"
+#include "compiler_diagnostics.hpp"
 #include "ast.hpp"
 #include "program.hpp"
-#include "diagnostics.hpp"
 #include "utils.hpp"
 
 namespace sg {

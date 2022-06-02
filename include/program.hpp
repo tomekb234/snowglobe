@@ -91,7 +91,8 @@ namespace sg::prog {
             UNIT,
             BOOL,
             INT,
-            FLOAT,
+            FLOAT32,
+            FLOAT64,
             STRUCT,
             ENUM,
             TUPLE,
@@ -107,7 +108,8 @@ namespace sg::prog {
             monostate, // UNIT
             bool, // BOOL
             unsigned long long, // INT
-            double, // FLOAT
+            float, // FLOAT32
+            double, // FLOAT64
             vector<ptr<constant>>, // STRUCT
             pair<size_t, vector<ptr<constant>>>, // ENUM
             vector<ptr<constant>>, // TUPLE
