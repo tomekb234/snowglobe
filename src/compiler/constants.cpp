@@ -347,7 +347,7 @@ namespace sg {
             case global_name::FUNCTION: {
                 auto& global_func = *program.global_funcs[global_name.index];
                 auto value = VARIANT(prog::constant, GLOBAL_FUNC_PTR, global_name.index);
-                auto type = VARIANT(prog::type, GLOBAL_FUNC, make_ptr(prog::copy_func_type(*global_func.tp)));
+                auto type = VARIANT(prog::type, GLOBAL_FUNC, make_ptr(prog::get_func_type(global_func)));
                 return { move(value), move(type) };
             }
 
@@ -437,7 +437,7 @@ namespace sg {
     pair<prog::constant, prog::primitive_type> compiler::compile_int_token(const ast::int_token& ast) {
         #define RETURN_IF_OK(type, type_marker) { \
             auto opt_val = try_make_number<type>(ast.value, ast.negative); \
-            if (opt_val) return { VARIANT(prog::constant, INT, encode_number(*opt_val)), { prog::primitive_type::type_marker } }; \
+            if (opt_val) return { VARIANT(prog::constant, INT, encode_number(*opt_val)), prog::primitive_type { prog::primitive_type::type_marker } }; \
         }
 
         #define RETURN_OR_ERROR(type, type_marker) { \
@@ -499,7 +499,7 @@ namespace sg {
             case ast::float_token::NONE:
             case ast::float_token::F:
             case ast::float_token::F64: {
-                return { VARIANT(prog::constant, FLOAT64, value), {prog::primitive_type::F64} };
+                return { VARIANT(prog::constant, FLOAT64, value), prog::primitive_type {prog::primitive_type::F64} };
             }
 
             case ast::float_token::F32: {
@@ -508,7 +508,7 @@ namespace sg {
                 if (value != single)
                     error(diags::single_float_overflow(value), ast);
 
-                return { VARIANT(prog::constant, FLOAT32, single), {prog::primitive_type::F32} };
+                return { VARIANT(prog::constant, FLOAT32, single), prog::primitive_type {prog::primitive_type::F32} };
             }
         }
 

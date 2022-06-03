@@ -9,7 +9,7 @@ namespace sg {
     using namespace sg::utils;
     using std::queue;
 
-    bool compiler::compile_program(const ast::program& ast) {
+    bool compiler::compile(const ast::program& ast) {
         program = { };
         bool error_occured = false;
 

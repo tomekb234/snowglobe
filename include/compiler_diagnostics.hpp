@@ -127,6 +127,10 @@ namespace sg::diags {
         type_not_copyable(const prog::program& program, const prog::type& type) : program(program), type(copy_type(type)) { }
         void write(ostream& stream) const override;
     };
+
+    struct global_func_copyable : error {
+        void write(ostream& stream) const override;
+    };
 }
 
 #endif

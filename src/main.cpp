@@ -35,7 +35,7 @@ int main(int argc, const char** argv) {
     yy::parser parser(input, diags, ast);
 
     if (parser.parse() == 0) {
-        bool compiler_success = sg::compiler(prog, diags).compile_program(ast);
+        bool compiler_success = sg::compiler(prog, diags).compile(ast);
 
         if (compiler_success) {
             // TODO

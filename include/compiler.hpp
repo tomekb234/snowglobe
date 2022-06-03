@@ -35,11 +35,13 @@ namespace sg {
         unordered_map<string, global_name> global_names;
         vector<prog::global_var> constants;
 
+        friend class function_compiler;
+
         public:
 
         compiler(prog::program& program, diagnostic_collector& diags) : program(program), diags(diags) { }
 
-        bool compile_program(const ast::program& ast);
+        bool compile(const ast::program& ast);
 
         private:
 
@@ -107,6 +109,32 @@ namespace sg {
         bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined = false);
         bool ptr_subkind(prog::ptr_type::kind_t kind1, prog::ptr_type::kind_t kind2, bool confined = false);
         prog::type common_supertype(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined = false);
+    };
+
+    class function_compiler {
+        struct var_t {
+            prog::ptr<prog::type_local> tp;
+            // TODO
+        };
+
+        compiler& cmplr;
+        prog::global_func& func;
+        vector<prog::instr> instrs;
+        prog::reg_index_t reg_counter;
+        vector<var_t> vars;
+        unordered_map<string, vector<prog::var_index_t>> var_names;
+        vector<vector<string>> var_frames;
+
+        prog::var_index_t add_var(string name, prog::ptr<prog::type_local> type);
+        optional<prog::var_index_t> get_var(string name);
+        void push_var_frame();
+        void pop_var_frame();
+
+        public:
+
+        function_compiler(compiler& cmplr, prog::global_func& func) : cmplr(cmplr), func(func) { }
+
+        void compile(const ast::func_def& ast);
     };
 }
 

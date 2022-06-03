@@ -152,6 +152,15 @@ namespace sg::prog {
         return { make_ptr(copy_type(*source.tp)), source.confined };
     }
 
+    func_type get_func_type(const global_func& func) {
+        vector<ptr<type_local>> param_types;
+
+        for (auto& param : func.params)
+            param_types.push_back(make_ptr(copy_type_local(*param->tp)));
+
+        return { move(param_types), make_ptr(copy_type(*func.return_tp)) };
+    }
+
     void print_type(ostream& stream, const program& prog, const type& tp) {
         switch (INDEX(tp)) {
             case type::NEVER:

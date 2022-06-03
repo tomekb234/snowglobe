@@ -224,5 +224,9 @@ namespace sg {
             prog::print_type(stream, program, type);
             stream << "' is not copyable" << endl;
         }
+
+        void global_func_copyable::write(ostream& stream) const {
+            stream << "Global function marked as copyable" << endl;
+        }
     }
 }

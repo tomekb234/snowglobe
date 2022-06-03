@@ -220,7 +220,6 @@ namespace sg {
         return { move(base.param_tps), move(base.return_tp), kind, into_ptr(type) };
     }
 
-
     bool compiler::type_copyable(const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::NEVER:
