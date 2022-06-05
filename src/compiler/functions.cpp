@@ -43,11 +43,12 @@ namespace sg {
         return index;
     }
 
-    void function_compiler::push_var_frame() {
+    void function_compiler::push_frame() {
         var_frames.push_back({ });
+        instrs.push_back({ });
     }
 
-    void function_compiler::pop_var_frame() {
+    void function_compiler::pop_frame() {
         vector<string>& cur_frame = var_frames.back();
         
         for (auto& name : cur_frame) {
@@ -58,6 +59,7 @@ namespace sg {
         }
         
         var_frames.pop_back();
+        instrs.pop_back();
     }
 
     optional<prog::var_index_t> function_compiler::get_var(string name) {
@@ -69,23 +71,53 @@ namespace sg {
     void function_compiler::compile(const ast::func_def& ast) {
         reg_counter = 0;
 
-        push_var_frame();
+        push_frame();
 
         for (auto& param : func.params) {
             auto var = add_var(param->name, make_ptr(copy_type_local(*param->tp)));
-            instrs.push_back(VARIANT(prog::instr, WRITE_VAR, make_ptr(prog::write_var_instr { var, reg_counter++ })));
+            instrs.back().push_back(VARIANT(prog::instr, WRITE_VAR, make_ptr(prog::write_var_instr { var, reg_counter++ })));
         }
 
-        for (auto& stmt_ast : ast.body->block->stmts) {
+        compile_stmt_block(*ast.body->block);
+
+        // TODO ast->body->return_value
+
+        func.instrs = make_ptr(prog::instr_block { into_ptr_vector(instrs.back()) });
+
+        for (auto& var : vars)
+            func.vars.push_back(move(var.tp));
+
+        // TODO check if value returned
+    }
+
+    void function_compiler::compile_stmt_block(const ast::stmt_block& ast) {
+        for (auto& stmt_ast : ast.stmts) {
             switch (INDEX(*stmt_ast)) {
                 case ast::stmt::EXPR_EVAL: {
-                    
+                    auto& expr = *GET(*stmt_ast, EXPR_EVAL);
+                    if (INDEX(expr) == ast::expr::VAR_DECL)
+                        compile_left_expr(expr, { });
+                    else
+                        compile_right_expr(expr);
                 } break;
-                
+
                 case ast::stmt::ASSIGNMENT: {
-                    
+                    auto& assignment = *GET(*stmt_ast, ASSIGNMENT);
+                    auto[reg, type] = compile_right_expr(*assignment.value);
+                    auto lval = compile_left_expr(*assignment.lvalue, type);
+
+                    switch (INDEX(lval)) { // TODO add more assignment options, move to separate nethod
+                        case lvalue::LOCAL_VAR: {
+                            auto var = GET(lval, LOCAL_VAR);
+                            // TODO check type correctness
+                            instrs.back().push_back(VARIANT(prog::instr, WRITE_VAR, make_ptr(prog::write_var_instr{ var, reg })));
+                        } break;
+
+                        default:
+                            cmplr.error(diags::not_implemented(), assignment);
+                    }
                 } break;
-                
+
                 case ast::stmt::COMPOUND_ASSIGNMENT:
                 case ast::stmt::LOCALLY_BLOCK:
                 case ast::stmt::SWAP:
@@ -95,17 +127,75 @@ namespace sg {
                 case ast::stmt::WHILE:
                 case ast::stmt::FOR:
                 case ast::stmt::FUNC_DEF:
-                    cmplr.error(diags::not_implemented(), ast); // TODO
+                    cmplr.error(diags::not_implemented(), *stmt_ast); // TODO
             }
         }
+    }
 
-        // TODO ast->body->return_value
+    function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type) {
+        switch (INDEX(ast)) {
+            case ast::expr::TUPLE:
+            case ast::expr::ARRAY:
+            case ast::expr::APPLICATION:
+            case ast::expr::NAME:
+                cmplr.error(diags::not_implemented(), ast); // TODO
 
-        func.instrs = make_ptr(prog::instr_block { into_ptr_vector(instrs) });
+            case ast::expr::VAR_DECL: {
+                auto& var_decl = *GET(ast, VAR_DECL);
+                if (!var_decl.tp && !implicit_type)
+                    cmplr.error(diags::variable_without_type(), var_decl);
+                auto type = var_decl.tp ? cmplr.compile_type_local(**var_decl.tp) : copy_type_local(*implicit_type);
+                auto var = add_var(var_decl.name, into_ptr(type));
+                return VARIANT(lvalue, LOCAL_VAR, var);
+            } break;
 
-        for (auto& var : vars)
-            func.vars.push_back(move(var.tp));
+            case ast::expr::DEREFERENCE:
+            case ast::expr::EXTRACT:
+                cmplr.error(diags::not_implemented(), ast); // TODO
 
-        // TODO check if value returned
+            default:
+                cmplr.error(diags::expression_not_left(), ast);
+        }
+    }
+
+    pair<prog::reg_index_t, prog::type_local> function_compiler::compile_right_expr(const ast::expr& ast) {
+        switch (INDEX(ast)) {
+            case ast::expr::TUPLE:
+            case ast::expr::ARRAY:
+            case ast::expr::APPLICATION:
+            case ast::expr::NAME:
+            case ast::expr::VARIANT_NAME:
+                cmplr.error(diags::not_implemented(), ast); // TODO
+
+            case ast::expr::LITERAL: {
+                auto& literal_expr = *GET(ast, LITERAL);
+                auto[constant, type] = cmplr.compile_constant_literal(literal_expr);
+                prog::reg_index_t reg = ++reg_counter;
+                instrs.back().push_back(VARIANT(prog::instr, MAKE_CONST, make_ptr(prog::make_const_instr{ into_ptr(constant), reg })));
+                return { reg, prog::type_local{ into_ptr(type), false } };
+            } break;
+
+            case ast::expr::UNARY_OPERATION:
+            case ast::expr::BINARY_OPERATION:
+            case ast::expr::NUMERIC_CAST:
+            case ast::expr::NONE:
+            case ast::expr::SOME:
+            case ast::expr::RETURN:
+            case ast::expr::BREAK:
+            case ast::expr::CONTINUE:
+            case ast::expr::REFERENCE:
+            case ast::expr::HEAP_ALLOC:
+            case ast::expr::DEREFERENCE:
+            case ast::expr::SIZED_ARRAY:
+            case ast::expr::HEAP_SLICE_ALLOC:
+            case ast::expr::LENGTH:
+            case ast::expr::EXTRACT:
+            case ast::expr::PTR_EXTRACT:
+            case ast::expr::LAMBDA:
+                cmplr.error(diags::not_implemented(), ast); // TODO
+
+            default:
+                cmplr.error(diags::expression_not_right(), ast);
+        }
     }
 }

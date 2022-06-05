@@ -15,6 +15,8 @@ namespace sg {
     using std::move;
     using std::make_unique;
     using std::vector;
+    using std::reference_wrapper;
+    using std::variant;
 
     class compiler {
         struct global_name {
@@ -119,7 +121,7 @@ namespace sg {
 
         compiler& cmplr;
         prog::global_func& func;
-        vector<prog::instr> instrs;
+        vector<vector<prog::instr>> instrs;
         prog::reg_index_t reg_counter;
         vector<var_t> vars;
         unordered_map<string, vector<prog::var_index_t>> var_names;
@@ -127,14 +129,30 @@ namespace sg {
 
         prog::var_index_t add_var(string name, prog::ptr<prog::type_local> type);
         optional<prog::var_index_t> get_var(string name);
-        void push_var_frame();
-        void pop_var_frame();
+        void push_frame();
+        void pop_frame();
 
         public:
 
         function_compiler(compiler& cmplr, prog::global_func& func) : cmplr(cmplr), func(func) { }
 
         void compile(const ast::func_def& ast);
+
+        private:
+
+        struct lvalue{
+            enum {
+                LOCAL_VAR
+            };
+
+            variant<
+                prog::var_index_t // LOCAL_VAR
+            > value;
+        };
+
+        void compile_stmt_block(const ast::stmt_block& ast);
+        lvalue compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type);
+        pair<prog::reg_index_t, prog::type_local> compile_right_expr(const ast::expr& ast);
     };
 }
 

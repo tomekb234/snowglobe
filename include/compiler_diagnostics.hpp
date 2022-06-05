@@ -56,6 +56,14 @@ namespace sg::diags {
         void write(ostream& stream) const override;
     };
 
+    struct expression_not_left : error {
+        void write(ostream& stream) const override;
+    };
+
+    struct expression_not_right : error {
+        void write(ostream& stream) const override;
+    };
+
     struct int_overflow : error {
         unsigned long long value;
         bool negative;
@@ -129,6 +137,10 @@ namespace sg::diags {
     };
 
     struct global_func_copyable : error {
+        void write(ostream& stream) const override;
+    };
+
+    struct variable_without_type : error {
         void write(ostream& stream) const override;
     };
 }

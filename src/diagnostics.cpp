@@ -179,6 +179,14 @@ namespace sg {
             stream << "Expression not constant" << endl;
         }
 
+        void expression_not_left::write(ostream& stream) const {
+            stream << "Expression is not left-expression" << endl;
+        }
+
+        void expression_not_right::write(ostream& stream) const {
+            stream << "Expression is not right-expression" << endl;
+        }
+
         void int_overflow::write(ostream& stream) const {
             stream << "The number '" << (negative ? "-" : "") << value << "' does not fit in " << (signed_type ? "signed" : "unsigned") << " " << bits << "-bit integer type" << endl;
         }
@@ -227,6 +235,10 @@ namespace sg {
 
         void global_func_copyable::write(ostream& stream) const {
             stream << "Global function marked as copyable" << endl;
+        }
+
+        void variable_without_type::write(ostream& stream) const {
+            stream << "Declared variable doesn't have a type" << endl;
         }
     }
 }
