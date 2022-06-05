@@ -7,6 +7,9 @@
 namespace sg {
     using namespace sg::utils;
 
+    using std::monostate;
+    using std::tie;
+
     prog::global_func compiler::declare_global_func(const ast::func_def& ast) {
         auto name = ast.name;
         
@@ -180,7 +183,24 @@ namespace sg {
             case ast::expr::NUMERIC_CAST:
             case ast::expr::NONE:
             case ast::expr::SOME:
-            case ast::expr::RETURN:
+                cmplr.error(diags::not_implemented(), ast); // TODO
+
+            case ast::expr::RETURN: {
+                auto& return_expr = GET(ast, RETURN);
+                prog::reg_index_t reg;
+                prog::type_local type;
+                if (return_expr)
+                    tie(reg, type) = compile_right_expr(**return_expr);
+                else {
+                    reg = ++reg_counter;
+                    type = prog::type_local{ make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::UNIT }))), false };
+                    instrs.back().push_back(VARIANT(prog::instr, MAKE_CONST, make_ptr(prog::make_const_instr{ make_ptr(VARIANT(prog::constant, UNIT, monostate())), reg })));
+                }
+                // TODO check type, perform conversion
+                instrs.back().push_back(VARIANT(prog::instr, RETURN, make_ptr(prog::return_instr{ reg })));
+                return { reg, prog::type_local{ make_ptr(VARIANT(prog::type, NEVER, monostate())), false } };
+            } break;
+
             case ast::expr::BREAK:
             case ast::expr::CONTINUE:
             case ast::expr::REFERENCE:
