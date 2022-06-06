@@ -143,6 +143,14 @@ namespace sg::diags {
     struct variable_without_type : error {
         void write(ostream& stream) const override;
     };
+
+    struct no_return : error {
+        void write(ostream& stream) const override;
+    };
+
+    struct dead_code : warning {
+        void write(ostream& stream) const override;
+    };
 }
 
 #endif

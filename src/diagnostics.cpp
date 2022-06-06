@@ -240,5 +240,13 @@ namespace sg {
         void variable_without_type::write(ostream& stream) const {
             stream << "Declared variable doesn't have a type" << endl;
         }
+
+        void no_return::write(ostream& stream) const {
+            stream << "Function does not return" << endl;
+        }
+
+        void dead_code::write(ostream& stream) const {
+            stream << "Dead code" << endl;
+        }
     }
 }

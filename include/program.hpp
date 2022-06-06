@@ -49,6 +49,11 @@ namespace sg::prog {
     struct func_with_ptr_type;
     struct type_pointed;
     struct type_local;
+    struct func_call_instr;
+    struct global_func_call_instr;
+    struct make_struct_instr;
+    struct make_enum_variant_instr;
+    struct make_optional_instr;
 
     typedef size_t global_index_t;
     typedef size_t field_index_t;
@@ -150,51 +155,93 @@ namespace sg::prog {
 
     struct instr {
         enum {
+            MAKE_UNIT,
             MAKE_CONST,
             READ_VAR,
             READ_GLOBAL_VAR,
             WRITE_VAR,
             WRITE_GLOBAL_VAR,
-            RETURN
+            RETURN,
+            FUNC_CALL,
+            GLOBAL_FUNC_CALL,
+            MAKE_STRUCT,
+            MAKE_ENUM_VARIANT,
+            MAKE_OPTIONAL,
         };
 
         variant<
+            reg_index_t, // MAKE_UNIT
             ptr<make_const_instr>, // MAKE_CONST
             ptr<read_var_instr>, // READ_VAR
             ptr<read_global_var_instr>, // READ_GLOBAL_VAR
             ptr<write_var_instr>, // WRITE_VAR
             ptr<write_global_var_instr>, // WRITE_GLOBAL_VAR
-            ptr<return_instr> // RETURN
+            ptr<return_instr>, // RETURN
+            ptr<func_call_instr>, // FUNC_CALL
+            ptr<global_func_call_instr>, // GLOBAL_FUNC_CALL
+            ptr<make_struct_instr>, // MAKE_STRUCT
+            ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
+            ptr<make_optional_instr> // MAKE_OPTIONAL
         > value;
     };
 
     struct make_const_instr {
         ptr<constant> value;
-        reg_index_t reg;
+        reg_index_t result;
     };
 
     struct read_var_instr {
         var_index_t var;
-        reg_index_t reg;
+        reg_index_t result;
     };
 
     struct read_global_var_instr {
         global_index_t var;
-        reg_index_t reg;
+        reg_index_t result;
     };
 
     struct write_var_instr {
         var_index_t var;
-        reg_index_t reg;
+        reg_index_t value;
     };
 
     struct write_global_var_instr {
         global_index_t var;
-        reg_index_t reg;
+        reg_index_t value;
     };
 
     struct return_instr {
-        reg_index_t reg;
+        reg_index_t value;
+    };
+
+    struct func_call_instr {
+        reg_index_t ptr;
+        vector<reg_index_t> args;
+        reg_index_t result;
+    };
+
+    struct global_func_call_instr {
+        global_index_t func;
+        vector<reg_index_t> args;
+        reg_index_t result;
+    };
+
+    struct make_struct_instr {
+        global_index_t strct;
+        vector<reg_index_t> args;
+        reg_index_t result;
+    };
+
+    struct make_enum_variant_instr {
+        global_index_t enm;
+        variant_index_t variant;
+        vector<reg_index_t> args;
+        reg_index_t result;
+    };
+
+    struct make_optional_instr {
+        optional<reg_index_t> value;
+        reg_index_t result;
     };
 
     struct type {
@@ -211,6 +258,7 @@ namespace sg::prog {
             FUNC,
             GLOBAL_FUNC,
             FUNC_WITH_PTR,
+            KNOWN_FUNC,
             STRUCT_CTOR,
             ENUM_CTOR
         };
@@ -228,6 +276,7 @@ namespace sg::prog {
             ptr<func_type>, // FUNC
             ptr<func_type>, // GLOBAL_FUNC
             ptr<func_with_ptr_type>, // FUNC_WITH_PTR
+            global_index_t, // KNOWN_FUNC
             global_index_t, // STRUCT_CTOR
             pair<global_index_t, variant_index_t> // ENUM_CTOR
         > value;

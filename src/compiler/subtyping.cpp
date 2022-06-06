@@ -286,6 +286,7 @@ namespace sg {
                 }
             } break;
 
+            case prog::type::KNOWN_FUNC:
             case prog::type::STRUCT_CTOR:
             case prog::type::ENUM_CTOR:
                 break; // TODO

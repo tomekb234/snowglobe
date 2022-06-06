@@ -28,7 +28,7 @@ namespace sg {
                 ENUM
             } kind;
 
-            size_t index;
+            prog::global_index_t index;
             bool compiled;
         };
 
@@ -54,6 +54,12 @@ namespace sg {
             diag.loc = { ast.loc };
             diags.add(make_unique<T>(move(diag)));
             throw 0;
+        }
+
+        template<typename T>
+        void warning(T&& diag, const ast::node& ast) {
+            diag.loc = { ast.loc };
+            diags.add(make_unique<T>(move(diag)));
         }
 
         global_name& get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled = false);
@@ -114,23 +120,23 @@ namespace sg {
     };
 
     class function_compiler {
-        struct var_t {
+        struct variable {
             prog::ptr<prog::type_local> tp;
             // TODO
         };
 
+        struct frame {
+            vector<prog::instr> instrs;
+            vector<string> vars;
+            bool always_returns;
+        };
+
         compiler& cmplr;
         prog::global_func& func;
-        vector<vector<prog::instr>> instrs;
+        vector<frame> frames;
         prog::reg_index_t reg_counter;
-        vector<var_t> vars;
+        vector<variable> vars;
         unordered_map<string, vector<prog::var_index_t>> var_names;
-        vector<vector<string>> var_frames;
-
-        prog::var_index_t add_var(string name, prog::ptr<prog::type_local> type);
-        optional<prog::var_index_t> get_var(string name);
-        void push_frame();
-        void pop_frame();
 
         public:
 
@@ -142,15 +148,25 @@ namespace sg {
 
         struct lvalue{
             enum {
-                LOCAL_VAR
+                LOCAL_VAR,
+                GLOBAL_VAR
             };
 
             variant<
-                prog::var_index_t // LOCAL_VAR
+                prog::var_index_t, // LOCAL_VAR
+                prog::global_index_t // GLOBAL_VAR
             > value;
         };
 
-        void compile_stmt_block(const ast::stmt_block& ast);
+        void push_frame();
+        void pop_frame();
+        void add_instr(prog::instr&& instr);
+        prog::var_index_t add_var(string name, prog::ptr<prog::type_local> type);
+        optional<prog::var_index_t> get_var(string name);
+        
+        void add_cleanup_instrs(size_t frame_index = 0);
+        void add_return_instr(const optional<ast::ptr<ast::expr>>& ast);
+        void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
         lvalue compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type);
         pair<prog::reg_index_t, prog::type_local> compile_right_expr(const ast::expr& ast);
     };
