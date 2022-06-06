@@ -192,7 +192,7 @@ namespace sg {
                 error(diags::reused_argument(index), ast);
 
             auto[value, type] = compile_constant(*value_ast);
-            common_type = common_supertype(ast, common_type, type);
+            common_type = common_supertype(ast, common_type, type, false);
             values[index] = move(value);
             types[index] = move(type);
             used_items[index] = true;
@@ -552,10 +552,20 @@ namespace sg {
     }
 
     prog::constant compiler::convert_constant(const ast::node& ast, prog::constant value, const prog::type& type, const prog::type& new_type) {
-        if (!subtype(type, new_type))
-            error(diags::not_subtype(program, type, new_type), ast);
+        vector<prog::constant> values;
+        values.push_back(move(value));
+        prog::reg_index_t reg_counter = 0;
 
-        return value; // TODO perform actual conversion
+        auto new_register = [&] () -> prog::reg_index_t {
+            return ++reg_counter;
+        };
+
+        auto add_instr = [&] (prog::instr&& instr) {
+            error(diags::not_implemented(), ast); // TODO
+        };
+
+        auto result = convert(ast, type, new_type, false, new_register, add_instr, 0);
+        return move(values[result]);
     }
 
     template<typename T>

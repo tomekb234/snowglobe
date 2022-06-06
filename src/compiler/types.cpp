@@ -85,7 +85,19 @@ namespace sg {
 
     prog::type_local compiler::compile_type_local(const ast::type_local& ast, bool allow_uncompiled) {
         auto type = compile_type(*ast.tp, allow_uncompiled);
-        return { into_ptr(type), ast.confined };
+        auto confined = ast.confined;
+
+        if (INDEX_EQ(type, PTR) && confined) {
+            switch (GET(type, PTR)->kind) {
+                case prog::ptr_type::SHARED:
+                case prog::ptr_type::WEAK:
+                case prog::ptr_type::UNIQUE:
+                    warning(diags::restrictive_ptr_type(), ast);
+                    break;
+            }
+        }
+
+        return { into_ptr(type), confined };
     }
 
     prog::primitive_type compiler::compile_primitive_type(const ast::primitive_type& ast) {
@@ -141,7 +153,7 @@ namespace sg {
     }
 
     prog::ptr_type compiler::compile_ptr_type(const ast::ptr_type& ast) {
-        decltype(prog::ptr_type::kind) kind;
+        prog::ptr_type::kind_t kind;
 
         switch(ast.kind) {
             case ast::ptr_type::GLOBAL:
@@ -192,7 +204,7 @@ namespace sg {
     prog::func_with_ptr_type compiler::compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled) {
         auto base = compile_func_type(ast, allow_uncompiled);
 
-        decltype(prog::func_with_ptr_type::kind) kind;
+        prog::func_with_ptr_type::kind_t kind;
 
         switch(ast.kind) {
             case ast::ptr_type::GLOBAL:

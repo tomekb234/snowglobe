@@ -84,8 +84,18 @@ namespace sg::diags {
     struct no_common_supertype : error {
         const prog::program& program;
         prog::type type1, type2;
+        bool confined;
 
-        no_common_supertype(const prog::program& program, const prog::type& type1, const prog::type& type2) : program(program), type1(copy_type(type1)), type2(copy_type(type2)) { }
+        no_common_supertype(const prog::program& program, const prog::type& type1, const prog::type& type2, bool confined) : program(program), type1(copy_type(type1)), type2(copy_type(type2)), confined(confined) { }
+        void write(ostream& stream) const override;
+    };
+
+    struct not_convertible : error {
+        const prog::program& program;
+        prog::type type1, type2;
+        bool confined;
+
+        not_convertible(const prog::program& program, const prog::type& type1, const prog::type& type2, bool confined) : program(program), type1(copy_type(type1)), type2(copy_type(type2)), confined(confined) { }
         void write(ostream& stream) const override;
     };
 
@@ -149,6 +159,10 @@ namespace sg::diags {
     };
 
     struct dead_code : warning {
+        void write(ostream& stream) const override;
+    };
+
+    struct restrictive_ptr_type : warning {
         void write(ostream& stream) const override;
     };
 }

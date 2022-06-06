@@ -159,7 +159,7 @@
 %left "+" "-"
 %left "*" "/" "%"
 %left "as"
-%right "!" "~" "@" "$" "#" UNARY_MINUS UNARY_STAR UNARY_AMP UNARY_CARET
+%right "!" "~" "@" "$" "#" "?" UNARY_MINUS UNARY_STAR UNARY_AMP UNARY_CARET
 %left "." "->"
 %precedence "(" "["
 
@@ -852,6 +852,10 @@ expr:
 
     | "*" expr[inner] %prec UNARY_STAR {
         $$ = AST_VARIANT(expr, DEREFERENCE, @$, into_ptr($inner));
+    }
+
+    | "?" expr[inner] {
+        $$ = AST_VARIANT(expr, WEAK_PTR_TEST, @$, into_ptr($inner));
     }
 
     | "[" expr[inner] ";" const_int "]" {

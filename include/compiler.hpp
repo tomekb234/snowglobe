@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <utility>
 #include <memory>
+#include <functional>
 
 namespace sg {
     using std::unordered_map;
@@ -17,6 +18,7 @@ namespace sg {
     using std::vector;
     using std::reference_wrapper;
     using std::variant;
+    using std::function;
 
     class compiler {
         struct global_name {
@@ -38,6 +40,7 @@ namespace sg {
         vector<prog::global_var> constants;
 
         friend class function_compiler;
+        friend class conversion_compiler;
 
         public:
 
@@ -109,14 +112,13 @@ namespace sg {
         bool type_copyable(const prog::type& type);
         bool type_trivially_copyable(const prog::type& type);
 
-        // Subtyping
+        // Conversions
 
-        bool subtype(const prog::type& type1, const prog::type& type2, bool confined = false);
-        bool ptr_target_subtype(const prog::type_pointed& type1, const prog::type_pointed& type2);
-        bool func_subtype(const prog::func_type& func1, const prog::func_type& func2);
-        bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined = false);
-        bool ptr_subkind(prog::ptr_type::kind_t kind1, prog::ptr_type::kind_t kind2, bool confined = false);
-        prog::type common_supertype(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined = false);
+        bool subtype(const prog::type& type1, const prog::type& type2, bool confined);
+        bool types_equivalent(const prog::type& type1, const prog::type& type2);
+        bool func_types_equivalent(const prog::func_type& ftype1, const prog::func_type& ftype2);
+        prog::type common_supertype(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined);
+        prog::reg_index_t convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined, function<prog::reg_index_t()> new_register, function<void(prog::instr&&)> add_instr, prog::reg_index_t value);
     };
 
     class function_compiler {
@@ -160,15 +162,34 @@ namespace sg {
 
         void push_frame();
         void pop_frame();
+        prog::reg_index_t new_register();
         void add_instr(prog::instr&& instr);
         prog::var_index_t add_var(string name, prog::ptr<prog::type_local> type);
         optional<prog::var_index_t> get_var(string name);
-        
+
         void add_cleanup_instrs(size_t frame_index = 0);
         void add_return_instr(const optional<ast::ptr<ast::expr>>& ast);
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
         lvalue compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type);
         pair<prog::reg_index_t, prog::type_local> compile_right_expr(const ast::expr& ast);
+    };
+
+    struct conversion_compiler {
+        compiler& cmplr;
+        function<prog::reg_index_t()> new_register;
+        function<void(prog::instr&&)> add_instr;
+
+        public:
+
+        conversion_compiler(compiler& cmplr, function<prog::reg_index_t()> new_register, function<void(prog::instr&&)> add_instr) : cmplr(cmplr), new_register(new_register), add_instr(add_instr) { }
+
+        optional<prog::reg_index_t> try_convert(const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index_t value);
+
+        private:
+
+        optional<prog::reg_index_t> try_convert_ptr_kind(prog::ptr_type::kind_t kind1, prog::ptr_type::kind_t kind2, bool confined, prog::reg_index_t value);
+        optional<prog::reg_index_t> try_convert_ptr_target(const prog::type_pointed& type1, const prog::type_pointed& type2, prog::reg_index_t value);
+        bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined);
     };
 }
 

@@ -290,6 +290,10 @@ namespace sg::prog {
                 print_func_type(stream, prog, func);
             } break;
 
+            case type::KNOWN_FUNC:
+                stream << "<function " << prog.global_funcs[GET(tp, KNOWN_FUNC)]->name << ">";
+                break;
+
             case type::STRUCT_CTOR:
                 stream << "<struct " << prog.struct_types[GET(tp, STRUCT_CTOR)]->name << " constructor>";
                 break;

@@ -197,10 +197,26 @@ namespace sg {
 
         void no_common_supertype::write(ostream& stream) const {
             stream << "Types '";
+            if (!confined)
+                stream << "!";
             prog::print_type(stream, program, type1);
             stream << "' and '";
+            if (!confined)
+                stream << "!";
             prog::print_type(stream, program, type2);
             stream << "' have no common supertype" << endl;
+        }
+
+        void not_convertible::write(ostream& stream) const {
+            stream << "Value of type '";
+            if (!confined)
+                stream << "!";
+            prog::print_type(stream, program, type1);
+            stream << "' cannot be converted to value of type '";
+            if (!confined)
+                stream << "!";
+            prog::print_type(stream, program, type2);
+            stream << "'" << endl;
         }
 
         void invalid_argument::write(ostream& stream) const {
@@ -247,6 +263,10 @@ namespace sg {
 
         void dead_code::write(ostream& stream) const {
             stream << "Dead code" << endl;
+        }
+
+        void restrictive_ptr_type::write(ostream& stream) const {
+            stream << "Restrictive pointer type. Use '&' instead" << endl;
         }
     }
 }

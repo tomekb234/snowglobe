@@ -328,6 +328,7 @@ namespace sg::ast {
             REFERENCE,
             HEAP_ALLOC,
             DEREFERENCE,
+            WEAK_PTR_TEST,
             SIZED_ARRAY,
             HEAP_SLICE_ALLOC,
             LENGTH,
@@ -355,6 +356,7 @@ namespace sg::ast {
             string, // REFERENCE
             ptr<expr>, // HEAP_ALLOC
             ptr<expr>, // DEREFERENCE
+            ptr<expr>, // WEAK_PTR_TEST
             ptr<sized_array_expr>, // SIZED_ARRAY
             ptr<heap_slice_alloc_expr>, // HEAP_SLICE_ALLOC
             ptr<expr>, // LENGTH
