@@ -1,6 +1,4 @@
 #include "input.hpp"
-#include <string>
-#include <utility>
 
 namespace sg {
     using std::string;

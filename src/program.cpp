@@ -1,17 +1,20 @@
 #include "program.hpp"
 #include "utils.hpp"
-#include <utility>
-#include <variant>
 
 namespace sg::prog {
     using namespace sg::utils;
 
-    using std::move;
-    using std::make_pair;
-    using std::monostate;
-    using std::ostream;
+    static array_type copy_array_type(const array_type& source);
+    static ptr_type copy_ptr_type(const ptr_type& source);
+    static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& source);
+    static func_type copy_func_type(const func_type& source);
+    static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& source);
+    static type_pointed copy_type_pointed(const type_pointed& source);
 
-    static void print_ptr_kind(ostream& stream, const program& prog, const ptr_type::kind_t& tp);
+    static bool ptr_types_equal(const ptr_type& type1, const ptr_type& type2);
+    static bool types_pointed_equal(const type_pointed& type1, const type_pointed& type2);
+
+    static void print_ptr_kind(ostream& stream, const ptr_type::kind_t& tp);
     static void print_type_pointed(ostream& stream, const program& prog, const type_pointed& tp);
     static void print_func_type(ostream& stream, const program& prog, const func_type& func);
 
@@ -113,6 +116,10 @@ namespace sg::prog {
 
             case type::FUNC_WITH_PTR:
                 return VARIANT(type, FUNC_WITH_PTR, make_ptr(copy_func_with_ptr_type(*GET(source, FUNC_WITH_PTR))));
+
+            case type::KNOWN_FUNC:
+                return VARIANT(type, KNOWN_FUNC, GET(source, KNOWN_FUNC));
+
             case type::STRUCT_CTOR:
                 return VARIANT(type, STRUCT_CTOR, GET(source, STRUCT_CTOR));
 
@@ -123,33 +130,139 @@ namespace sg::prog {
         UNREACHABLE;
     }
 
-    array_type copy_array_type(const array_type& source) {
+    type_local copy_type_local(const type_local& source) {
+        return { make_ptr(copy_type(*source.tp)), source.confined };
+    }
+
+    static array_type copy_array_type(const array_type& source) {
         return { make_ptr(copy_type(*source.tp)), source.size };
     }
 
-    ptr_type copy_ptr_type(const ptr_type& source) {
+    static ptr_type copy_ptr_type(const ptr_type& source) {
         return { source.kind, make_ptr(copy_type_pointed(*source.target_tp)) };
     }
 
-    inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& source) {
+    static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& source) {
         return { copy_ptr_type(source), make_ptr(copy_type_pointed(*source.owner_tp)) };
     }
 
-    func_type copy_func_type(const func_type& source) {
+    static func_type copy_func_type(const func_type& source) {
         auto vec = copy_ptr_vector<type_local>(source.param_tps, copy_type_local);
         return { move(vec), make_ptr(copy_type(*source.return_tp)) };
     }
 
-    func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& source) {
+    static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& source) {
         return { copy_func_type(source), copy_ptr_type(source) };
     }
 
-    type_pointed copy_type_pointed(const type_pointed& source) {
+    static type_pointed copy_type_pointed(const type_pointed& source) {
         return { make_ptr(copy_type(*source.tp)), source.slice };
     }
 
-    type_local copy_type_local(const type_local& source) {
-        return { make_ptr(copy_type(*source.tp)), source.confined };
+    bool types_equal(const type& type1, const type& type2) {
+        if (INDEX(type1) != INDEX(type2))
+            return false;
+
+        switch (INDEX(type1)) {
+            case type::NEVER:
+                return true;
+
+            case type::PRIMITIVE:
+                return GET(type1, PRIMITIVE)->tp == GET(type2, PRIMITIVE)->tp;
+
+            case type::STRUCT:
+                return GET(type1, STRUCT) == GET(type2, STRUCT);
+
+            case type::ENUM:
+                return GET(type1, ENUM) == GET(type2, ENUM);
+
+            case type::TUPLE: {
+                auto& tuple1 = GET(type1, TUPLE);
+                auto& tuple2 = GET(type2, TUPLE);
+                auto size = tuple1.size();
+
+                if (size != tuple2.size())
+                    return false;
+
+                for (size_t index = 0; index < size; index++) {
+                    if (!types_equal(*tuple1[index], *tuple2[index]))
+                        return false;
+                }
+
+                return true;
+            }
+
+            case type::ARRAY: {
+                auto& array1 = *GET(type1, ARRAY);
+                auto& array2 = *GET(type2, ARRAY);
+                return array1.size == array2.size && types_equal(*array1.tp, *array2.tp);
+            }
+
+            case type::OPTIONAL:
+                return types_equal(*GET(type1, OPTIONAL), *GET(type2, OPTIONAL));
+
+            case type::PTR:
+                return ptr_types_equal(*GET(type1, PTR), *GET(type2, PTR));
+
+            case type::INNER_PTR: {
+                auto& inptr1 = *GET(type1, INNER_PTR);
+                auto& inptr2 = *GET(type2, INNER_PTR);
+                return ptr_types_equal(inptr1, inptr2) && types_pointed_equal(*inptr1.owner_tp, *inptr2.owner_tp);
+            }
+
+            case type::FUNC:
+                return func_types_equal(*GET(type1, FUNC), *GET(type2, FUNC));
+
+            case type::GLOBAL_FUNC:
+                return func_types_equal(*GET(type1, GLOBAL_FUNC), *GET(type2, GLOBAL_FUNC));
+
+            case type::FUNC_WITH_PTR: {
+                auto& fptr1 = *GET(type1, FUNC_WITH_PTR);
+                auto& fptr2 = *GET(type2, FUNC_WITH_PTR);
+                return func_types_equal(fptr1, fptr2) && ptr_types_equal(fptr1, fptr2);
+            }
+
+            case type::KNOWN_FUNC:
+                return GET(type1, KNOWN_FUNC) == GET(type2, KNOWN_FUNC);
+
+            case type::STRUCT_CTOR:
+                return GET(type1, STRUCT_CTOR) == GET(type2, STRUCT_CTOR);
+
+            case type::ENUM_CTOR:
+                return GET(type1, ENUM_CTOR) == GET(type2, ENUM_CTOR);
+        }
+
+        UNREACHABLE;
+    }
+
+    bool types_local_equal(const type_local& type1, const type_local& type2) {
+        return type1.confined == type2.confined && types_equal(*type1.tp, *type2.tp);
+    }
+
+    bool func_types_equal(const func_type& type1, const func_type& type2) {
+        if (!types_equal(*type1.return_tp, *type2.return_tp))
+            return false;
+
+        auto& params1 = type1.param_tps;
+        auto& params2 = type2.param_tps;
+
+        if (params1.size() != params2.size())
+            return false;
+
+        for (size_t index = 0; index < params1.size(); index++) {
+            if (!types_local_equal(*params1[index], *params2[index]))
+                return false;
+        }
+
+        return true;
+    }
+
+    static bool ptr_types_equal(const ptr_type& type1, const ptr_type& type2) {
+        return type1.kind == type2.kind && types_pointed_equal(*type1.target_tp, *type2.target_tp);
+    }
+
+    static bool types_pointed_equal(const type_pointed& type1, const type_pointed& type2) {
+        return type1.slice == type2.slice && types_equal(*type1.tp, *type2.tp);
     }
 
     func_type get_func_type(const global_func& func) {
@@ -259,13 +372,13 @@ namespace sg::prog {
 
             case type::PTR: {
                 auto& ptr = *GET(tp, PTR);
-                print_ptr_kind(stream, prog, ptr.kind);
+                print_ptr_kind(stream, ptr.kind);
                 print_type_pointed(stream, prog, *ptr.target_tp);
             } break;
 
             case type::INNER_PTR: {
                 auto& inptr = *GET(tp, INNER_PTR);
-                print_ptr_kind(stream, prog, inptr.kind);
+                print_ptr_kind(stream, inptr.kind);
                 print_type_pointed(stream, prog, *inptr.owner_tp);
                 stream << '.';
                 print_type_pointed(stream, prog, *inptr.target_tp);
@@ -284,19 +397,23 @@ namespace sg::prog {
             case type::FUNC_WITH_PTR: {
                 auto& func = *GET(tp, FUNC_WITH_PTR);
                 stream << "func ";
-                print_ptr_kind(stream, prog, func.kind);
+                print_ptr_kind(stream, func.kind);
                 print_type_pointed(stream, prog, *func.target_tp);
                 stream << ' ';
                 print_func_type(stream, prog, func);
             } break;
 
-            case type::KNOWN_FUNC:
-                stream << "<function " << prog.global_funcs[GET(tp, KNOWN_FUNC)]->name << ">";
+            case type::KNOWN_FUNC: {
+                auto& func = *prog.global_funcs[GET(tp, KNOWN_FUNC)];
+                stream << "<function " << func.name << ">";
                 break;
+            }
 
-            case type::STRUCT_CTOR:
-                stream << "<struct " << prog.struct_types[GET(tp, STRUCT_CTOR)]->name << " constructor>";
+            case type::STRUCT_CTOR: {
+                auto& st = *prog.struct_types[GET(tp, STRUCT_CTOR)];
+                stream << "<struct " << st.name << " constructor>";
                 break;
+            }
 
             case type::ENUM_CTOR: {
                 auto& en = *prog.enum_types[GET(tp, ENUM_CTOR).first];
@@ -307,7 +424,7 @@ namespace sg::prog {
         }
     }
 
-    static void print_ptr_kind(ostream& stream, const program& prog, const ptr_type::kind_t& tp) {
+    static void print_ptr_kind(ostream& stream, const ptr_type::kind_t& tp) {
         switch (tp) {
             case ptr_type::GLOBAL:
                 stream << '$';

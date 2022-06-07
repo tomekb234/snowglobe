@@ -1,17 +1,18 @@
 #include "compiler.hpp"
-#include "compiler_diagnostics.hpp"
 #include "ast.hpp"
 #include "program.hpp"
+#include "diags.hpp"
 #include "utils.hpp"
 #include <queue>
 
 namespace sg {
     using namespace sg::utils;
+
     using std::queue;
 
     bool compiler::compile(const ast::program& ast) {
         program = { };
-        bool error_occured = false;
+        auto ok = true;
 
         // Phase 1: Prepare struct and enum declarations
 
@@ -28,7 +29,7 @@ namespace sg {
                         auto name = struct_type.name;
                         auto index = program.struct_types.size();
                         program.struct_types.push_back(into_ptr(struct_type));
-                        global_names[name] = { global_name::STRUCT, index, false };
+                        global_names[name] = { global_name_kind::STRUCT, index, false };
                         struct_type_indices.back() = index;
                     } break;
 
@@ -39,12 +40,15 @@ namespace sg {
                         auto name = enum_type.name;
                         auto index = program.enum_types.size();
                         program.enum_types.push_back(into_ptr(enum_type));
-                        global_names[name] = { global_name::ENUM, index, false };
+                        global_names[name] = { global_name_kind::ENUM, index, false };
                         enum_type_indices.back() = index;
                     } break;
+
+                    default:
+                        break;
                 }
             } catch (...) {
-                error_occured = true;
+                ok = false;
             }
         }
 
@@ -79,7 +83,7 @@ namespace sg {
                         auto name = *global_const.name;
                         auto index = constants.size();
                         constants.push_back(move(global_const));
-                        global_names[name] = { global_name::CONSTANT, index, true };
+                        global_names[name] = { global_name_kind::CONSTANT, index, true };
                     } break;
 
                     case ast::global_def::FUNC_DEF: {
@@ -89,12 +93,15 @@ namespace sg {
                         auto name = global_func.name;
                         auto index = program.global_funcs.size();
                         program.global_funcs.push_back(into_ptr(global_func));
-                        global_names[name] = { global_name::FUNCTION, index, false };
+                        global_names[name] = { global_name_kind::FUNCTION, index, false };
                         global_func_indices.back() = index;
                     } break;
+
+                    default:
+                        break;
                 }
             } catch (...) {
-                error_occured = true;
+                ok = false;
             }
         }
 
@@ -109,11 +116,14 @@ namespace sg {
                         auto name = *global_var.name;
                         auto index = program.global_vars.size();
                         program.global_vars.push_back(into_ptr(global_var));
-                        global_names[name] = { global_name::VARIABLE, index, true };
+                        global_names[name] = { global_name_kind::VARIABLE, index, true };
                     } break;
+
+                    default:
+                        break;
                 }
             } catch (...) {
-                error_occured = true;
+                ok = false;
             }
         }
 
@@ -130,13 +140,16 @@ namespace sg {
                         compile_global_func(global_func_ast, global_func);
                         global_names[global_func.name].compiled = true;
                     } break;
+
+                    default:
+                        break;
                 }
             } catch (...) {
-                error_occured = true;
+                ok = false;
             }
         }
 
-        return !error_occured;
+        return ok;
     }
 
     compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled) {
@@ -153,11 +166,11 @@ namespace sg {
         return global_name;
     }
 
-    compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, global_name::kind_t expected_kind, bool allow_uncompiled) {
+    compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, global_name_kind expected_kind, bool allow_uncompiled) {
         auto& global_name = get_global_name(ast, name, allow_uncompiled);
 
         if (global_name.kind != expected_kind)
-            error(diags::invalid_kind(), ast);
+            error(diags::invalid_kind(name, global_name.kind, { expected_kind }), ast);
 
         return global_name;
     }

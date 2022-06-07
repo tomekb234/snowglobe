@@ -1,15 +1,18 @@
 #include "input.hpp"
-#include "diagnostics.hpp"
-#include "lexer_diagnostics.hpp"
+#include "diagcol.hpp"
+#include "diags.hpp"
 #include "parser.hpp"
 #include "ast.hpp"
-#include <string>
-#include <memory>
 
 using sg::ast::int_token;
 using sg::ast::float_token;
 using std::string;
 using std::unique_ptr;
+using std::stoull;
+using std::stof;
+using std::stod;
+using std::out_of_range;
+using std::unordered_map;
 
 static int_token parse_int(const string& text, int base);
 static float_token parse_float(const string& text);
@@ -170,15 +173,6 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
     }
 }
 
-#include <stdexcept>
-#include <unordered_map>
-
-using std::stoull;
-using std::stof;
-using std::stod;
-using std::out_of_range;
-using std::unordered_map;
-
 static string remove_underscores(const string& text) {
     string result;
 
@@ -236,7 +230,7 @@ static float_token::marker_t get_float_marker(const string& text) {
 static int_token parse_int(const string& text, int base) {
     try {
         return { { }, stoull(remove_underscores(text), nullptr, base), false, get_int_marker(text) };
-    } catch (out_of_range) {
+    } catch (out_of_range&) {
         throw new sg::diags::int_token_overflow(text);
     }
 }
@@ -244,7 +238,7 @@ static int_token parse_int(const string& text, int base) {
 static float_token parse_float(const string& text) {
     try {
         return { { }, stod(remove_underscores(text)), false, get_float_marker(text) };
-    } catch (out_of_range) {
+    } catch (out_of_range&) {
         throw new sg::diags::float_token_overflow(text);
     }
 }

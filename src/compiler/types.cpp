@@ -1,9 +1,8 @@
 #include "compiler.hpp"
-#include "compiler_diagnostics.hpp"
 #include "ast.hpp"
 #include "program.hpp"
+#include "diags.hpp"
 #include "utils.hpp"
-#include <variant>
 
 namespace sg {
     using namespace sg::utils;
@@ -72,14 +71,14 @@ namespace sg {
         auto& global_name = get_global_name(ast, name, allow_uncompiled);
 
         switch (global_name.kind) {
-            case global_name::ENUM:
+            case global_name_kind::ENUM:
                 return VARIANT(prog::type, ENUM, global_name.index);
 
-            case global_name::STRUCT:
+            case global_name_kind::STRUCT:
                 return VARIANT(prog::type, STRUCT, global_name.index);
 
             default:
-                error(diags::invalid_kind(), ast);
+                error(diags::invalid_kind(name, global_name.kind, { }), ast);
         }
     }
 
@@ -93,6 +92,9 @@ namespace sg {
                 case prog::ptr_type::WEAK:
                 case prog::ptr_type::UNIQUE:
                     warning(diags::restrictive_ptr_type(), ast);
+                    break;
+
+                default:
                     break;
             }
         }
@@ -189,7 +191,7 @@ namespace sg {
     prog::inner_ptr_type compiler::compile_inner_ptr_type(const ast::inner_ptr_type& ast) {
         auto base = compile_ptr_type(ast);
         auto owner_type = compile_type_pointed(*ast.owner_tp);
-        return { base.kind, move(base.target_tp), into_ptr(owner_type) };
+        return { { base.kind, move(base.target_tp) }, into_ptr(owner_type) };
     }
 
     prog::func_type compiler::compile_func_type(const ast::func_type& ast, bool allow_uncompiled) {
@@ -229,7 +231,7 @@ namespace sg {
         }
 
         auto type = compile_type_pointed(*ast.target_tp);
-        return { move(base.param_tps), move(base.return_tp), kind, into_ptr(type) };
+        return { { move(base.param_tps), move(base.return_tp) }, { kind, into_ptr(type) } };
     }
 
     bool compiler::type_copyable(const prog::type& type) {

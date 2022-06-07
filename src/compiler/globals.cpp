@@ -1,7 +1,7 @@
 #include "compiler.hpp"
-#include "compiler_diagnostics.hpp"
 #include "ast.hpp"
 #include "program.hpp"
+#include "diags.hpp"
 #include "utils.hpp"
 
 namespace sg {
@@ -11,7 +11,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name, diags::name_used::GLOBAL), ast);
+            error(diags::name_used(name, diags::name_used::GLOBAL), ast.name_loc);
 
         auto[value, value_type] = compile_constant(*ast.value);
 
@@ -30,7 +30,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name, diags::name_used::GLOBAL), ast);
+            error(diags::name_used(name, diags::name_used::GLOBAL), ast.name_loc);
 
         return { name, ast.copyable, true, { }, { } };
     }
@@ -39,17 +39,17 @@ namespace sg {
         vector<prog::ptr<prog::struct_field>> fields;
         unordered_map<string, size_t> field_names;
 
-        for (auto& ast_field : ast.fields) {
-            if (field_names.count(ast_field->name))
-                error(diags::name_used(ast_field->name, diags::name_used::FIELD), *ast_field);
+        for (auto& field_ast : ast.fields) {
+            if (field_names.count(field_ast->name))
+                error(diags::name_used(field_ast->name, diags::name_used::FIELD), *field_ast);
 
-            auto type = compile_type(*ast_field->tp);
+            auto type = compile_type(*field_ast->tp);
             if (struct_type.copyable && !type_copyable(type))
-                error(diags::type_not_copyable(program, type), *ast_field->tp);
+                error(diags::type_not_copyable(program, type), *field_ast->tp);
             if (!type_trivially_copyable(type))
                 struct_type.trivially_copyable = false;
 
-            auto field = prog::struct_field { ast_field->name, into_ptr(type) };
+            auto field = prog::struct_field { field_ast->name, into_ptr(type) };
             field_names[field.name] = fields.size();
             fields.push_back(into_ptr(field));
         }
@@ -62,7 +62,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name, diags::name_used::GLOBAL), ast);
+            error(diags::name_used(name, diags::name_used::GLOBAL), ast.name_loc);
 
         return { ast.name, ast.copyable, true, { }, { } };
     }

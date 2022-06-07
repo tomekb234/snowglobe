@@ -17,7 +17,7 @@
 %code requires {
     #include "location.hpp"
     #include "input.hpp"
-    #include "diagnostics.hpp"
+    #include "diagcol.hpp"
     #include "ast.hpp"
 
     namespace yy {
@@ -38,7 +38,9 @@
 %code {
     #include "utils.hpp"
 
-    using namespace sg::utils;
+    namespace yy {
+        using namespace sg::utils;
+    }
 }
 
 // Tokens
@@ -231,7 +233,7 @@
 
 program:
     global_def_seq {
-        ast = { @$, into_ptr_vector($global_def_seq) };
+        ast = { { @$ }, into_ptr_vector($global_def_seq) };
     }
 
 global_def_seq:
@@ -265,20 +267,20 @@ global_def:
 
 var_def:
     "var" NAME ":" type "=" expr ";" {
-        $$ = { @$, move($NAME), { into_ptr($type) }, into_ptr($expr) };
+        $$ = { { @$ }, move($NAME), { into_ptr($type) }, into_ptr($expr), @NAME };
     }
 
     | "var" NAME "=" expr ";" {
-        $$ = { @$, move($NAME), { }, into_ptr($expr) };
+        $$ = { { @$ }, move($NAME), { }, into_ptr($expr), @NAME };
     }
 
 const_def:
     "const" NAME ":" type "=" expr ";" {
-        $$ = { @$, move($NAME), { into_ptr($type) }, into_ptr($expr) };
+        $$ = { { @$ }, move($NAME), { into_ptr($type) }, into_ptr($expr), @NAME };
     }
 
     | "const" NAME "=" expr ";" {
-        $$ = { @$, move($NAME), { }, into_ptr($expr) };
+        $$ = { { @$ }, move($NAME), { }, into_ptr($expr), @NAME };
     }
 
 const_int:
@@ -291,8 +293,8 @@ const_int:
     }
 
 func_def:
-    "func" optional_copying NAME "(" func_param_seq ")" optional_return_type "{" func_body "}" {
-        $$ = { @$, move($NAME), $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body) };
+    "func" optional_copying NAME "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
+        $$ = { { @$ }, move($NAME), $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body), @NAME, @end };
     }
 
 optional_copying:
@@ -306,7 +308,7 @@ optional_copying:
 
 func_param:
     NAME ":" type_local {
-        $$ = { @$, move($NAME), into_ptr($type_local) };
+        $$ = { { @$ }, move($NAME), into_ptr($type_local) };
     }
 
 func_param_seq:
@@ -335,16 +337,16 @@ optional_return_type:
 
 func_body:
     stmt_seq {
-        $$ = { @$, into_ptr($stmt_seq), { } };
+        $$ = { { @$ }, into_ptr($stmt_seq), { } };
     }
 
     | stmt_seq expr {
-        $$ = { @$, into_ptr($stmt_seq), { into_ptr($expr) } };
+        $$ = { { @$ }, into_ptr($stmt_seq), { into_ptr($expr) } };
     }
 
 struct_def:
     "struct" NAME optional_copyable "{" struct_field_seq "}" {
-        $$ = { @$, move($NAME), $optional_copyable, into_ptr_vector($struct_field_seq) };
+        $$ = { { @$ }, move($NAME), $optional_copyable, into_ptr_vector($struct_field_seq), @NAME };
     }
 
 optional_copyable:
@@ -358,7 +360,7 @@ optional_copyable:
 
 struct_field:
     NAME ":" type {
-        $$ = { @$, move($NAME), into_ptr($type) };
+        $$ = { { @$ }, move($NAME), into_ptr($type) };
     }
 
 struct_field_seq:
@@ -381,16 +383,16 @@ struct_field_seq_inner:
 
 enum_def:
     "enum" NAME optional_copyable "{" enum_variant_seq "}" {
-        $$ = { @$, move($NAME), $optional_copyable, into_ptr_vector($enum_variant_seq) };
+        $$ = { { @$ }, move($NAME), $optional_copyable, into_ptr_vector($enum_variant_seq), @NAME };
     }
 
 enum_variant:
     NAME {
-        $$ = { @$, move($NAME), { } };
+        $$ = { { @$ }, move($NAME), { } };
     }
 
     | NAME "(" type_seq ")" {
-        $$ = { @$, move($NAME), into_ptr_vector($type_seq) };
+        $$ = { { @$ }, move($NAME), into_ptr_vector($type_seq) };
     }
 
 enum_variant_seq:
@@ -419,47 +421,47 @@ stmt:
     }
 
     | expr[left] "=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, ASSIGNMENT, @$, make_ptr(assignment_stmt { @$, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(stmt, ASSIGNMENT, @$, make_ptr(assignment_stmt { { @$ }, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "+=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::ADD }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::ADD }));
     }
 
     | expr[left] "-=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::SUB }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::SUB }));
     }
 
     | expr[left] "*=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::MUL }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::MUL }));
     }
 
     | expr[left] "/=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::DIV }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::DIV }));
     }
 
     | expr[left] "%=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::MOD }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::MOD }));
     }
 
     | expr[left] "&=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::BIT_AND }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_AND }));
     }
 
     | expr[left] "|=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::BIT_OR }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_OR }));
     }
 
     | expr[left] "^=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::BIT_XOR }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_XOR }));
     }
 
     | expr[left] "<<=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::BIT_LSH }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_LSH }));
     }
 
     | expr[left] ">>=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { @$, into_ptr($left), into_ptr($right), compound_assignment_stmt::BIT_RSH }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_RSH }));
     }
 
     | locally_stmt {
@@ -504,7 +506,7 @@ stmt_seq:
 
 locally_stmt:
     "locally" name_seq_nempty "{" stmt_seq "}" {
-        $$ = { @$, move($name_seq_nempty), into_ptr($stmt_seq) };
+        $$ = { { @$ }, move($name_seq_nempty), into_ptr($stmt_seq) };
     }
 
 name_seq_nempty:
@@ -519,12 +521,12 @@ name_seq_nempty:
 
 swap_stmt:
     "swap" expr[left] "with" expr[right] ";" {
-        $$ = { @$, into_ptr($left), into_ptr($right) };
+        $$ = { { @$ }, into_ptr($left), into_ptr($right) };
     }
 
 swap_block_stmt:
     "swap" expr "with" expr_or_name_locally "{" stmt_seq "}" {
-        $$ = { @$, into_ptr($expr), into_ptr($expr_or_name_locally), into_ptr($stmt_seq) };
+        $$ = { { @$ }, into_ptr($expr), into_ptr($expr_or_name_locally), into_ptr($stmt_seq) };
     }
 
 expr_or_name_locally:
@@ -538,8 +540,8 @@ expr_or_name_locally:
 
 if_stmt:
     "if" condition "{" stmt_seq "}" elif_seq[branches] optional_else {
-        $branches.insert($branches.begin(), { @condition, into_ptr($condition), into_ptr($stmt_seq) });
-        $$ = { @$, into_ptr_vector($branches), into_optional_ptr($optional_else) };
+        $branches.insert($branches.begin(), { { @condition }, into_ptr($condition), into_ptr($stmt_seq) });
+        $$ = { { @$ }, into_ptr_vector($branches), into_optional_ptr($optional_else) };
     }
 
 condition:
@@ -553,7 +555,7 @@ condition:
 
 elif:
     "elif" condition "{" stmt_seq "}" {
-        $$ = { @$, into_ptr($condition), into_ptr($stmt_seq) };
+        $$ = { { @$ }, into_ptr($condition), into_ptr($stmt_seq) };
     }
 
 elif_seq:
@@ -573,12 +575,12 @@ optional_else:
 
 match_stmt:
     "match" expr_or_name_locally with_seq_nempty optional_else {
-        $$ = { @$, into_ptr($expr_or_name_locally), into_ptr_vector($with_seq_nempty), into_optional_ptr($optional_else) };
+        $$ = { { @$ }, into_ptr($expr_or_name_locally), into_ptr_vector($with_seq_nempty), into_optional_ptr($optional_else) };
     }
 
 with:
     "with" expr "{" stmt_seq "}" {
-        $$ = { @$, into_ptr($expr), into_ptr($stmt_seq) };
+        $$ = { { @$ }, into_ptr($expr), into_ptr($stmt_seq) };
     }
 
 with_seq_nempty:
@@ -593,7 +595,7 @@ with_seq_nempty:
 
 while_stmt:
     "while" condition "{" stmt_seq "}" optional_else {
-        $$ = { @$, into_ptr($condition), into_ptr($stmt_seq), into_optional_ptr($optional_else) };
+        $$ = { { @$ }, into_ptr($condition), into_ptr($stmt_seq), into_optional_ptr($optional_else) };
     }
 
 for_stmt:
@@ -639,7 +641,7 @@ for_slice_stmt:
 
 for_stmt_tail:
     optional_reversed "{" stmt_seq "}" optional_else {
-        $$ = { @$, { }, $optional_reversed, into_ptr($stmt_seq), into_optional_ptr($optional_else) };
+        $$ = { { @$ }, { }, $optional_reversed, into_ptr($stmt_seq), into_optional_ptr($optional_else) };
     }
 
 optional_reversed:
@@ -675,11 +677,11 @@ expr:
     }
 
     | "var" NAME ":" type_local {
-        $$ = AST_VARIANT(expr, VAR_DECL, @$, make_ptr(var_decl_expr { @$, $NAME, into_ptr($type_local) }));
+        $$ = AST_VARIANT(expr, VAR_DECL, @$, make_ptr(var_decl_expr { { @$ }, $NAME, into_ptr($type_local) }));
     }
 
     | "var" NAME {
-        $$ = AST_VARIANT(expr, VAR_DECL, @$, make_ptr(var_decl_expr { @$, $NAME }));
+        $$ = AST_VARIANT(expr, VAR_DECL, @$, make_ptr(var_decl_expr { { @$ }, $NAME, { } }));
     }
 
     | "true" {
@@ -709,19 +711,19 @@ expr:
     }
 
     | "!" expr[inner] {
-        $$ = AST_VARIANT(expr, UNARY_OPERATION, @$, make_ptr(unary_operation_expr { @$, unary_operation_expr::NOT, into_ptr($inner) }));
+        $$ = AST_VARIANT(expr, UNARY_OPERATION, @$, make_ptr(unary_operation_expr { { @$ }, unary_operation_expr::NOT, into_ptr($inner) }));
     }
 
     | expr[left] "&&" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::AND, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::AND, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "||" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::OR, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::OR, into_ptr($left), into_ptr($right) }));
     }
 
     | "-" expr[inner] %prec UNARY_MINUS {
-        bool done = false;
+        auto done = false;
 
         if (INDEX_EQ($inner, LITERAL)) {
             auto& literal = *GET($inner, LITERAL);
@@ -743,79 +745,79 @@ expr:
             $$ = move($inner);
             $$.loc = @$;
         } else
-            $$ = AST_VARIANT(expr, UNARY_OPERATION, @$, make_ptr(unary_operation_expr { @$, unary_operation_expr::MINUS, into_ptr($inner) }));
+            $$ = AST_VARIANT(expr, UNARY_OPERATION, @$, make_ptr(unary_operation_expr { { @$ }, unary_operation_expr::MINUS, into_ptr($inner) }));
     }
 
     | expr[left] "+" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::ADD, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::ADD, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "-" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::SUB, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::SUB, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "*" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::MUL, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::MUL, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "/" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::DIV, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::DIV, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "%" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::MOD, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::MOD, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[inner] "as" type_local {
-        $$ = AST_VARIANT(expr, NUMERIC_CAST, @$, make_ptr(numeric_cast_expr { @$, into_ptr($inner), into_ptr($type_local) }));
+        $$ = AST_VARIANT(expr, NUMERIC_CAST, @$, make_ptr(numeric_cast_expr { { @$ }, into_ptr($inner), into_ptr($type_local) }));
     }
 
     | "~" expr[inner] {
-        $$ = AST_VARIANT(expr, UNARY_OPERATION, @$, make_ptr(unary_operation_expr { @$, unary_operation_expr::BIT_NEG, into_ptr($inner) }));
+        $$ = AST_VARIANT(expr, UNARY_OPERATION, @$, make_ptr(unary_operation_expr { { @$ }, unary_operation_expr::BIT_NEG, into_ptr($inner) }));
     }
 
     | expr[left] "&" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::BIT_AND, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_AND, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "|" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::BIT_OR, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_OR, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "^" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::BIT_XOR, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_XOR, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "<<" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::BIT_LSH, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_LSH, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] ">>" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::BIT_RSH, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_RSH, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "==" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::EQ, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::EQ, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "!=" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::NEQ, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::NEQ, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "<" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::LS, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::LS, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] "<=" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::LSEQ, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::LSEQ, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] ">" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::GT, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::GT, into_ptr($left), into_ptr($right) }));
     }
 
     | expr[left] ">=" expr[right] {
-        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { @$, binary_operation_expr::GTEQ, into_ptr($left), into_ptr($right) }));
+        $$ = AST_VARIANT(expr, BINARY_OPERATION, @$, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::GTEQ, into_ptr($left), into_ptr($right) }));
     }
 
     | "none" {
@@ -859,11 +861,11 @@ expr:
     }
 
     | "[" expr[inner] ";" const_int "]" {
-        $$ = AST_VARIANT(expr, SIZED_ARRAY, @$, make_ptr(sized_array_expr { @$, into_ptr($inner), into_ptr($const_int) }));
+        $$ = AST_VARIANT(expr, SIZED_ARRAY, @$, make_ptr(sized_array_expr { { @$ }, into_ptr($inner), into_ptr($const_int) }));
     }
 
     | "@" "[" expr[value] "#" expr[size] "]" {
-        $$ = AST_VARIANT(expr, HEAP_SLICE_ALLOC, @$, make_ptr(heap_slice_alloc_expr { @$, into_ptr($value), into_ptr($size) }));
+        $$ = AST_VARIANT(expr, HEAP_SLICE_ALLOC, @$, make_ptr(heap_slice_alloc_expr { { @$ }, into_ptr($value), into_ptr($size) }));
     }
 
     | "#" expr[inner] {
@@ -903,7 +905,7 @@ expr:
     }
 
     | "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}" {
-        $$ = AST_VARIANT(expr, LAMBDA, @$, make_ptr(lambda_expr { @$, $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body) }));
+        $$ = AST_VARIANT(expr, LAMBDA, @$, make_ptr(lambda_expr { { @$ }, $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body) }));
     }
 
 optional_expr:
@@ -951,47 +953,47 @@ type:
     }
 
     | "bool" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::BOOL }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::BOOL }));
     }
 
     | "i8" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::I8 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I8 }));
     }
 
     | "i16" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::I16 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I16 }));
     }
 
     | "i32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::I32 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I32 }));
     }
 
     | "i64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::I64 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I64 }));
     }
 
     | "u8" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::U8 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U8 }));
     }
 
     | "u16" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::U16 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U16 }));
     }
 
     | "u32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::U32 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U32 }));
     }
 
     | "u64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::U64 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U64 }));
     }
 
     | "f32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::F32 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::F32 }));
     }
 
     | "f64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { @$, primitive_type::F64 }));
+        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::F64 }));
     }
 
     | NAME {
@@ -1003,7 +1005,7 @@ type:
     }
 
     | "[" type[item_type] ";" const_int "]" {
-        $$ = AST_VARIANT(type, ARRAY, @$, make_ptr(array_type { @$, into_ptr($item_type), into_ptr($const_int) }));
+        $$ = AST_VARIANT(type, ARRAY, @$, make_ptr(array_type { { @$ }, into_ptr($item_type), into_ptr($const_int) }));
     }
 
     | "?" type[val_type] {
@@ -1011,67 +1013,67 @@ type:
     }
 
     | "$" type_pointed {
-        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { @$, ptr_type::GLOBAL, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { { @$ }, ptr_type::GLOBAL, into_ptr($type_pointed) }));
     }
 
     | "&" type_pointed {
-        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { @$, ptr_type::BASIC, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { { @$ }, ptr_type::BASIC, into_ptr($type_pointed) }));
     }
 
     | "*" type_pointed {
-        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { @$, ptr_type::SHARED, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { { @$ }, ptr_type::SHARED, into_ptr($type_pointed) }));
     }
 
     | "~" type_pointed {
-        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { @$, ptr_type::WEAK, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { { @$ }, ptr_type::WEAK, into_ptr($type_pointed) }));
     }
 
     | "@" type_pointed {
-        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { @$, ptr_type::UNIQUE, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, PTR, @$, make_ptr(ptr_type { { @$ }, ptr_type::UNIQUE, into_ptr($type_pointed) }));
     }
 
     | "$" type_pointed[outer] "." type_pointed[inner] {
-        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { @$, ptr_type::GLOBAL, into_ptr($inner), into_ptr($outer) }));
+        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { { { @$ }, ptr_type::GLOBAL, into_ptr($inner) }, into_ptr($outer) }));
     }
 
     | "&" type_pointed[outer] "." type_pointed[inner] {
-        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { @$, ptr_type::BASIC, into_ptr($inner), into_ptr($outer) }));
+        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { { { @$ }, ptr_type::BASIC, into_ptr($inner) }, into_ptr($outer) }));
     }
 
     | "*" type_pointed[outer] "." type_pointed[inner] {
-        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { @$, ptr_type::SHARED, into_ptr($inner), into_ptr($outer) }));
+        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { { { @$ }, ptr_type::SHARED, into_ptr($inner) }, into_ptr($outer) }));
     }
 
     | "~" type_pointed[outer] "." type_pointed[inner] {
-        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { @$, ptr_type::WEAK, into_ptr($inner), into_ptr($outer) }));
+        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { { { @$ }, ptr_type::WEAK, into_ptr($inner) }, into_ptr($outer) }));
     }
 
     | "@" type_pointed[outer] "." type_pointed[inner] {
-        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { @$, ptr_type::UNIQUE, into_ptr($inner), into_ptr($outer) }));
+        $$ = AST_VARIANT(type, INNER_PTR, @$, make_ptr(inner_ptr_type { { { @$ }, ptr_type::UNIQUE, into_ptr($inner) }, into_ptr($outer) }));
     }
 
     | "func" "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC, @$, make_ptr(func_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type) }));
+        $$ = AST_VARIANT(type, FUNC, @$, make_ptr(func_type { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }));
     }
 
     | "func" "$" "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, GLOBAL_FUNC, @$, make_ptr(func_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type) }));
+        $$ = AST_VARIANT(type, GLOBAL_FUNC, @$, make_ptr(func_type { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }));
     }
 
     | "func" "&" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), @$, func_with_ptr_type::BASIC, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }, { { @$ }, func_with_ptr_type::BASIC, into_ptr($type_pointed) } }));
     }
 
     | "func" "*" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), @$, func_with_ptr_type::SHARED, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }, { { @$ }, func_with_ptr_type::SHARED, into_ptr($type_pointed) } }));
     }
 
     | "func" "~" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), @$, func_with_ptr_type::WEAK, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }, { { @$ }, func_with_ptr_type::WEAK, into_ptr($type_pointed) } }));
     }
 
     | "func" "@" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { @$, into_ptr_vector($type_local_seq), into_ptr($ret_type), @$, func_with_ptr_type::UNIQUE, into_ptr($type_pointed) }));
+        $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }, { { @$ }, func_with_ptr_type::UNIQUE, into_ptr($type_pointed) } }));
     }
 
 type_seq:
@@ -1093,20 +1095,20 @@ type_seq_nempty:
 
 type_pointed:
     type {
-        $$ = { @$, into_ptr($type), false };
+        $$ = { { @$ }, into_ptr($type), false };
     }
 
     | "[" type "]" {
-        $$ = { @$, into_ptr($type), true };
+        $$ = { { @$ }, into_ptr($type), true };
     }
 
 type_local:
     type {
-        $$ = { @$, into_ptr($type), true };
+        $$ = { { @$ }, into_ptr($type), true };
     }
 
     | "!" type {
-        $$ = { @$, into_ptr($type), false };
+        $$ = { { @$ }, into_ptr($type), false };
     }
 
 type_local_seq:
@@ -1130,17 +1132,7 @@ type_local_seq_nempty:
 
 // Error reporting
 
-#include "parser_diagnostics.hpp"
-#include <string>
-#include <vector>
-#include <optional>
-#include <memory>
-
-using std::string;
-using std::vector;
-using std::optional;
-using std::make_optional;
-using std::make_unique;
+#include "diags.hpp"
 
 void yy::parser::report_syntax_error(const yy::parser::context& context) const {
     const size_t MAX_TOKENS = 5;
@@ -1158,13 +1150,13 @@ void yy::parser::report_syntax_error(const yy::parser::context& context) const {
         expected_names[index] = symbol_name(expected[index]);
 
     // Report error message
-    auto diag = make_unique<sg::diags::syntax_error>(unexpected_name, expected_names);
+    auto diag = make_ptr(sg::diags::syntax_error(unexpected_name, expected_names));
     diag->loc = { context.location() };
     diags.add(move(diag));
 }
 
 void yy::parser::error(const yy::parser::location_type& location, const string& message) {
-    auto diag = make_unique<sg::diags::parser_error>(message);
+    auto diag = make_ptr(sg::diags::parser_error(message));
     diag->loc = { location };
     diags.add(move(diag));
 }

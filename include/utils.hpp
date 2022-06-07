@@ -24,7 +24,7 @@ namespace sg::utils {
     #define UNREACHABLE { throw 0; }
 
     #define VARIANT(type, index, val) (type { decltype(type::value)(in_place_index<type::index>, val) })
-    #define AST_VARIANT(type, index, loc, val) (type { loc, decltype(type::value)(in_place_index<type::index>, val) })
+    #define AST_VARIANT(type, index, loc, val) (type { { loc }, decltype(type::value)(in_place_index<type::index>, val) })
     #define INDEX(val) ((val).value.index())
     #define INDEX_EQ(val, index) (INDEX(val) == remove_reference<decltype(val)>::type::index)
     #define GET(val, index) (get<remove_reference<decltype(val)>::type::index>((val).value))

@@ -103,6 +103,7 @@ namespace sg::ast {
         string name;
         optional<ptr<type>> tp;
         ptr<expr> value;
+        location name_loc;
     };
 
     struct const_int : node {
@@ -123,6 +124,8 @@ namespace sg::ast {
         vector<ptr<func_param>> params;
         optional<ptr<type>> return_tp;
         ptr<func_body> body;
+        location name_loc;
+        location end_loc;
     };
 
     struct func_body : node {
@@ -139,6 +142,7 @@ namespace sg::ast {
         string name;
         bool copyable;
         vector<ptr<struct_field>> fields;
+        location name_loc;
     };
 
     struct struct_field : node {
@@ -150,6 +154,7 @@ namespace sg::ast {
         string name;
         bool copyable;
         vector<ptr<enum_variant>> variants;
+        location name_loc;
     };
 
     struct enum_variant : node {

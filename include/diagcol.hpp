@@ -1,19 +1,21 @@
-#ifndef DIAGNOSTICS_HPP
-#define DIAGNOSTICS_HPP
+#ifndef DIAGCOL_HPP
+#define DIAGCOL_HPP
 
 #include "location.hpp"
-#include <string>
-#include <memory>
 #include <optional>
-#include <iosfwd>
+#include <ostream>
 #include <vector>
+#include <memory>
+#include <utility>
+#include <functional>
+#include <istream>
 
 namespace sg {
-    using std::string;
-    using std::unique_ptr;
     using std::optional;
     using std::ostream;
     using std::vector;
+    using std::unique_ptr;
+    using std::move;
     using std::reference_wrapper;
     using std::istream;
 
@@ -44,20 +46,6 @@ namespace sg {
 
         void report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const;
     };
-
-    namespace diags {
-        struct error : diagnostic {
-            error() : diagnostic(ERROR) { }
-        };
-
-        struct warning : diagnostic {
-            warning() : diagnostic(WARNING) { }
-        };
-
-        struct not_implemented : error {
-            void write(ostream& stream) const override;
-        };
-    }
 }
 
 #endif

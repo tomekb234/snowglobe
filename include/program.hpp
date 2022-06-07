@@ -64,11 +64,11 @@ namespace sg::prog {
     struct primitive_conversion_instr;
     struct transform_instr;
 
-    typedef size_t global_index_t;
-    typedef size_t field_index_t;
-    typedef size_t variant_index_t;
-    typedef size_t var_index_t;
-    typedef size_t reg_index_t;
+    typedef size_t global_index;
+    typedef size_t field_index;
+    typedef size_t variant_index;
+    typedef size_t var_index;
+    typedef size_t reg_index;
 
     struct program {
         vector<ptr<global_var>> global_vars;
@@ -105,7 +105,7 @@ namespace sg::prog {
         string name;
         bool copyable;
         bool trivially_copyable;
-        unordered_map<string, field_index_t> field_names;
+        unordered_map<string, field_index> field_names;
         vector<ptr<struct_field>> fields;
     };
 
@@ -118,7 +118,7 @@ namespace sg::prog {
         string name;
         bool copyable;
         bool trivially_copyable;
-        unordered_map<string, variant_index_t> variant_names;
+        unordered_map<string, variant_index> variant_names;
         vector<ptr<enum_variant>> variants;
     };
 
@@ -147,14 +147,14 @@ namespace sg::prog {
             float, // FLOAT32
             double, // FLOAT64
             vector<ptr<constant>>, // STRUCT
-            pair<variant_index_t, vector<ptr<constant>>>, // ENUM
+            pair<variant_index, vector<ptr<constant>>>, // ENUM
             vector<ptr<constant>>, // TUPLE
             vector<ptr<constant>>, // ARRAY
             pair<ptr<constant>, size_t>, // SIZED_ARRAY
             ptr<constant>, // SOME
             monostate, // NONE
-            global_index_t, // GLOBAL_VAR_PTR
-            global_index_t // GLOBAL_FUNC_PTR
+            global_index, // GLOBAL_VAR_PTR
+            global_index // GLOBAL_FUNC_PTR
         > value;
     };
 
@@ -180,8 +180,8 @@ namespace sg::prog {
         variant<
             monostate, // NEVER
             ptr<primitive_type>, // PRIMITIVE
-            global_index_t, // STRUCT
-            global_index_t, // ENUM
+            global_index, // STRUCT
+            global_index, // ENUM
             vector<ptr<type>>, // TUPLE
             ptr<array_type>, // ARRAY
             ptr<type>, // OPTIONAL
@@ -190,9 +190,9 @@ namespace sg::prog {
             ptr<func_type>, // FUNC
             ptr<func_type>, // GLOBAL_FUNC
             ptr<func_with_ptr_type>, // FUNC_WITH_PTR
-            global_index_t, // KNOWN_FUNC
-            global_index_t, // STRUCT_CTOR
-            pair<global_index_t, variant_index_t> // ENUM_CTOR
+            global_index, // KNOWN_FUNC
+            global_index, // STRUCT_CTOR
+            pair<global_index, variant_index> // ENUM_CTOR
         > value;
     };
 
@@ -264,6 +264,7 @@ namespace sg::prog {
             RETURN,
             FUNC_CALL,
             GLOBAL_FUNC_CALL,
+
             MAKE_UNIT,
             MAKE_CONST,
             MAKE_TUPLE,
@@ -276,12 +277,14 @@ namespace sg::prog {
             MAKE_SHARED_PTR,
             MAKE_EMPTY_WEAK_PTR,
             MAKE_FAKE_SHARED_PTR,
+
             EXTRACT,
             TEST_OPTIONAL,
             EXTRACT_INNER_PTR,
             EXTRACT_OUTER_PTR,
             EXTRACT_PTR,
             EXTRACT_FUNC,
+
             ZERO_EXT,
             SIGNED_EXT,
             FLOAT_EXT,
@@ -300,7 +303,7 @@ namespace sg::prog {
             ptr<func_call_instr>, // FUNC_CALL
             ptr<global_func_call_instr>, // GLOBAL_FUNC_CALL
 
-            reg_index_t, // MAKE_UNIT
+            reg_index, // MAKE_UNIT
             ptr<make_const_instr>, // MAKE_CONST
             ptr<make_tuple_instr>, // MAKE_TUPLE
             ptr<make_optional_instr>, // MAKE_OPTIONAL
@@ -331,119 +334,117 @@ namespace sg::prog {
     };
 
     struct read_var_instr {
-        var_index_t var;
-        reg_index_t result;
+        var_index var;
+        reg_index result;
     };
 
     struct read_global_var_instr {
-        global_index_t var;
-        reg_index_t result;
+        global_index var;
+        reg_index result;
     };
 
     struct write_var_instr {
-        var_index_t var;
-        reg_index_t value;
+        var_index var;
+        reg_index value;
     };
 
     struct write_global_var_instr {
-        global_index_t var;
-        reg_index_t value;
+        global_index var;
+        reg_index value;
     };
 
     struct return_instr {
-        reg_index_t value;
+        reg_index value;
     };
 
     struct func_call_instr {
-        reg_index_t ptr;
-        vector<reg_index_t> args;
-        reg_index_t result;
+        reg_index ptr;
+        vector<reg_index> args;
+        reg_index result;
     };
 
     struct global_func_call_instr {
-        global_index_t func;
-        vector<reg_index_t> args;
-        reg_index_t result;
+        global_index func;
+        vector<reg_index> args;
+        reg_index result;
     };
 
     struct make_const_instr {
         ptr<constant> value;
-        reg_index_t result;
+        reg_index result;
     };
 
     struct make_tuple_instr {
-        vector<reg_index_t> items;
-        reg_index_t result;
+        vector<reg_index> items;
+        reg_index result;
     };
 
     struct make_optional_instr {
-        optional<reg_index_t> value;
-        reg_index_t result;
+        optional<reg_index> value;
+        reg_index result;
     };
 
     struct make_struct_instr {
-        global_index_t strct;
-        vector<reg_index_t> args;
-        reg_index_t result;
+        global_index st;
+        vector<reg_index> args;
+        reg_index result;
     };
 
     struct make_enum_variant_instr {
-        global_index_t enm;
-        variant_index_t variant;
-        vector<reg_index_t> args;
-        reg_index_t result;
+        global_index en;
+        variant_index variant;
+        vector<reg_index> args;
+        reg_index result;
     };
 
     struct make_global_ptr_instr {
-        global_index_t var;
-        reg_index_t result;
+        global_index var;
+        reg_index result;
     };
 
     struct ptr_conversion_instr {
-        reg_index_t value;
-        reg_index_t result;
+        reg_index value;
+        reg_index result;
     };
 
     struct make_inner_ptr_instr {
-        reg_index_t outer;
-        reg_index_t inner;
-        reg_index_t result;
+        reg_index outer;
+        reg_index inner;
+        reg_index result;
     };
 
     struct extract_instr {
-        reg_index_t value;
+        reg_index value;
         size_t index;
-        reg_index_t result;
+        reg_index result;
     };
 
     struct test_optional_instr {
-        reg_index_t value;
-        reg_index_t result;
+        reg_index value;
+        reg_index result;
     };
 
     struct primitive_conversion_instr {
-        reg_index_t value;
-        primitive_type::type_t tp;
-        reg_index_t result;
+        reg_index value;
+        ptr<primitive_type> tp;
+        reg_index result;
     };
 
     struct transform_instr {
-        reg_index_t value;
-        reg_index_t extracted;
-        vector<ptr<instr>> inner_instrs;
-        reg_index_t inner_result;
-        reg_index_t result;
+        reg_index value;
+        reg_index extracted;
+        vector<ptr<instr>> instrs;
+        reg_index inner_result;
+        reg_index result;
     };
 
     constant copy_constant(const constant& source);
     type copy_type(const type& source);
-    array_type copy_array_type(const array_type& source);
-    ptr_type copy_ptr_type(const ptr_type& source);
-    inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& source);
-    func_type copy_func_type(const func_type& source);
-    func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& source);
-    type_pointed copy_type_pointed(const type_pointed& source);
     type_local copy_type_local(const type_local& source);
+
+    bool types_equal(const type& type1, const type& type2);
+    bool types_local_equal(const type_local& type1, const type_local& type2);
+    bool func_types_equal(const func_type& type1, const func_type& type2);
 
     func_type get_func_type(const global_func& func);
 

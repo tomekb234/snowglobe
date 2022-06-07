@@ -3,7 +3,7 @@
 
 #include "ast.hpp"
 #include "program.hpp"
-#include "diagnostics.hpp"
+#include "diagcol.hpp"
 #include <optional>
 #include <unordered_map>
 #include <utility>
@@ -20,17 +20,18 @@ namespace sg {
     using std::variant;
     using std::function;
 
+    enum global_name_kind {
+        VARIABLE,
+        CONSTANT,
+        FUNCTION,
+        STRUCT,
+        ENUM
+    };
+
     class compiler {
         struct global_name {
-            enum kind_t {
-                VARIABLE,
-                CONSTANT,
-                FUNCTION,
-                STRUCT,
-                ENUM
-            } kind;
-
-            prog::global_index_t index;
+            global_name_kind kind;
+            prog::global_index index;
             bool compiled;
         };
 
@@ -39,8 +40,8 @@ namespace sg {
         unordered_map<string, global_name> global_names;
         vector<prog::global_var> constants;
 
-        friend class function_compiler;
         friend class conversion_compiler;
+        friend class function_compiler;
 
         public:
 
@@ -53,20 +54,30 @@ namespace sg {
         // Utilities
 
         template<typename T>
-        [[noreturn]] void error(T&& diag, const ast::node& ast) {
-            diag.loc = { ast.loc };
+        [[noreturn]] void error(T&& diag, location loc) {
+            diag.loc = { loc };
             diags.add(make_unique<T>(move(diag)));
             throw 0;
         }
 
         template<typename T>
-        void warning(T&& diag, const ast::node& ast) {
-            diag.loc = { ast.loc };
+        [[noreturn]] void error(T&& diag, const ast::node& ast) {
+            error(move(diag), ast.loc);
+        }
+
+        template<typename T>
+        void warning(T&& diag, location loc) {
+            diag.loc = { loc };
             diags.add(make_unique<T>(move(diag)));
         }
 
+        template<typename T>
+        void warning(T&& diag, const ast::node& ast) {
+            warning(move(diag), ast.loc);
+        }
+
         global_name& get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled = false);
-        global_name& get_global_name(const ast::node& ast, const string& name, global_name::kind_t expected_kind, bool allow_uncompiled = false);
+        global_name& get_global_name(const ast::node& ast, const string& name, global_name_kind expected_kind, bool allow_uncompiled = false);
 
         // Global variables, structs and enums
 
@@ -114,11 +125,25 @@ namespace sg {
 
         // Conversions
 
-        bool subtype(const prog::type& type1, const prog::type& type2, bool confined);
-        bool types_equivalent(const prog::type& type1, const prog::type& type2);
-        bool func_types_equivalent(const prog::func_type& ftype1, const prog::func_type& ftype2);
         prog::type common_supertype(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined);
-        prog::reg_index_t convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined, function<prog::reg_index_t()> new_register, function<void(prog::instr&&)> add_instr, prog::reg_index_t value);
+    };
+
+    class conversion_compiler {
+        compiler& clr;
+        function<prog::reg_index()> new_reg;
+        function<void(prog::instr&&)> add_instr;
+
+        public:
+
+        conversion_compiler(compiler& clr, function<prog::reg_index()> new_reg, function<void(prog::instr&&)> add_instr) : clr(clr), new_reg(new_reg), add_instr(add_instr) { }
+
+        prog::reg_index convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index value);
+        optional<prog::reg_index> try_convert(const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index value);
+
+        private:
+
+        optional<prog::reg_index> try_convert_ptr_kind(prog::ptr_type::kind_t kind1, prog::ptr_type::kind_t kind2, bool confined, prog::reg_index value);
+        optional<prog::reg_index> try_convert_ptr_target(const prog::type_pointed& type1, const prog::type_pointed& type2, prog::reg_index value);
     };
 
     class function_compiler {
@@ -133,63 +158,47 @@ namespace sg {
             bool always_returns;
         };
 
-        compiler& cmplr;
+        compiler& clr;
         prog::global_func& func;
+        conversion_compiler conv_clr;
         vector<frame> frames;
-        prog::reg_index_t reg_counter;
+        prog::reg_index reg_counter;
         vector<variable> vars;
-        unordered_map<string, vector<prog::var_index_t>> var_names;
+        unordered_map<string, vector<prog::var_index>> var_names;
+
+        prog::reg_index new_reg();
+        void add_instr(prog::instr&& instr);
 
         public:
 
-        function_compiler(compiler& cmplr, prog::global_func& func) : cmplr(cmplr), func(func) { }
+        function_compiler(compiler& clr, prog::global_func& func) : clr(clr), func(func), conv_clr(clr, [this] () { return new_reg(); }, [this] (prog::instr&& instr) { add_instr(move(instr)); }) { }
 
         void compile(const ast::func_def& ast);
 
         private:
 
-        struct lvalue{
+        struct lvalue {
             enum {
                 LOCAL_VAR,
                 GLOBAL_VAR
             };
 
             variant<
-                prog::var_index_t, // LOCAL_VAR
-                prog::global_index_t // GLOBAL_VAR
+                prog::var_index, // LOCAL_VAR
+                prog::global_index // GLOBAL_VAR
             > value;
         };
 
         void push_frame();
         void pop_frame();
-        prog::reg_index_t new_register();
-        void add_instr(prog::instr&& instr);
-        prog::var_index_t add_var(string name, prog::ptr<prog::type_local> type);
-        optional<prog::var_index_t> get_var(string name);
+        prog::var_index add_var(string name, prog::ptr<prog::type_local> type);
+        optional<prog::var_index> get_var(string name);
 
         void add_cleanup_instrs(size_t frame_index = 0);
         void add_return_instr(const optional<ast::ptr<ast::expr>>& ast);
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
         lvalue compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type);
-        pair<prog::reg_index_t, prog::type_local> compile_right_expr(const ast::expr& ast);
-    };
-
-    struct conversion_compiler {
-        compiler& cmplr;
-        function<prog::reg_index_t()> new_register;
-        function<void(prog::instr&&)> add_instr;
-
-        public:
-
-        conversion_compiler(compiler& cmplr, function<prog::reg_index_t()> new_register, function<void(prog::instr&&)> add_instr) : cmplr(cmplr), new_register(new_register), add_instr(add_instr) { }
-
-        optional<prog::reg_index_t> try_convert(const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index_t value);
-
-        private:
-
-        optional<prog::reg_index_t> try_convert_ptr_kind(prog::ptr_type::kind_t kind1, prog::ptr_type::kind_t kind2, bool confined, prog::reg_index_t value);
-        optional<prog::reg_index_t> try_convert_ptr_target(const prog::type_pointed& type1, const prog::type_pointed& type2, prog::reg_index_t value);
-        bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast);
     };
 }
 

@@ -1,11 +1,9 @@
 #include "input.hpp"
-#include "diagnostics.hpp"
+#include "diagcol.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
 #include "compiler.hpp"
 #include "program.hpp"
-#include <string>
-#include <iostream>
 #include <fstream>
 
 using std::string;
@@ -17,7 +15,7 @@ int main(int argc, const char** argv) {
     if (argc < 2)
         return 1;
 
-    string file_name = argv[1];
+    string file_name(argv[1]);
     ifstream file(file_name);
 
     if (!file.is_open()) {
@@ -25,7 +23,7 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    bool ok = true;
+    auto ok = true;
 
     sg::lexer_input input(file, file_name);
     sg::diagnostic_collector diags;
@@ -35,9 +33,9 @@ int main(int argc, const char** argv) {
     yy::parser parser(input, diags, ast);
 
     if (parser.parse() == 0) {
-        bool compiler_success = sg::compiler(prog, diags).compile(ast);
+        sg::compiler compiler(prog, diags);
 
-        if (compiler_success) {
+        if (compiler.compile(ast)) {
             // TODO
         } else
             ok = false;
