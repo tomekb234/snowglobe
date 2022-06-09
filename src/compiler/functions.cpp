@@ -20,14 +20,14 @@ namespace sg {
             error(diags::global_func_copyable(), ast.name_loc);
 
         vector<prog::ptr<prog::func_param>> params;
-        for (auto& param : ast.params)
-            params.push_back(make_ptr(prog::func_param { param->name, make_ptr(compile_type_local(*param->tp, true)) }));
+        for (auto& param_ast : ast.params)
+            params.push_back(make_ptr(prog::func_param { param_ast->name, make_ptr(compile_type_local(*param_ast->tp, true)) }));
 
         prog::ptr<prog::type> return_tp;
         if (ast.return_tp)
             return_tp = make_ptr(compile_type(**ast.return_tp, true));
         else
-            return_tp = make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::UNIT })));
+            return_tp = make_ptr(VARIANT(prog::type, UNIT, monostate()));
 
         return { name, move(params), move(return_tp), { }, { } };
     }
@@ -49,8 +49,7 @@ namespace sg {
         compile_stmt_block(*ast.body->block, false);
 
         if (!frames.back().always_returns || ast.body->return_value) {
-            auto returns_unit = INDEX_EQ(*func.return_tp, PRIMITIVE) && GET(*func.return_tp, PRIMITIVE)->tp == prog::primitive_type::UNIT;
-            if (!ast.body->return_value && !returns_unit)
+            if (!ast.body->return_value && !INDEX_EQ(*func.return_tp, UNIT))
                 clr.error(diags::missing_return(), ast.end_loc);
             if (frames.back().always_returns)
                 clr.warning(diags::dead_code(), **ast.body->return_value);
@@ -105,29 +104,25 @@ namespace sg {
         return { var_names[name].back() };
     }
 
-    void function_compiler::add_cleanup_instrs(size_t frame_index) {
-        [[maybe_unused]] auto& frame = frames[frames.size() - 1 - frame_index];
+    void function_compiler::add_cleanup_instrs(bool) {
         // TODO
     }
 
     void function_compiler::add_return_instr(const optional<ast::ptr<ast::expr>>& ast) {
-        prog::reg_index reg;
+        prog::reg_index result;
         prog::type_local type;
 
         if (ast)
-            tie(reg, type) = compile_expr(**ast);
+            tie(result, type) = compile_expr(**ast);
         else {
-            reg = new_reg();
-            type = prog::type_local{ make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::UNIT }))), false };
-            add_instr(VARIANT(prog::instr, MAKE_CONST, make_ptr(prog::make_const_instr{ make_ptr(VARIANT(prog::constant, UNIT, monostate())), reg })));
+            result = new_reg();
+            type = prog::type_local{ make_ptr(VARIANT(prog::type, UNIT, monostate())), false };
+            add_instr(VARIANT(prog::instr, MAKE_CONST, make_ptr(prog::make_const_instr{ make_ptr(VARIANT(prog::constant, UNIT, monostate())), result })));
         }
 
-        // TODO check type, perform conversion
-
-        for (size_t index = 0; index < frames.size(); index++)
-            add_cleanup_instrs(index);
-
-        add_instr(VARIANT(prog::instr, RETURN, make_ptr(prog::return_instr{ reg })));
+        result = conv_clr.convert(**ast, type, *func.return_tp, result);
+        add_cleanup_instrs(true);
+        add_instr(VARIANT(prog::instr, RETURN, make_ptr(prog::return_instr{ result })));
     }
 
     void function_compiler::compile_stmt_block(const ast::stmt_block& ast, bool cleanup) {
@@ -137,33 +132,35 @@ namespace sg {
 
             switch (INDEX(*stmt_ast)) {
                 case ast::stmt::EXPR_EVAL: {
-                    auto& expr = *GET(*stmt_ast, EXPR_EVAL);
-                    if (INDEX_EQ(expr, VAR_DECL))
-                        compile_left_expr(expr, { });
+                    auto& expr_ast = *GET(*stmt_ast, EXPR_EVAL);
+                    if (INDEX_EQ(expr_ast, VAR_DECL))
+                        compile_left_expr(expr_ast, { });
                     else
-                        compile_expr(expr);
+                        compile_expr(expr_ast);
                 } break;
 
                 case ast::stmt::ASSIGNMENT: {
-                    auto& assignment = *GET(*stmt_ast, ASSIGNMENT);
-                    auto[reg, type] = compile_expr(*assignment.value);
-                    auto lval = compile_left_expr(*assignment.lvalue, type);
+                    auto& assignment_ast = *GET(*stmt_ast, ASSIGNMENT);
+                    auto[result, type] = compile_expr(*assignment_ast.value);
+                    auto lval = compile_left_expr(*assignment_ast.lvalue, type);
 
                     switch (INDEX(lval)) { // TODO add more assignment options, move to separate method
                         case lvalue::LOCAL_VAR: {
-                            auto var = GET(lval, LOCAL_VAR);
-                            // TODO check type correctness
-                            add_instr(VARIANT(prog::instr, WRITE_VAR, make_ptr(prog::write_var_instr{ var, reg })));
+                            auto index = GET(lval, LOCAL_VAR);
+                            auto& var = vars[index];
+                            result = conv_clr.convert(assignment_ast, type, *var.tp, result);
+                            add_instr(VARIANT(prog::instr, WRITE_VAR, make_ptr(prog::write_var_instr{ index, result })));
                         } break;
 
                         case lvalue::GLOBAL_VAR: {
-                            auto var = GET(lval, GLOBAL_VAR);
-                            // TODO check type correctness
-                            add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, make_ptr(prog::write_global_var_instr{ var, reg })));
+                            auto index = GET(lval, GLOBAL_VAR);
+                            auto& var = *clr.program.global_vars[index];
+                            result = conv_clr.convert(assignment_ast, type, *var.tp, result);
+                            add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, make_ptr(prog::write_global_var_instr{ index, result })));
                         } break;
 
                         default:
-                            clr.error(diags::not_implemented(), assignment);
+                            clr.error(diags::not_implemented(), assignment_ast);
                     }
                 } break;
 
@@ -232,37 +229,38 @@ namespace sg {
 
                 auto local_var = get_var(name);
                 if (local_var) {
-                    auto reg = new_reg();
-                    add_instr(VARIANT(prog::instr, READ_VAR, make_ptr(prog::read_var_instr{ *local_var, reg })));
-                    return { reg, copy_type_local(*vars[*local_var].tp) };
+                    // TODO move out if not copyable
+                    auto result = new_reg();
+                    add_instr(VARIANT(prog::instr, READ_VAR, make_ptr(prog::read_var_instr{ *local_var, result })));
+                    return { result, copy_type_local(*vars[*local_var].tp) };
                 }
 
                 auto& global_name = clr.get_global_name(ast, name);
                 switch (global_name.kind) {
                     case global_name_kind::VARIABLE: {
                         auto& global_var = clr.program.global_vars[global_name.index];
-                        auto reg = new_reg();
-                        add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, make_ptr(prog::read_global_var_instr{ global_name.index , reg })));
-                        return { reg, prog::type_local { make_ptr(copy_type(*global_var->tp)), false } };
+                        auto result = new_reg();
+                        add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, make_ptr(prog::read_global_var_instr{ global_name.index, result })));
+                        return { result, prog::type_local { make_ptr(copy_type(*global_var->tp)), false } };
                     }
 
                     case global_name_kind::CONSTANT: {
                         auto& constant = clr.constants[global_name.index];
-                        auto reg = new_reg();
-                        add_instr(VARIANT(prog::instr, MAKE_CONST, make_ptr(prog::make_const_instr{ make_ptr(copy_constant(*constant.value)) , reg })));
-                        return { reg, prog::type_local{ make_ptr(copy_type(*constant.tp)), false } };
+                        auto result = new_reg();
+                        add_instr(VARIANT(prog::instr, MAKE_CONST, make_ptr(prog::make_const_instr{ make_ptr(copy_constant(*constant.value)), result })));
+                        return { result, prog::type_local{ make_ptr(copy_type(*constant.tp)), false } };
                     }
 
                     case global_name_kind::FUNCTION: {
-                        auto reg = new_reg();
-                        add_instr(VARIANT(prog::instr, MAKE_UNIT, reg));
-                        return { reg, prog::type_local { make_ptr(VARIANT(prog::type, KNOWN_FUNC, global_name.index)), false } };
+                        auto result = new_reg();
+                        add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
+                        return { result, prog::type_local { make_ptr(VARIANT(prog::type, KNOWN_FUNC, global_name.index)), false } };
                     }
 
                     case global_name_kind::STRUCT: {
-                        auto reg = new_reg();
-                        add_instr(VARIANT(prog::instr, MAKE_UNIT, reg));
-                        return { reg, prog::type_local { make_ptr(VARIANT(prog::type, STRUCT_CTOR, global_name.index)), false } };
+                        auto result = new_reg();
+                        add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
+                        return { result, prog::type_local { make_ptr(VARIANT(prog::type, STRUCT_CTOR, global_name.index)), false } };
                     }
 
                     case global_name_kind::ENUM:
@@ -285,22 +283,22 @@ namespace sg {
                 auto& enum_variant = *enum_type.variants[variant_index];
 
                 if (enum_variant.tps.empty()) {
-                    auto reg = new_reg();
-                    add_instr(VARIANT(prog::instr, MAKE_ENUM_VARIANT, make_ptr(prog::make_enum_variant_instr { global_name.index, variant_index, { }, reg })));
-                    return { reg, prog::type_local{ make_ptr(VARIANT(prog::type, ENUM, global_name.index)), false } };
+                    auto result = new_reg();
+                    add_instr(VARIANT(prog::instr, MAKE_ENUM_VARIANT, make_ptr(prog::make_enum_variant_instr { global_name.index, variant_index, { }, result })));
+                    return { result, prog::type_local{ make_ptr(VARIANT(prog::type, ENUM, global_name.index)), false } };
                 }
 
-                auto reg = new_reg();
-                add_instr(VARIANT(prog::instr, MAKE_UNIT, reg));
-                return { reg, prog::type_local { make_ptr(VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index))), false } };
+                auto result = new_reg();
+                add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
+                return { result, prog::type_local { make_ptr(VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index))), false } };
             }
 
             case ast::expr::LITERAL: {
-                auto& literal_expr = *GET(ast, LITERAL);
-                auto[constant, type] = clr.compile_constant_literal(literal_expr);
-                auto reg = new_reg();
-                add_instr(VARIANT(prog::instr, MAKE_CONST, make_ptr(prog::make_const_instr{ into_ptr(constant), reg })));
-                return { reg, prog::type_local{ into_ptr(type), false } };
+                auto& literal_ast = *GET(ast, LITERAL);
+                auto[constant, type] = clr.compile_constant_literal(literal_ast);
+                auto result = new_reg();
+                add_instr(VARIANT(prog::instr, MAKE_CONST, make_ptr(prog::make_const_instr{ into_ptr(constant), result })));
+                return { result, prog::type_local{ into_ptr(type), false } };
             }
 
             case ast::expr::UNARY_OPERATION:
@@ -309,27 +307,27 @@ namespace sg {
                 clr.error(diags::not_implemented(), ast); // TODO
 
             case ast::expr::NONE: {
-                auto reg = new_reg();
-                add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, make_ptr(prog::make_optional_instr { { }, reg })));
+                auto result = new_reg();
+                add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, make_ptr(prog::make_optional_instr { { }, result })));
                 auto type = make_ptr(VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate()))));
-                return { reg, prog::type_local { move(type), false } };
+                return { result, prog::type_local { move(type), false } };
             }
 
             case ast::expr::SOME: {
-                auto& some_expr = *GET(ast, SOME);
-                auto[value_reg, type] = compile_expr(some_expr);
-                auto result_reg = new_reg();
-                add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, make_ptr(prog::make_optional_instr{ { value_reg }, result_reg })));
-                return { result_reg, prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, move(type.tp))), type.confined } };
+                auto& expr_ast = *GET(ast, SOME);
+                auto[value, type] = compile_expr(expr_ast);
+                auto result = new_reg();
+                add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, make_ptr(prog::make_optional_instr{ { value }, result })));
+                return { result, prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, move(type.tp))), type.confined } };
             }
 
             case ast::expr::RETURN: {
                 auto& return_expr = GET(ast, RETURN);
                 add_return_instr(return_expr);
                 frames.back().always_returns = true;
-                auto reg = new_reg();
-                add_instr(VARIANT(prog::instr, MAKE_UNIT, reg));
-                return { reg, prog::type_local{ make_ptr(VARIANT(prog::type, NEVER, monostate())), false } };
+                auto result = new_reg();
+                add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
+                return { result, prog::type_local{ make_ptr(VARIANT(prog::type, NEVER, monostate())), false } };
             }
 
             case ast::expr::BREAK:

@@ -125,7 +125,7 @@ namespace sg {
 
         // Conversions
 
-        prog::type common_supertype(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined);
+        prog::type common_supertype(const ast::node& ast, const prog::type& type1, const prog::type& type2);
     };
 
     class conversion_compiler {
@@ -137,7 +137,10 @@ namespace sg {
 
         conversion_compiler(compiler& clr, function<prog::reg_index()> new_reg, function<void(prog::instr&&)> add_instr) : clr(clr), new_reg(new_reg), add_instr(add_instr) { }
 
-        prog::reg_index convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index value);
+        prog::reg_index convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, prog::reg_index value);
+        prog::reg_index convert(const ast::node& ast, const prog::type_local& type1, const prog::type_local& type2, prog::reg_index value);
+        prog::reg_index convert(const ast::node& ast, const prog::type_local& type1, const prog::type& type2, prog::reg_index value);
+        prog::reg_index convert_call(const ast::node& ast, const prog::type_local& type1, const prog::type_local& type2, prog::reg_index value);
         optional<prog::reg_index> try_convert(const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index value);
 
         private:
@@ -194,7 +197,7 @@ namespace sg {
         prog::var_index add_var(string name, prog::ptr<prog::type_local> type);
         optional<prog::var_index> get_var(string name);
 
-        void add_cleanup_instrs(size_t frame_index = 0);
+        void add_cleanup_instrs(bool all_frames = false);
         void add_return_instr(const optional<ast::ptr<ast::expr>>& ast);
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
         lvalue compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type);

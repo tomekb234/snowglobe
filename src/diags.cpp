@@ -61,27 +61,27 @@ namespace sg::diags {
     }
 
     void invalid_kind::write(ostream& stream) const {
-        stream << "The name '" << name << "' may not refer to a";
+        stream << "The name '" << name << "' may not refer to ";
 
         switch (kind) {
-            case global_name_kind::VARIABLE: stream << " variable"; break;
-            case global_name_kind::CONSTANT: stream << " constant"; break;
-            case global_name_kind::FUNCTION: stream << " function"; break;
-            case global_name_kind::STRUCT: stream << " struct"; break;
-            case global_name_kind::ENUM: stream << "n enum"; break;
+            case global_name_kind::VARIABLE: stream << "a variable"; break;
+            case global_name_kind::CONSTANT: stream << "a constant"; break;
+            case global_name_kind::FUNCTION: stream << "a function"; break;
+            case global_name_kind::STRUCT: stream << "a struct"; break;
+            case global_name_kind::ENUM: stream << "an enum"; break;
         }
 
         stream << endl;
 
         if (expected_kind) {
-            stream << "Expected a";
+            stream << "Expected ";
 
             switch (*expected_kind) {
-                case global_name_kind::VARIABLE: stream << " variable"; break;
-                case global_name_kind::CONSTANT: stream << " constant"; break;
-                case global_name_kind::FUNCTION: stream << " function"; break;
-                case global_name_kind::STRUCT: stream << " struct"; break;
-                case global_name_kind::ENUM: stream << "n enum"; break;
+                case global_name_kind::VARIABLE: stream << "a variable"; break;
+                case global_name_kind::CONSTANT: stream << "a constant"; break;
+                case global_name_kind::FUNCTION: stream << "a function"; break;
+                case global_name_kind::STRUCT: stream << "a struct"; break;
+                case global_name_kind::ENUM: stream << "an enum"; break;
             }
 
             stream << endl;
@@ -151,20 +151,33 @@ namespace sg::diags {
         stream << endl;
     }
 
-    void no_common_supertype::write(ostream& stream) const {
-        stream << "The types '";
-        prog::print_type(stream, program, type1);
-        stream << "' and '";
-        prog::print_type(stream, program, type2);
-        stream << "' have no common supertype" << endl;
-    }
-
     void not_convertible::write(ostream& stream) const {
         stream << "A value with type '";
         prog::print_type(stream, program, type1);
         stream << "' cannot be converted to a value of type '";
         prog::print_type(stream, program, type2);
         stream << "'" << endl;
+    }
+
+    void type_confinement_mismatch::write(ostream& stream) const {
+        stream << "A value with ";
+        if (!confined1)
+            stream << "non-";
+        stream << "confined type cannot be converted to a value with ";
+        if (!confined2)
+            stream << "non-";
+        stream << "confined type";
+        if (func_call)
+            stream << " in a function call";
+        stream << endl;
+    }
+
+    void no_common_supertype::write(ostream& stream) const {
+        stream << "The types '";
+        prog::print_type(stream, program, type1);
+        stream << "' and '";
+        prog::print_type(stream, program, type2);
+        stream << "' have no common supertype" << endl;
     }
 
     void type_not_copyable::write(ostream& stream) const {

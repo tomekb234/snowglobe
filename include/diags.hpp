@@ -205,19 +205,28 @@ namespace sg::diags {
         void write(ostream& stream) const override;
     };
 
-    struct no_common_supertype : error {
-        const prog::program& program;
-        prog::type type1, type2;
-
-        no_common_supertype(const prog::program& program, const prog::type& type1, const prog::type& type2) : program(program), type1(copy_type(type1)), type2(copy_type(type2)) { }
-        void write(ostream& stream) const override;
-    };
-
     struct not_convertible : error {
         const prog::program& program;
         prog::type type1, type2;
 
         not_convertible(const prog::program& program, const prog::type& type1, const prog::type& type2) : program(program), type1(copy_type(type1)), type2(copy_type(type2)) { }
+        void write(ostream& stream) const override;
+    };
+
+    struct type_confinement_mismatch : error {
+        bool confined1;
+        bool confined2;
+        bool func_call;
+
+        type_confinement_mismatch(bool confined1, bool confined2, bool func_call) : confined1(confined1), confined2(confined2), func_call(func_call) { }
+        void write(ostream& stream) const override;
+    };
+
+    struct no_common_supertype : error {
+        const prog::program& program;
+        prog::type type1, type2;
+
+        no_common_supertype(const prog::program& program, const prog::type& type1, const prog::type& type2) : program(program), type1(copy_type(type1)), type2(copy_type(type2)) { }
         void write(ostream& stream) const override;
     };
 

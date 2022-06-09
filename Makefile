@@ -60,7 +60,7 @@ $G:
 $B:
 	mkdir $B
 
-$C:
+$C: | $B
 	mkdir $C
 
 clean:

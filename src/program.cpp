@@ -280,14 +280,14 @@ namespace sg::prog {
                 stream << "never";
                 break;
 
+            case type::UNIT:
+                stream << "()";
+                break;
+
             case type::PRIMITIVE: {
                 auto& ptype = *GET(tp, PRIMITIVE);
 
                 switch (ptype.tp) {
-                    case primitive_type::UNIT:
-                        stream << "()";
-                        break;
-
                     case primitive_type::BOOL:
                         stream << "bool";
                         break;

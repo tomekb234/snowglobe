@@ -145,7 +145,7 @@ namespace sg {
 
         if (size == 0) {
             auto value = VARIANT(prog::constant, UNIT, prog::monostate());
-            auto type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::UNIT }));
+            auto type = VARIANT(prog::type, UNIT, prog::monostate());
             return { move(value), move(type) };
         }
 
@@ -190,7 +190,7 @@ namespace sg {
                 error(diags::reused_argument(index), *item_ast);
 
             auto[value, type] = compile_constant(*value_ast);
-            common_type = common_supertype(ast, common_type, type, false);
+            common_type = common_supertype(ast, common_type, type);
             values[index] = move(value);
             types[index] = move(type);
             used_items[index] = true;
@@ -564,7 +564,7 @@ namespace sg {
         };
 
         conversion_compiler conv_clr(*this, new_reg, add_instr);
-        auto result = conv_clr.convert(ast, type, new_type, false, 0);
+        auto result = conv_clr.convert(ast, type, new_type, 0);
 
         return move(values[result]);
     }

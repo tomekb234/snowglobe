@@ -161,6 +161,7 @@ namespace sg::prog {
     struct type {
         enum {
             NEVER,
+            UNIT,
             PRIMITIVE,
             STRUCT,
             ENUM,
@@ -179,6 +180,7 @@ namespace sg::prog {
 
         variant<
             monostate, // NEVER
+            monostate, // UNIT
             ptr<primitive_type>, // PRIMITIVE
             global_index, // STRUCT
             global_index, // ENUM
@@ -198,7 +200,6 @@ namespace sg::prog {
 
     struct primitive_type {
         enum type_t {
-            UNIT,
             BOOL,
             I8,
             I16,
