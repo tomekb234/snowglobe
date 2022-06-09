@@ -20,14 +20,14 @@ namespace sg {
         if (conv_clr.try_convert(type2, type1, false, 0))
             return prog::copy_type(type1);
 
-        error(diags::no_common_supertype(program, type1, type2), ast);
+        error(diags::no_common_supertype(program, copy_type(type1), copy_type(type2)), ast);
     }
 
     prog::reg_index conversion_compiler::convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, prog::reg_index value) {
         auto result = try_convert(type1, type2, false, value);
 
         if (!result)
-            clr.error(diags::not_convertible(clr.program, type1, type2), ast);
+            clr.error(diags::not_convertible(clr.program, copy_type(type1), copy_type(type2)), ast);
 
         return *result;
     }
@@ -39,7 +39,7 @@ namespace sg {
         auto result = try_convert(*type1.tp, *type2.tp, type2.confined, value);
 
         if (!result)
-            clr.error(diags::not_convertible(clr.program, *type1.tp, *type2.tp), ast);
+            clr.error(diags::not_convertible(clr.program, copy_type(*type1.tp), copy_type(*type2.tp)), ast);
 
         return *result;
     }
@@ -51,7 +51,7 @@ namespace sg {
         auto result = try_convert(*type1.tp, type2, false, value);
 
         if (!result)
-            clr.error(diags::not_convertible(clr.program, *type1.tp, type2), ast);
+            clr.error(diags::not_convertible(clr.program, copy_type(*type1.tp), copy_type(type2)), ast);
 
         return *result;
     }
@@ -63,7 +63,7 @@ namespace sg {
         auto result = try_convert(*type1.tp, *type2.tp, type2.confined, value);
 
         if (!result)
-            clr.error(diags::not_convertible(clr.program, *type1.tp, *type2.tp), ast);
+            clr.error(diags::not_convertible(clr.program, copy_type(*type1.tp), copy_type(*type2.tp)), ast);
 
         return *result;
     }

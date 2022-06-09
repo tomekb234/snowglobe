@@ -11,7 +11,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name, diags::name_used::GLOBAL), ast.name_loc);
+            error(diags::global_name_used(name), ast.name_loc);
 
         auto[value, value_type] = compile_constant(*ast.value);
 
@@ -30,7 +30,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name, diags::name_used::GLOBAL), ast.name_loc);
+            error(diags::global_name_used(name), ast.name_loc);
 
         return { name, ast.copyable, true, { }, { } };
     }
@@ -41,11 +41,11 @@ namespace sg {
 
         for (auto& field_ast : ast.fields) {
             if (field_names.count(field_ast->name))
-                error(diags::name_used(field_ast->name, diags::name_used::FIELD), *field_ast);
+                error(diags::field_name_used(field_ast->name), *field_ast);
 
             auto type = compile_type(*field_ast->tp);
             if (struct_type.copyable && !type_copyable(type))
-                error(diags::type_not_copyable(program, type), *field_ast->tp);
+                error(diags::type_not_copyable(program, copy_type(type)), *field_ast->tp);
             if (!type_trivially_copyable(type))
                 struct_type.trivially_copyable = false;
 
@@ -62,7 +62,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name, diags::name_used::GLOBAL), ast.name_loc);
+            error(diags::global_name_used(name), ast.name_loc);
 
         return { ast.name, ast.copyable, true, { }, { } };
     }
@@ -73,13 +73,13 @@ namespace sg {
 
         for (auto& variant_ast : ast.variants) {
             if (variant_names.count(variant_ast->name))
-                error(diags::name_used(variant_ast->name, diags::name_used::VARIANT), *variant_ast);
+                error(diags::variant_name_used(variant_ast->name), *variant_ast);
 
             vector<prog::ptr<prog::type>> types;
             for (const auto& type_ast : variant_ast->tps) {
                 auto type = compile_type(*type_ast);
                 if (enum_type.copyable && !type_copyable(type))
-                    error(diags::type_not_copyable(program, type), *type_ast);
+                    error(diags::type_not_copyable(program, copy_type(type)), *type_ast);
                 if (!type_trivially_copyable(type))
                     enum_type.trivially_copyable = false;
                 types.push_back(into_ptr(type));

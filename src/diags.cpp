@@ -40,24 +40,24 @@ namespace sg::diags {
         }
     }
 
-    void name_used::write(ostream& stream) const {
-        stream << "The ";
-
-        switch (kind) {
-            case GLOBAL: stream << "global"; break;
-            case FIELD: stream << "field"; break;
-            case VARIANT: stream << "variant"; break;
-        }
-
-        stream << " name '" << name << "' is already used" << endl;
-    }
-
     void name_not_declared::write(ostream& stream) const {
         stream << "The name '" << name << "' was not declared" << endl;
     }
 
     void name_not_compiled::write(ostream& stream) const {
         stream << "The name '" << name << "' was declared but is not yet compiled" << endl;
+    }
+
+    void global_name_used::write(ostream& stream) const {
+        stream << "The global name '" << name << "' is already used" << endl;
+    }
+
+    void field_name_used::write(ostream& stream) const {
+        stream << "The field name '" << name << "' is already used" << endl;
+    }
+
+    void variant_name_used::write(ostream& stream) const {
+        stream << "The variant name '" << name << "' is already used" << endl;
     }
 
     void invalid_kind::write(ostream& stream) const {
@@ -117,10 +117,6 @@ namespace sg::diags {
         stream << "Missing argument with index " << index << endl;
     }
 
-    void expected_variant_name::write(ostream& stream) const {
-        stream << "Expected variant name" << endl;
-    };
-
     void invalid_struct_field::write(ostream& stream) const {
         stream << "The struct '" << struct_type.name << "' does not have a field named '" << field_name << "'" << endl;
     }
@@ -129,26 +125,16 @@ namespace sg::diags {
         stream << "The enum '" << enum_type.name << "' does not have a variant named '" << variant_name << "'" << endl;
     }
 
+    void expected_variant_name::write(ostream& stream) const {
+        stream << "Expected variant name" << endl;
+    };
+
     void int_overflow::write(ostream& stream) const {
         stream << "The number '" << (negative ? "-" : "") << value << "' does not fit in " << (signed_type ? "signed" : "unsigned") << " " << bits << "-bit integer type" << endl;
     }
 
     void single_float_overflow::write(ostream& stream) const {
         stream << "The number '" << value << "' does not fit in single-precision floating-point type" << endl;
-    }
-
-    void invalid_expression_type::write(ostream& stream) const {
-        stream << "Expression with invalid type '";
-        prog::print_type(stream, program, type);
-        stream << "'" << endl;
-
-        stream << "Expected a";
-
-        switch (expected) {
-            case ARRAY: stream << "n array"; break;
-        }
-
-        stream << endl;
     }
 
     void not_convertible::write(ostream& stream) const {
@@ -184,6 +170,13 @@ namespace sg::diags {
         stream << "The type '";
         prog::print_type(stream, program, type);
         stream << "' is not copyable" << endl;
+    }
+
+    void expected_array_type::write(ostream& stream) const {
+        stream << "Expression with invalid type '";
+        prog::print_type(stream, program, type);
+        stream << "'" << endl;
+        stream << "Expected an array type";
     }
 
     void invalid_size_constant_type::write(ostream& stream) const {

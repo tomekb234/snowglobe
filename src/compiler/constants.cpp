@@ -89,7 +89,7 @@ namespace sg {
                 auto& target_ast = *GET(ast, LENGTH);
                 auto target_type = compile_constant(target_ast).second;
                 if (!INDEX_EQ(target_type, ARRAY))
-                    error(diags::invalid_expression_type(program, target_type, diags::invalid_expression_type::ARRAY), target_ast);
+                    error(diags::expected_array_type(program, copy_type(target_type)), target_ast);
                 auto size = GET(target_type, ARRAY)->size;
                 auto value = VARIANT(prog::constant, INT, encode_number(size));
                 auto type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::U64 }));

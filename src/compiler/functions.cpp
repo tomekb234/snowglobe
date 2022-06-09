@@ -14,7 +14,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name, diags::name_used::GLOBAL), ast.name_loc);
+            error(diags::global_name_used(name), ast.name_loc);
 
         if (ast.copying)
             error(diags::global_func_copyable(), ast.name_loc);
