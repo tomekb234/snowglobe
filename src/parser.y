@@ -1056,10 +1056,6 @@ type:
         $$ = AST_VARIANT(type, FUNC, @$, make_ptr(func_type { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }));
     }
 
-    | "func" "$" "(" type_local_seq ")" "->" type[ret_type] {
-        $$ = AST_VARIANT(type, GLOBAL_FUNC, @$, make_ptr(func_type { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }));
-    }
-
     | "func" "&" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
         $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }, { { @$ }, func_with_ptr_type::BASIC, into_ptr($type_pointed) } }));
     }
@@ -1074,6 +1070,10 @@ type:
 
     | "func" "@" type_pointed "(" type_local_seq ")" "->" type[ret_type] {
         $$ = AST_VARIANT(type, FUNC_WITH_PTR, @$, make_ptr(func_with_ptr_type { { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }, { { @$ }, func_with_ptr_type::UNIQUE, into_ptr($type_pointed) } }));
+    }
+
+    | "func" "$" "(" type_local_seq ")" "->" type[ret_type] {
+        $$ = AST_VARIANT(type, GLOBAL_FUNC, @$, make_ptr(func_type { { @$ }, into_ptr_vector($type_local_seq), into_ptr($ret_type) }));
     }
 
 type_seq:

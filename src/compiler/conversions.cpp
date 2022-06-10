@@ -213,16 +213,16 @@ namespace sg {
                     break;
 
                 auto ok = true;
-                vector<prog::reg_index> items;
+                vector<prog::reg_index> values;
 
                 for (size_t index = 0; index < size; index++) {
                     auto extracted = new_reg();
-                    add_instr(VARIANT(prog::instr, EXTRACT, make_ptr(prog::extract_instr { value, index, extracted })));
+                    add_instr(VARIANT(prog::instr, EXTRACT_FIELD, make_ptr(prog::extract_field_instr { value, index, extracted })));
 
                     auto result = try_convert(*tuple1[index], *tuple2[index], confined, extracted);
 
                     if (result)
-                        items.push_back(*result);
+                        values.push_back(*result);
                     else {
                         ok = false;
                         break;
@@ -231,7 +231,7 @@ namespace sg {
 
                 if (ok) {
                     auto result = new_reg();
-                    add_instr(VARIANT(prog::instr, MAKE_TUPLE, make_ptr(prog::make_tuple_instr { items, result })));
+                    add_instr(VARIANT(prog::instr, MAKE_TUPLE, make_ptr(prog::make_tuple_instr { values, result })));
                     return { result };
                 }
             } break;

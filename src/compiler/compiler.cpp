@@ -180,4 +180,62 @@ namespace sg {
 
         return global_name;
     }
+
+    vector<reference_wrapper<const ast::expr>> compiler::order_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, optional<function<size_t(const ast::node&, string)>> arg_with_name, optional<size_t> expected_number) {
+        auto size = args_ast.size();
+
+        if (expected_number && size != *expected_number)
+            error(diags::invalid_argument_number(size, *expected_number), ast);
+
+        vector<bool> used(size, false);
+        vector<size_t> indices(size);
+        vector<const ast::expr*> value_ptrs(size);
+
+        for (auto& arg_ast : args_ast) {
+            size_t index = 0;
+            const ast::expr* value_ast;
+
+            switch (INDEX(*arg_ast)) {
+                case ast::expr_marked::EXPR: {
+                    while (index < size && used[index])
+                        index++;
+                    value_ast = GET(*arg_ast, EXPR).get();
+                } break;
+
+                case ast::expr_marked::EXPR_WITH_NAME: {
+                    auto name = GET(*arg_ast, EXPR_WITH_NAME).first;
+                    if (arg_with_name)
+                        index = (*arg_with_name)(*arg_ast, name);
+                    else
+                        error(diags::invalid_argument_marker(), *arg_ast);
+                } break;
+
+                case ast::expr_marked::EXPR_WITH_COORD: {
+                    index = GET(*arg_ast, EXPR_WITH_COORD).first;
+                    value_ast = GET(*arg_ast, EXPR_WITH_COORD).second.get();
+                } break;
+            }
+
+            if (index >= size)
+                error(diags::invalid_argument_index(index, size), *arg_ast);
+            if (used[index])
+                error(diags::reused_argument_index(index), *arg_ast);
+
+            value_ptrs[index] = value_ast;
+            used[index] = true;
+        }
+
+        for (size_t index = 0; index < size; index++) {
+            if (!used[index])
+                error(diags::missing_argument(index), ast);
+        }
+
+        vector<reference_wrapper<const ast::expr>> values;
+
+        for (auto ptr : value_ptrs)
+            values.push_back(*ptr);
+
+        return values;
+    }
+
 }

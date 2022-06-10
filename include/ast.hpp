@@ -530,8 +530,8 @@ namespace sg::ast {
             PTR,
             INNER_PTR,
             FUNC,
-            GLOBAL_FUNC,
-            FUNC_WITH_PTR
+            FUNC_WITH_PTR,
+            GLOBAL_FUNC
         };
 
         variant<
@@ -544,8 +544,8 @@ namespace sg::ast {
             ptr<ptr_type>, // PTR
             ptr<inner_ptr_type>, // INNER_PTR
             ptr<func_type>, // FUNC
-            ptr<func_type>, // GLOBAL_FUNC
-            ptr<func_with_ptr_type> // FUNC_WITH_PTR
+            ptr<func_with_ptr_type>, // FUNC_WITH_PTR
+            ptr<func_type> // GLOBAL_FUNC
         > value;
     };
 

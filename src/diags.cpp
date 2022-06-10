@@ -100,16 +100,20 @@ namespace sg::diags {
         stream << "Expression not assignable" << endl;
     }
 
-    void invalid_expression_marker::write(ostream& stream) const {
-        stream << "Invalid expression marker" << endl;
+    void invalid_argument_number::write(ostream& stream) const {
+        stream << "Got " << num_args << " arguments, but expected " << expected << endl;
     }
 
-    void invalid_argument::write(ostream& stream) const {
+    void invalid_argument_marker::write(ostream& stream) const {
+        stream << "Invalid argument marker" << endl;
+    }
+
+    void invalid_argument_index::write(ostream& stream) const {
         stream << "Invalid argument with index " << index << endl;
         stream << "Expected " << num_args << " arguments" << endl;
     }
 
-    void reused_argument::write(ostream& stream) const {
+    void reused_argument_index::write(ostream& stream) const {
         stream << "Reused argument with index " << index << endl;
     }
 
@@ -125,8 +129,8 @@ namespace sg::diags {
         stream << "The enum '" << enum_type.name << "' does not have a variant named '" << variant_name << "'" << endl;
     }
 
-    void invalid_argument_name::write(ostream& stream) const {
-        stream << "The function '" << func.name << "' has no argument named '" << argument_name << "'" << endl;
+    void invalid_function_parameter::write(ostream& stream) const {
+        stream << "The function '" << func.name << "' has no parameter named '" << parameter_name << "'" << endl;
     }
 
     void expected_variant_name::write(ostream& stream) const {

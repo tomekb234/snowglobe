@@ -92,13 +92,14 @@ namespace sg::diags {
     DIAG0(invalid_expression, error);
     DIAG0(expression_not_constant, error);
     DIAG0(expression_not_assignable, error);
-    DIAG0(invalid_expression_marker, error);
-    DIAG2(invalid_argument, error, size_t, index, size_t, num_args);
-    DIAG1(reused_argument, error, size_t, index);
+    DIAG2(invalid_argument_number, error, size_t, num_args, size_t, expected);
+    DIAG0(invalid_argument_marker, error);
+    DIAG2(invalid_argument_index, error, size_t, index, size_t, num_args);
+    DIAG1(reused_argument_index, error, size_t, index);
     DIAG1(missing_argument, error, size_t, index);
     DIAG2(invalid_struct_field, error, const prog::struct_type&, struct_type, string, field_name);
     DIAG2(invalid_enum_variant, error, const prog::enum_type&, enum_type, string, variant_name);
-    DIAG2(invalid_argument_name, error, const prog::global_func&, func, string, argument_name);
+    DIAG2(invalid_function_parameter, error, const prog::global_func&, func, string, parameter_name);
     DIAG0(expected_variant_name, error);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
     DIAG1(single_float_overflow, error, double, value);

@@ -7,12 +7,14 @@
 #include <optional>
 #include <unordered_map>
 #include <utility>
+#include <tuple>
 #include <memory>
 #include <functional>
 
 namespace sg {
     using std::unordered_map;
     using std::pair;
+    using std::tuple;
     using std::move;
     using std::make_unique;
     using std::vector;
@@ -81,6 +83,8 @@ namespace sg {
         global_name& get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled = false);
         global_name& get_global_name(const ast::node& ast, const string& name, global_name_kind expected_kind, bool allow_uncompiled = false);
 
+        vector<reference_wrapper<const ast::expr>> order_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, optional<function<size_t(const ast::node&, string)>> arg_with_name, optional<size_t> expected_number);
+
         // Global variables, structs and enums
 
         prog::global_var compile_global_var(const ast::var_def& ast);
@@ -97,8 +101,8 @@ namespace sg {
         // Constants
 
         pair<prog::constant, prog::type> compile_constant(const ast::expr& ast);
-        pair<prog::constant, prog::type> compile_constant_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
-        pair<prog::constant, prog::type> compile_constant_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
+        pair<prog::constant, prog::type> compile_constant_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
+        pair<prog::constant, prog::type> compile_constant_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
         pair<prog::constant, prog::type> compile_constant_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
         pair<prog::constant, prog::type> compile_constant_name(const ast::node& ast, const string& name);
         pair<prog::constant, prog::type> compile_constant_variant_name(const ast::node& ast, const string& name, const string& variant_name);
@@ -205,10 +209,11 @@ namespace sg {
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
         lvalue compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type);
         pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast);
-        pair<prog::reg_index, prog::type_local> compile_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
-        pair<prog::reg_index, prog::type_local> compile_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
+        pair<prog::reg_index, prog::type_local> compile_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
+        pair<prog::reg_index, prog::type_local> compile_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
         pair<prog::reg_index, prog::type_local> compile_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
-        vector<prog::reg_index> compile_call_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, const prog::func_type& ftype, optional<reference_wrapper<const unordered_map<string, size_t>>> param_names);
+        tuple<vector<reference_wrapper<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> compile_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, optional<function<size_t(const ast::node&, string)>> arg_with_name, optional<size_t> expected_number);
+        vector<prog::reg_index> compile_call_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, const prog::func_type& ftype, optional<reference_wrapper<const prog::global_func>> func);
     };
 }
 

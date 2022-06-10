@@ -20,7 +20,7 @@ namespace sg {
             error(diags::global_func_copyable(), ast.name_loc);
 
         vector<prog::ptr<prog::func_param>> params;
-        unordered_map<string, size_t> param_names;
+        unordered_map<string, prog::param_index> param_names;
 
         for (auto& param_ast : ast.params) {
             param_names[param_ast->name] = params.size();
@@ -360,60 +360,10 @@ namespace sg {
         UNREACHABLE;
     }
 
-    pair<prog::reg_index, prog::type_local> function_compiler::compile_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast) {
-        auto size = items_ast.size();
-        vector<bool> used_items(size, false);
-        vector<prog::reg_index> values(size);
-        vector<prog::type> types(size);
-        optional<bool> confined;
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast) {
+        auto [values_ast, values, types, confined] = compile_arguments(ast, args_ast, { }, { });
+        auto size = values.size();
 
-        for (auto& item_ast : items_ast) { // TODO refactor
-            size_t index = 0;
-            ast::expr* value_ast;
-
-            switch (INDEX(*item_ast)) {
-                case ast::expr_marked::EXPR: {
-                    while (index < size && used_items[index])
-                        index++;
-                    value_ast = GET(*item_ast, EXPR).get();
-                } break;
-
-                case ast::expr_marked::EXPR_WITH_NAME:
-                    clr.error(diags::invalid_expression_marker(), *item_ast);
-
-                case ast::expr_marked::EXPR_WITH_COORD: {
-                    index = GET(*item_ast, EXPR_WITH_COORD).first;
-                    value_ast = GET(*item_ast, EXPR_WITH_COORD).second.get();
-                } break;
-            }
-
-            if (index >= size)
-                clr.error(diags::invalid_argument(index, size), *item_ast);
-            if (used_items[index])
-                clr.error(diags::reused_argument(index), *item_ast);
-
-            auto[value, type] = compile_expr(*value_ast);
-
-            if (!clr.type_trivially_copyable(*type.tp)) {
-                if (!confined)
-                    confined = { type.confined };
-                else if (type.confined != *confined)
-                    clr.error(diags::type_confinement_mismatch(type.confined, *confined, false), *value_ast);
-            }
-            
-            values[index] = value;
-            types[index] = move(*type.tp);
-            used_items[index] = true;
-        }
-
-        if (!confined)
-            confined = { false };
-
-        for (size_t index = 0; index < size; index++) {
-            if (!used_items[index])
-                clr.error(diags::missing_argument(index), ast);
-        }
-        
         if (size == 0) {
             auto result = new_reg();
             add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
@@ -421,223 +371,89 @@ namespace sg {
             return { result, move(type) };
         }
 
-        if (size == 1)
-            return { values[0], prog::type_local { into_ptr(types[0]), *confined } };
-        
+        if (size == 1) {
+            auto result = values[0];
+            auto type = prog::type_local { into_ptr(types[0]), confined };
+            return { result, move(type) };
+        }
+
         auto result = new_reg();
-        add_instr(VARIANT(prog::instr, MAKE_TUPLE, make_ptr(prog::make_tuple_instr{ values, result })));
-        auto type = prog::type_local{ make_ptr(VARIANT(prog::type, TUPLE, into_ptr_vector(types))), *confined };
+        add_instr(VARIANT(prog::instr, MAKE_TUPLE, make_ptr(prog::make_tuple_instr { values, result })));
+        auto type = prog::type_local { make_ptr(VARIANT(prog::type, TUPLE, into_ptr_vector(types))), confined };
         return { result, move(type) };
     }
 
-    pair<prog::reg_index, prog::type_local> function_compiler::compile_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast) {
-        auto size = items_ast.size();
-        vector<bool> used_items(size, false);
-        vector<prog::reg_index> values(size);
-        vector<prog::type> types(size);
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast) {
+        auto [values_ast, values, types, confined] = compile_arguments(ast, args_ast, { }, { });
+        auto size = values.size();
+
         auto common_type = VARIANT(prog::type, NEVER, monostate());
-        optional<bool> confined;
 
-        for (auto& item_ast : items_ast) {
-            size_t index = 0;
-            ast::expr* value_ast;
+        for (auto& type : types)
+            common_type = clr.common_supertype(ast, common_type, type);
 
-            switch (INDEX(*item_ast)) {
-                case ast::expr_marked::EXPR: {
-                    while (index < size && used_items[index])
-                        index++;
-                    value_ast = GET(*item_ast, EXPR).get();
-                } break;
-
-                case ast::expr_marked::EXPR_WITH_NAME:
-                    clr.error(diags::invalid_expression_marker(), *item_ast);
-
-                case ast::expr_marked::EXPR_WITH_COORD: {
-                    index = GET(*item_ast, EXPR_WITH_COORD).first;
-                    value_ast = GET(*item_ast, EXPR_WITH_COORD).second.get();
-                } break;
-            }
-
-            if (index >= size)
-                clr.error(diags::invalid_argument(index, size), *item_ast);
-            if (used_items[index])
-                clr.error(diags::reused_argument(index), *item_ast);
-
-            auto[value, type] = compile_expr(*value_ast);
-
-            if (!clr.type_trivially_copyable(*type.tp)) {
-                if (!confined)
-                    confined = { type.confined };
-                else if (type.confined != *confined)
-                    clr.error(diags::type_confinement_mismatch(type.confined, *confined, false), *value_ast);
-            }
-
-            common_type = clr.common_supertype(ast, common_type, *type.tp);
-            values[index] = value;
-            types[index] = move(*type.tp);
-            used_items[index] = true;
-        }
-
-        if (!confined)
-            confined = { false };
-
-        for (size_t index = 0; index < size; index++) {
-            if (!used_items[index])
-                clr.error(diags::missing_argument(index), ast);
-            values[index] = conv_clr.convert(ast, types[index], common_type, *confined, values[index]);
-        }
+        for (size_t index = 0; index < size; index++)
+            values[index] = conv_clr.convert(values_ast[index], types[index], common_type, confined, values[index]);
 
         auto result = new_reg();
-        add_instr(VARIANT(prog::instr, MAKE_ARRAY, make_ptr(prog::make_array_instr{ values, result })));
-        auto type = prog::type_local{ make_ptr(VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(common_type), size }))), *confined };
+        add_instr(VARIANT(prog::instr, MAKE_ARRAY, make_ptr(prog::make_array_instr { values, result })));
+        auto type = prog::type_local { make_ptr(VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(common_type), size }))), confined };
         return { result, move(type) };
     }
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast) {
-        auto[receiver, receiver_type] = compile_expr(receiver_ast);
+        auto[receiver, receiver_type_local] = compile_expr(receiver_ast);
+        auto& receiver_type = *receiver_type_local.tp;
 
-        switch (INDEX(*receiver_type.tp)) {
+        switch (INDEX(receiver_type)) {
             case prog::type::STRUCT_CTOR: {
-                auto struct_index = GET(*receiver_type.tp, STRUCT_CTOR);
+                auto struct_index = GET(receiver_type, STRUCT_CTOR);
                 auto& struct_type = *clr.program.struct_types[struct_index];
+                auto size = struct_type.fields.size();
 
-                size_t num_args = struct_type.fields.size();
-                vector<bool> used_args(num_args, false);
-                vector<prog::reg_index> args(num_args);
-                vector<prog::type> types(num_args);
-                optional<bool> confined;
+                auto arg_with_name = [&] (const ast::node& ast, string name) -> size_t {
+                    if (!struct_type.field_names.count(name))
+                        clr.error(diags::invalid_struct_field(struct_type, name), ast);
+                    return struct_type.field_names[name];
+                };
 
-                for (auto& arg_ast : args_ast) {
-                    size_t index = 0;
-                    ast::expr* value_ast;
+                auto [values_ast, values, types, confined] = compile_arguments(ast, args_ast, { arg_with_name }, { size });
 
-                    switch (INDEX(*arg_ast)) {
-                        case ast::expr_marked::EXPR: {
-                            while (index < num_args && used_args[index])
-                                index++;
-                            value_ast = GET(*arg_ast, EXPR).get();
-                        } break;
-
-                        case ast::expr_marked::EXPR_WITH_NAME: {
-                            auto& name = GET(*arg_ast, EXPR_WITH_NAME).first;
-                            if (!struct_type.field_names.count(name))
-                                clr.error(diags::invalid_struct_field(struct_type, name), *arg_ast);
-                            index = struct_type.field_names[name];
-                            value_ast = GET(*arg_ast, EXPR_WITH_NAME).second.get();
-                        } break;
-
-                        case ast::expr_marked::EXPR_WITH_COORD: {
-                            index = GET(*arg_ast, EXPR_WITH_COORD).first;
-                            value_ast = GET(*arg_ast, EXPR_WITH_COORD).second.get();
-                        } break;
-                    }
-
-                    if (index >= num_args)
-                        clr.error(diags::invalid_argument(index, num_args), *arg_ast);
-                    if (used_args[index])
-                        clr.error(diags::reused_argument(index), *arg_ast);
-
-                    auto[value, type] = compile_expr(*value_ast);
-
-                    if (!clr.type_trivially_copyable(*type.tp)) {
-                        if (!confined)
-                            confined = { type.confined };
-                        else if (type.confined != *confined)
-                            clr.error(diags::type_confinement_mismatch(type.confined, *confined, false), *value_ast);
-                    }
-
-                    args[index] = value;
-                    types[index] = move(*type.tp);
-                    used_args[index] = true;
-                }
-
-                if (!confined)
-                    confined = { false };
-
-                for (size_t index = 0; index < num_args; index++) {
-                    if (!used_args[index])
-                        clr.error(diags::missing_argument(index), ast);
+                for (size_t index = 0; index < size; index++) {
                     auto& type = types[index];
-                    auto& declared_type = *struct_type.fields[index]->tp;
-                    args[index] = conv_clr.convert(ast, type, declared_type, *confined, args[index]);
+                    auto& field_type = *struct_type.fields[index]->tp;
+                    values[index] = conv_clr.convert(values_ast[index], type, field_type, confined, values[index]);
                 }
 
                 auto result = new_reg();
-                add_instr(VARIANT(prog::instr, MAKE_STRUCT, make_ptr(prog::make_struct_instr{ struct_index, args, result })));
-                auto type = prog::type_local{ make_ptr(VARIANT(prog::type, STRUCT, struct_index)), *confined };
+                add_instr(VARIANT(prog::instr, MAKE_STRUCT, make_ptr(prog::make_struct_instr { struct_index, values, result })));
+                auto type = prog::type_local { make_ptr(VARIANT(prog::type, STRUCT, struct_index)), confined };
                 return { result, move(type) };
             }
 
             case prog::type::ENUM_CTOR: {
-                auto [enum_index, variant_index] = GET(*receiver_type.tp, ENUM_CTOR);
+                auto [enum_index, variant_index] = GET(receiver_type, ENUM_CTOR);
                 auto& enum_type = *clr.program.enum_types[enum_index];
-                auto& variant = *enum_type.variants[variant_index];
+                auto& enum_variant = *enum_type.variants[variant_index];
+                auto size = enum_variant.tps.size();
 
-                auto num_args = variant.tps.size();
-                vector<bool> used_args(num_args, false);
-                vector<prog::reg_index> args(num_args);
-                vector<prog::type> types(num_args);
-                optional<bool> confined;
+                auto [values_ast, values, types, confined] = compile_arguments(ast, args_ast, { }, { size });
 
-                for (auto& arg_ast : args_ast) {
-                    size_t index = 0;
-                    ast::expr* value_ast;
-
-                    switch (INDEX(*arg_ast)) {
-                        case ast::expr_marked::EXPR: {
-                            while (index < num_args && used_args[index])
-                                index++;
-                            value_ast = GET(*arg_ast, EXPR).get();
-                        } break;
-
-                        case ast::expr_marked::EXPR_WITH_NAME:
-                            clr.error(diags::invalid_expression_marker(), *arg_ast);
-
-                        case ast::expr_marked::EXPR_WITH_COORD: {
-                            index = GET(*arg_ast, EXPR_WITH_COORD).first;
-                            value_ast = GET(*arg_ast, EXPR_WITH_COORD).second.get();
-                        } break;
-                    }
-
-                    if (index >= num_args)
-                        clr.error(diags::invalid_argument(index, num_args), *arg_ast);
-                    if (used_args[index])
-                        clr.error(diags::reused_argument(index), *arg_ast);
-
-                    auto[value, type] = compile_expr(*value_ast);
-
-                    if (!clr.type_trivially_copyable(*type.tp)) {
-                        if (!confined)
-                            confined = { type.confined };
-                        else if (type.confined != *confined)
-                            clr.error(diags::type_confinement_mismatch(type.confined, *confined, false), *value_ast);
-                    }
-
-                    args[index] = value;
-                    types[index] = move(*type.tp);
-                    used_args[index] = true;
-                }
-
-                if (!confined)
-                    confined = { false };
-
-                for (size_t index = 0; index < num_args; index++) {
-                    if (!used_args[index])
-                        clr.error(diags::missing_argument(index), ast);
+                for (size_t index = 0; index < size; index++) {
                     auto& type = types[index];
-                    auto& declared_type = *variant.tps[index];
-                    args[index] = conv_clr.convert(ast, type, declared_type, *confined, args[index]);
+                    auto& field_type = *enum_variant.tps[index];
+                    values[index] = conv_clr.convert(values_ast[index], type, field_type, confined, values[index]);
                 }
 
                 auto result = new_reg();
-                add_instr(VARIANT(prog::instr, MAKE_ENUM_VARIANT, make_ptr(prog::make_enum_variant_instr{ enum_index, variant_index, args, result })));
-                auto type = prog::type_local{ make_ptr(VARIANT(prog::type, ENUM, enum_index)), *confined };
+                add_instr(VARIANT(prog::instr, MAKE_ENUM_VARIANT, make_ptr(prog::make_enum_variant_instr { enum_index, variant_index, values, result })));
+                auto type = prog::type_local { make_ptr(VARIANT(prog::type, ENUM, enum_index)), confined };
                 return { result, move(type) };
             }
 
             case prog::type::FUNC:
             case prog::type::FUNC_WITH_PTR: {
-                auto& ftype = INDEX_EQ(*receiver_type.tp, FUNC) ? *GET(*receiver_type.tp, FUNC) : *GET(*receiver_type.tp, FUNC_WITH_PTR);
+                auto& ftype = INDEX_EQ(receiver_type, FUNC) ? *GET(receiver_type, FUNC) : *GET(receiver_type, FUNC_WITH_PTR);
 
                 auto args = compile_call_arguments(ast, args_ast, ftype, { });
 
@@ -655,7 +471,7 @@ namespace sg {
             } break;
 
             case prog::type::GLOBAL_FUNC: {
-                auto& ftype = *GET(*receiver_type.tp, GLOBAL_FUNC);
+                auto& ftype = *GET(receiver_type, GLOBAL_FUNC);
 
                 auto args = compile_call_arguments(ast, args_ast, ftype, { });
 
@@ -666,11 +482,11 @@ namespace sg {
             } break;
 
             case prog::type::KNOWN_FUNC: {
-                auto func_index = GET(*receiver_type.tp, KNOWN_FUNC);
+                auto func_index = GET(receiver_type, KNOWN_FUNC);
                 auto& func = *clr.program.global_funcs[func_index];
                 auto ftype = prog::get_func_type(func);
 
-                auto args = compile_call_arguments(ast, args_ast, ftype, { func.param_names });
+                auto args = compile_call_arguments(ast, args_ast, ftype, { func });
 
                 auto result = new_reg();
                 add_instr(VARIANT(prog::instr, FUNC_CALL, make_ptr(prog::func_call_instr { func_index, args, result })));
@@ -683,58 +499,56 @@ namespace sg {
         }
     }
 
-    vector<prog::reg_index> function_compiler::compile_call_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, const prog::func_type& ftype, optional<reference_wrapper<const unordered_map<string, size_t>>> param_names) {
-        auto num_args = ftype.param_tps.size();
-        vector<bool> used_args(num_args, false);
-        vector<prog::reg_index> args(num_args);
-        vector<prog::type_local> types(num_args);
+    tuple<vector<reference_wrapper<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, optional<function<size_t(const ast::node&, string)>> arg_with_name, optional<size_t> expected_number) {
+        auto values_ast = clr.order_arguments(ast, args_ast, arg_with_name, expected_number);
 
-        for (auto& arg_ast : args_ast) {
-            size_t index = 0;
-            ast::expr* value_ast;
+        vector<prog::reg_index> values;
+        vector<prog::type> types;
+        optional<bool> confined;
 
-            switch (INDEX(*arg_ast)) {
-                case ast::expr_marked::EXPR: {
-                    while (index < num_args && used_args[index])
-                        index++;
-                    value_ast = GET(*arg_ast, EXPR).get();
-                } break;
+        for (auto& value_ast : values_ast) {
+            auto [value, type] = compile_expr(value_ast);
 
-                case ast::expr_marked::EXPR_WITH_NAME: {
-                    if (!param_names)
-                        clr.error(diags::invalid_expression_marker(), *arg_ast);
-                    auto& name = GET(*arg_ast, EXPR_WITH_NAME).first;
-                    if (!param_names->get().count(name))
-                        clr.error(diags::invalid_argument_name(func, name), *arg_ast);
-                    index = param_names->get().at(name);
-                    value_ast = GET(*arg_ast, EXPR_WITH_NAME).second.get();
-                } break;
-
-                case ast::expr_marked::EXPR_WITH_COORD: {
-                    index = GET(*arg_ast, EXPR_WITH_COORD).first;
-                    value_ast = GET(*arg_ast, EXPR_WITH_COORD).second.get();
-                } break;
+            if (!clr.type_trivially_copyable(*type.tp)) {
+                if (!confined)
+                    confined = { type.confined };
+                else if (type.confined != *confined)
+                    clr.error(diags::type_confinement_mismatch(type.confined, *confined, false), value_ast);
             }
 
-            if (index >= num_args)
-                clr.error(diags::invalid_argument(index, num_args), *arg_ast);
-            if (used_args[index])
-                clr.error(diags::reused_argument(index), *arg_ast);
-
-            auto[value, type] = compile_expr(*value_ast);
-            args[index] = value;
-            types[index] = move(type);
-            used_args[index] = true;
+            values.push_back(value);
+            types.push_back(move(*type.tp));
         }
 
-        for (size_t index = 0; index < num_args; index++) {
-            if (!used_args[index])
-                clr.error(diags::missing_argument(index), ast);
+        return { values_ast, values, move(types), confined ? *confined : false };
+    }
+
+    vector<prog::reg_index> function_compiler::compile_call_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, const prog::func_type& ftype, optional<reference_wrapper<const prog::global_func>> func) {
+        auto size = ftype.param_tps.size();
+
+        auto arg_with_name = [&] (const ast::node& ast, string name) -> size_t {
+            if (func->get().param_names.count(name))
+                clr.error(diags::invalid_function_parameter(*func, name), ast);
+            return func->get().param_names.at(name);
+        };
+
+        auto values_ast = clr.order_arguments(ast, args_ast, func ? make_optional(arg_with_name) : optional<decltype(arg_with_name)>(), { size });
+
+        vector<prog::reg_index> values;
+        vector<prog::type_local> types;
+
+        for (auto& value_ast : values_ast) {
+            auto [value, type] = compile_expr(value_ast);
+            values.push_back(value);
+            types.push_back(move(type));
+        }
+
+        for (size_t index = 0; index < size; index++) {
             auto& type = types[index];
-            auto& declared_type = *ftype.param_tps[index];
-            args[index] = conv_clr.convert_call(ast, type, declared_type, args[index]);
+            auto& param_type = *ftype.param_tps[index];
+            values[index] = conv_clr.convert_call(values_ast[index], type, param_type, values[index]);
         }
 
-        return args;
+        return values;
     }
 }

@@ -60,12 +60,13 @@ namespace sg::prog {
     struct make_global_ptr_instr;
     struct ptr_conversion_instr;
     struct make_inner_ptr_instr;
-    struct extract_instr;
+    struct extract_field_instr;
     struct test_optional_instr;
     struct primitive_conversion_instr;
     struct transform_instr;
 
     typedef size_t global_index;
+    typedef size_t param_index;
     typedef size_t field_index;
     typedef size_t variant_index;
     typedef size_t var_index;
@@ -87,7 +88,7 @@ namespace sg::prog {
     struct global_func {
         string name;
         vector<ptr<func_param>> params;
-        unordered_map<string, size_t> param_names;
+        unordered_map<string, param_index> param_names;
         ptr<type> return_tp;
         vector<ptr<type_local>> vars;
         ptr<instr_block> instrs;
@@ -173,8 +174,8 @@ namespace sg::prog {
             PTR,
             INNER_PTR,
             FUNC,
-            GLOBAL_FUNC,
             FUNC_WITH_PTR,
+            GLOBAL_FUNC,
             KNOWN_FUNC,
             STRUCT_CTOR,
             ENUM_CTOR
@@ -192,8 +193,8 @@ namespace sg::prog {
             ptr<ptr_type>, // PTR
             ptr<inner_ptr_type>, // INNER_PTR
             ptr<func_type>, // FUNC
-            ptr<func_type>, // GLOBAL_FUNC
             ptr<func_with_ptr_type>, // FUNC_WITH_PTR
+            ptr<func_type>, // GLOBAL_FUNC
             global_index, // KNOWN_FUNC
             global_index, // STRUCT_CTOR
             pair<global_index, variant_index> // ENUM_CTOR
@@ -282,7 +283,7 @@ namespace sg::prog {
             MAKE_EMPTY_WEAK_PTR,
             MAKE_FAKE_SHARED_PTR,
 
-            EXTRACT,
+            EXTRACT_FIELD,
             TEST_OPTIONAL,
             EXTRACT_INNER_PTR,
             EXTRACT_OUTER_PTR,
@@ -321,7 +322,7 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // MAKE_EMPTY_WEAK_PTR
             ptr<ptr_conversion_instr>, // MAKE_FAKE_SHARED_PTR
 
-            ptr<extract_instr>, // EXTRACT
+            ptr<extract_field_instr>, // EXTRACT_FIELD
             ptr<test_optional_instr>, // TEST_OPTIONAL
             ptr<ptr_conversion_instr>, // EXTRACT_INNER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
@@ -380,12 +381,12 @@ namespace sg::prog {
     };
 
     struct make_tuple_instr {
-        vector<reg_index> items;
+        vector<reg_index> values;
         reg_index result;
     };
 
     struct make_array_instr {
-        vector<reg_index> items;
+        vector<reg_index> values;
         reg_index result;
     };
 
@@ -423,9 +424,9 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct extract_instr {
+    struct extract_field_instr {
         reg_index value;
-        size_t index;
+        field_index field;
         reg_index result;
     };
 
