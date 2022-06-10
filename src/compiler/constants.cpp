@@ -322,6 +322,7 @@ namespace sg {
             case prog::type::FUNC:
             case prog::type::GLOBAL_FUNC:
             case prog::type::FUNC_WITH_PTR:
+            case prog::type::KNOWN_FUNC:
                 error(diags::expression_not_constant(), ast);
 
             default:

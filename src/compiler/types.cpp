@@ -237,6 +237,7 @@ namespace sg {
     bool compiler::type_copyable(const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::NEVER:
+            case prog::type::UNIT:
             case prog::type::PRIMITIVE:
                 return true;
 
@@ -272,6 +273,7 @@ namespace sg {
             case prog::type::FUNC_WITH_PTR:
                 return GET(type, FUNC_WITH_PTR)->kind != prog::ptr_type::UNIQUE;
 
+            case prog::type::KNOWN_FUNC:
             case prog::type::STRUCT_CTOR:
             case prog::type::ENUM_CTOR:
                 return true;
@@ -285,6 +287,7 @@ namespace sg {
         switch (INDEX(type)) {
             case prog::type::NEVER:
             case prog::type::PRIMITIVE:
+            case prog::type::UNIT:
                 return true;
 
             case prog::type::STRUCT:
@@ -321,6 +324,7 @@ namespace sg {
             case prog::type::FUNC_WITH_PTR:
                 return false;
 
+            case prog::type::KNOWN_FUNC:
             case prog::type::STRUCT_CTOR:
             case prog::type::ENUM_CTOR:
                 return true;

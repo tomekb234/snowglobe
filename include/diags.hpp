@@ -98,6 +98,7 @@ namespace sg::diags {
     DIAG1(missing_argument, error, size_t, index);
     DIAG2(invalid_struct_field, error, const prog::struct_type&, struct_type, string, field_name);
     DIAG2(invalid_enum_variant, error, const prog::enum_type&, enum_type, string, variant_name);
+    DIAG2(invalid_argument_name, error, const prog::global_func&, func, string, argument_name);
     DIAG0(expected_variant_name, error);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
     DIAG1(single_float_overflow, error, double, value);

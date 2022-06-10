@@ -30,7 +30,7 @@ namespace sg {
                         auto index = program.struct_types.size();
                         program.struct_types.push_back(into_ptr(struct_type));
                         global_names[name] = { global_name_kind::STRUCT, index, false };
-                        struct_type_indices.back() = index;
+                        struct_type_indices.back() = { index };
                     } break;
 
                     case ast::global_def::ENUM_DEF: {
@@ -41,13 +41,13 @@ namespace sg {
                         auto index = program.enum_types.size();
                         program.enum_types.push_back(into_ptr(enum_type));
                         global_names[name] = { global_name_kind::ENUM, index, false };
-                        enum_type_indices.back() = index;
+                        enum_type_indices.back() = { index };
                     } break;
 
                     default:
                         break;
                 }
-            } catch (...) {
+            } catch (compiler_error) {
                 ok = false;
             }
         }
@@ -62,8 +62,10 @@ namespace sg {
                     case ast::global_def::STRUCT_DEF: {
                         auto& struct_type_ast = *GET(*global_def, STRUCT_DEF);
                         auto index = struct_type_indices.front();
+                        if (!index)
+                            break;
                         struct_type_indices.pop();
-                        auto& struct_type = *program.struct_types[index.value()];
+                        auto& struct_type = *program.struct_types[*index];
                         compile_struct_type(struct_type_ast, struct_type);
                         global_names[struct_type.name].compiled = true;
                     } break;
@@ -71,8 +73,10 @@ namespace sg {
                     case ast::global_def::ENUM_DEF: {
                         auto& enum_type_ast = *GET(*global_def, ENUM_DEF);
                         auto index = enum_type_indices.front();
+                        if (!index)
+                            break;
                         enum_type_indices.pop();
-                        auto& enum_type = *program.enum_types[index.value()];
+                        auto& enum_type = *program.enum_types[*index];
                         compile_enum_type(enum_type_ast, enum_type);
                         global_names[enum_type.name].compiled = true;
                     } break;
@@ -94,13 +98,13 @@ namespace sg {
                         auto index = program.global_funcs.size();
                         program.global_funcs.push_back(into_ptr(global_func));
                         global_names[name] = { global_name_kind::FUNCTION, index, false };
-                        global_func_indices.back() = index;
+                        global_func_indices.back() = { index };
                     } break;
 
                     default:
                         break;
                 }
-            } catch (...) {
+            } catch (compiler_error) {
                 ok = false;
             }
         }
@@ -122,7 +126,7 @@ namespace sg {
                     default:
                         break;
                 }
-            } catch (...) {
+            } catch (compiler_error) {
                 ok = false;
             }
         }
@@ -135,8 +139,10 @@ namespace sg {
                     case ast::global_def::FUNC_DEF: {
                         auto& global_func_ast = *GET(*global_def, FUNC_DEF);
                         auto index = global_func_indices.front();
+                        if (!index)
+                            break;
                         global_func_indices.pop();
-                        auto& global_func = *program.global_funcs[index.value()];
+                        auto& global_func = *program.global_funcs[*index];
                         compile_global_func(global_func_ast, global_func);
                         global_names[global_func.name].compiled = true;
                     } break;
@@ -144,7 +150,7 @@ namespace sg {
                     default:
                         break;
                 }
-            } catch (...) {
+            } catch (compiler_error) {
                 ok = false;
             }
         }

@@ -125,6 +125,10 @@ namespace sg::diags {
         stream << "The enum '" << enum_type.name << "' does not have a variant named '" << variant_name << "'" << endl;
     }
 
+    void invalid_argument_name::write(ostream& stream) const {
+        stream << "The function '" << func.name << "' has no argument named '" << argument_name << "'" << endl;
+    }
+
     void expected_variant_name::write(ostream& stream) const {
         stream << "Expected variant name" << endl;
     };
@@ -149,7 +153,7 @@ namespace sg::diags {
         stream << "A value with ";
         if (!confined1)
             stream << "non-";
-        stream << "confined type cannot be converted to a value with ";
+        stream << "confined type cannot be used as a value with ";
         if (!confined2)
             stream << "non-";
         stream << "confined type";

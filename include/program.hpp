@@ -50,9 +50,10 @@ namespace sg::prog {
     struct write_global_var_instr;
     struct return_instr;
     struct func_call_instr;
-    struct global_func_call_instr;
+    struct func_ptr_call_instr;
     struct make_const_instr;
     struct make_tuple_instr;
+    struct make_array_instr;
     struct make_optional_instr;
     struct make_struct_instr;
     struct make_enum_variant_instr;
@@ -86,6 +87,7 @@ namespace sg::prog {
     struct global_func {
         string name;
         vector<ptr<func_param>> params;
+        unordered_map<string, size_t> param_names;
         ptr<type> return_tp;
         vector<ptr<type_local>> vars;
         ptr<instr_block> instrs;
@@ -264,11 +266,12 @@ namespace sg::prog {
             WRITE_GLOBAL_VAR,
             RETURN,
             FUNC_CALL,
-            GLOBAL_FUNC_CALL,
+            FUNC_PTR_CALL,
 
             MAKE_UNIT,
             MAKE_CONST,
             MAKE_TUPLE,
+            MAKE_ARRAY,
             MAKE_OPTIONAL,
             MAKE_STRUCT,
             MAKE_ENUM_VARIANT,
@@ -302,11 +305,12 @@ namespace sg::prog {
             ptr<write_global_var_instr>, // WRITE_GLOBAL_VAR
             ptr<return_instr>, // RETURN
             ptr<func_call_instr>, // FUNC_CALL
-            ptr<global_func_call_instr>, // GLOBAL_FUNC_CALL
+            ptr<func_ptr_call_instr>, // FUNC_PTR_CALL
 
             reg_index, // MAKE_UNIT
             ptr<make_const_instr>, // MAKE_CONST
             ptr<make_tuple_instr>, // MAKE_TUPLE
+            ptr<make_array_instr>, // MAKE_ARRAY
             ptr<make_optional_instr>, // MAKE_OPTIONAL
             ptr<make_struct_instr>, // MAKE_STRUCT
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
@@ -359,13 +363,13 @@ namespace sg::prog {
     };
 
     struct func_call_instr {
-        reg_index ptr;
+        global_index func;
         vector<reg_index> args;
         reg_index result;
     };
 
-    struct global_func_call_instr {
-        global_index func;
+    struct func_ptr_call_instr {
+        reg_index ptr;
         vector<reg_index> args;
         reg_index result;
     };
@@ -376,6 +380,11 @@ namespace sg::prog {
     };
 
     struct make_tuple_instr {
+        vector<reg_index> items;
+        reg_index result;
+    };
+
+    struct make_array_instr {
         vector<reg_index> items;
         reg_index result;
     };

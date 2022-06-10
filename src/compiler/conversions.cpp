@@ -24,46 +24,35 @@ namespace sg {
     }
 
     prog::reg_index conversion_compiler::convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, prog::reg_index value) {
-        auto result = try_convert(type1, type2, false, value);
-
-        if (!result)
-            clr.error(diags::not_convertible(clr.program, copy_type(type1), copy_type(type2)), ast);
-
-        return *result;
+        return convert(ast, type1, type2, false, value);
     }
 
     prog::reg_index conversion_compiler::convert(const ast::node& ast, const prog::type_local& type1, const prog::type_local& type2, prog::reg_index value) {
         if (type1.confined != type2.confined && !clr.type_trivially_copyable(*type1.tp))
             clr.error(diags::type_confinement_mismatch(type1.confined, type2.confined, false), ast);
 
-        auto result = try_convert(*type1.tp, *type2.tp, type2.confined, value);
-
-        if (!result)
-            clr.error(diags::not_convertible(clr.program, copy_type(*type1.tp), copy_type(*type2.tp)), ast);
-
-        return *result;
+        return convert(ast, *type1.tp, *type2.tp, type2.confined, value);
     }
 
     prog::reg_index conversion_compiler::convert(const ast::node& ast, const prog::type_local& type1, const prog::type& type2, prog::reg_index value) {
         if (type1.confined && !clr.type_trivially_copyable(*type1.tp))
             clr.error(diags::type_confinement_mismatch(type1.confined, false, false), ast);
 
-        auto result = try_convert(*type1.tp, type2, false, value);
-
-        if (!result)
-            clr.error(diags::not_convertible(clr.program, copy_type(*type1.tp), copy_type(type2)), ast);
-
-        return *result;
+        return convert(ast, *type1.tp, type2, false, value);
     }
 
     prog::reg_index conversion_compiler::convert_call(const ast::node& ast, const prog::type_local& type1, const prog::type_local& type2, prog::reg_index value) {
         if ((!type1.confined || type2.confined) && !clr.type_trivially_copyable(*type1.tp))
             clr.error(diags::type_confinement_mismatch(type1.confined, type2.confined, true), ast);
 
-        auto result = try_convert(*type1.tp, *type2.tp, type2.confined, value);
+        return convert(ast, *type1.tp, *type2.tp, type2.confined, value);
+    }
+
+    prog::reg_index conversion_compiler::convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index value) {
+        auto result = try_convert(type1, type2, confined, value);
 
         if (!result)
-            clr.error(diags::not_convertible(clr.program, copy_type(*type1.tp), copy_type(*type2.tp)), ast);
+            clr.error(diags::not_convertible(clr.program, copy_type(type1), copy_type(type2)), ast);
 
         return *result;
     }

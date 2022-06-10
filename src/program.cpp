@@ -82,6 +82,9 @@ namespace sg::prog {
             case type::NEVER:
                 return VARIANT(type, NEVER, monostate());
 
+            case type::UNIT:
+                return VARIANT(type, UNIT, monostate());
+
             case type::PRIMITIVE:
                 return VARIANT(type, PRIMITIVE, make_ptr(primitive_type { GET(source, PRIMITIVE)->tp }));
 
@@ -232,7 +235,7 @@ namespace sg::prog {
                 return GET(type1, ENUM_CTOR) == GET(type2, ENUM_CTOR);
         }
 
-        UNREACHABLE;
+        return true;
     }
 
     bool types_local_equal(const type_local& type1, const type_local& type2) {

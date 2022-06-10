@@ -51,13 +51,15 @@ namespace sg {
 
         private:
 
+        struct compiler_error { };
+
         // Utilities
 
         template<typename T>
         [[noreturn]] void error(T&& diag, location loc) {
             diag.loc = { loc };
             diags.add(make_unique<T>(move(diag)));
-            throw 0;
+            throw compiler_error();
         }
 
         template<typename T>
@@ -141,6 +143,7 @@ namespace sg {
         prog::reg_index convert(const ast::node& ast, const prog::type_local& type1, const prog::type_local& type2, prog::reg_index value);
         prog::reg_index convert(const ast::node& ast, const prog::type_local& type1, const prog::type& type2, prog::reg_index value);
         prog::reg_index convert_call(const ast::node& ast, const prog::type_local& type1, const prog::type_local& type2, prog::reg_index value);
+        prog::reg_index convert(const ast::node& ast, const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index value);
         optional<prog::reg_index> try_convert(const prog::type& type1, const prog::type& type2, bool confined, prog::reg_index value);
 
         private:
@@ -202,6 +205,10 @@ namespace sg {
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
         lvalue compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type);
         pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
+        pair<prog::reg_index, prog::type_local> compile_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& items_ast);
+        pair<prog::reg_index, prog::type_local> compile_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
+        vector<prog::reg_index> compile_call_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, const prog::func_type& ftype, optional<reference_wrapper<const unordered_map<string, size_t>>> param_names);
     };
 }
 
