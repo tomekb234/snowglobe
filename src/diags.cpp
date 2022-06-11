@@ -245,6 +245,19 @@ namespace sg::diags {
         stream << "Variable declared without type" << endl;
     }
 
+    void invalid_variable_state::write(ostream& stream) const {
+        stream << "Variable '" << name << "' is ";
+        if (initialized)
+            stream << "potentially ";
+        if (uninitialized)
+            stream << "unitialized ";
+        if (uninitialized && moved_out)
+            stream << "or ";
+        if (moved_out)
+            stream << "moved out";
+        stream << endl;
+    }
+
     void missing_return::write(ostream& stream) const {
         stream << "Missing return statement" << endl;
     }

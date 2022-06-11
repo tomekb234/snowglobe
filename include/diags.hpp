@@ -120,6 +120,7 @@ namespace sg::diags {
 
     DIAG0(global_func_copyable, error);
     DIAG0(variable_without_type, error);
+    DIAG4(invalid_variable_state, error, string, name, bool, initialized, bool, uninitialized, bool, moved_out);
     DIAG0(missing_return, error);
     DIAG0(dead_code, warning);
 }

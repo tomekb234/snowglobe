@@ -66,6 +66,7 @@ namespace sg::prog {
     struct test_optional_instr;
     struct primitive_conversion_instr;
     struct transform_instr;
+    struct branch_instr;
 
     typedef size_t global_index;
     typedef size_t param_index;
@@ -303,7 +304,9 @@ namespace sg::prog {
             TRANSFORM_ARRAY,
             TRANSFORM_OPTIONAL,
             ADD_WEAK_REF,
-            FORGET_REF_COUNTER
+            FORGET_REF_COUNTER,
+
+            BRANCH
         };
 
         variant<
@@ -347,7 +350,9 @@ namespace sg::prog {
             ptr<transform_instr>, // TRANSFORM_ARRAY
             ptr<transform_instr>, // TRANSFORM_OPTIONAL
             ptr<ptr_conversion_instr>, // ADD_WEAK_REF
-            ptr<ptr_conversion_instr> // FORGET_REF_COUNTER
+            ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
+
+            ptr<branch_instr> // BRANCH
         > value;
     };
 
@@ -470,6 +475,12 @@ namespace sg::prog {
         vector<ptr<instr>> instrs;
         reg_index inner_result;
         reg_index result;
+    };
+
+    struct branch_instr {
+        reg_index condition;
+        ptr<instr_block> true_instrs;
+        ptr<instr_block> false_instrs;
     };
 
     constant copy_constant(const constant& source);

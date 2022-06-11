@@ -42,7 +42,7 @@ namespace sg {
     }
 
     prog::reg_index conversion_compiler::convert_call(const ast::node& ast, const prog::type_local& type1, const prog::type_local& type2, prog::reg_index value) {
-        if ((!type1.confined || type2.confined) && !clr.type_trivially_copyable(*type1.tp))
+        if (type1.confined && !type2.confined && !clr.type_trivially_copyable(*type1.tp))
             clr.error(diags::type_confinement_mismatch(type1.confined, type2.confined, true), ast);
 
         return convert(ast, *type1.tp, *type2.tp, type2.confined, value);

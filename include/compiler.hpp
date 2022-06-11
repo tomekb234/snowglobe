@@ -157,9 +157,10 @@ namespace sg {
     };
 
     class function_compiler {
-        struct variable {
-            prog::ptr<prog::type_local> tp;
-            // TODO
+        struct var_state {
+            bool initialized;
+            bool uninitialized;
+            bool moved_out;
         };
 
         struct frame {
@@ -173,7 +174,8 @@ namespace sg {
         conversion_compiler conv_clr;
         vector<frame> frames;
         prog::reg_index reg_counter;
-        vector<variable> vars;
+        vector<prog::ptr<prog::type_local>> var_types;
+        vector<var_state> var_states;
         unordered_map<string, vector<prog::var_index>> var_names;
 
         prog::reg_index new_reg();
@@ -204,15 +206,20 @@ namespace sg {
         prog::var_index add_var(string name, prog::ptr<prog::type_local> type);
         optional<prog::var_index> get_var(string name);
 
+        prog::reg_index add_copy_instrs(const prog::type& type, prog::reg_index value);
+        void add_delete_instrs(const prog::type& type, prog::reg_index value);
         void add_cleanup_instrs(bool all_frames = false);
         void add_return_instr(const optional<ast::ptr<ast::expr>>& ast);
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
+        void restore_var_states(const vector<var_state>& states);
+        void merge_var_states(const vector<var_state>& states, size_t count);
         lvalue compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type);
-        pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast, bool copy = true);
         pair<prog::reg_index, prog::type_local> compile_tuple(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
         pair<prog::reg_index, prog::type_local> compile_array(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
         pair<prog::reg_index, prog::type_local> compile_application(const ast::node& ast, const ast::expr& receiver_ast, const vector<ast::ptr<ast::expr_marked>>& args_ast);
         pair<prog::reg_index, prog::type_local> compile_unary_operation(const ast::unary_operation_expr& ast);
+        prog::branch_instr compile_if_stmt_branches(const ast::if_stmt& ast, size_t index);
         tuple<vector<reference_wrapper<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> compile_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, optional<function<size_t(const ast::node&, string)>> arg_with_name, optional<size_t> expected_number);
         vector<prog::reg_index> compile_call_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, const prog::func_type& ftype, optional<reference_wrapper<const prog::global_func>> func);
     };

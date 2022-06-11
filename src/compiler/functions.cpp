@@ -48,6 +48,7 @@ namespace sg {
         for (auto& param : func.params) {
             auto var = add_var(param->name, make_ptr(copy_type_local(*param->tp)));
             add_instr(VARIANT(prog::instr, WRITE_VAR, make_ptr(prog::write_var_instr { var, reg_counter++ })));
+            var_states[var] = { true, false, false };
         }
 
         compile_stmt_block(*ast.body->block, false);
@@ -61,9 +62,7 @@ namespace sg {
         }
 
         func.instrs = make_ptr(prog::instr_block { into_ptr_vector(frames.back().instrs) });
-
-        for (auto& var : vars)
-            func.vars.push_back(move(var.tp));
+        func.vars = move(var_types);
 
         pop_frame();
     }
@@ -93,9 +92,10 @@ namespace sg {
     }
 
     prog::var_index function_compiler::add_var(string name, prog::ptr<prog::type_local> type) {
-        auto index = vars.size();
+        auto index = var_types.size();
 
-        vars.push_back({ move(type) });
+        var_types.push_back(move(type));
+        var_states.push_back({ false, true, false });
         frames.back().vars.push_back(name);
         var_names[name].push_back(index);
 
@@ -108,8 +108,21 @@ namespace sg {
         return { var_names[name].back() };
     }
 
-    void function_compiler::add_cleanup_instrs(bool) {
+    prog::reg_index function_compiler::add_copy_instrs(const prog::type& type, prog::reg_index value) {
         // TODO
+        (void)type;
+        return value;
+    }
+
+    void function_compiler::add_delete_instrs(const prog::type& type, prog::reg_index value) {
+        // TODO
+        (void)type;
+        (void)value;
+    }
+
+    void function_compiler::add_cleanup_instrs(bool all_frames) {
+        // TODO
+        (void)all_frames;
     }
 
     void function_compiler::add_return_instr(const optional<ast::ptr<ast::expr>>& ast) {
@@ -151,9 +164,10 @@ namespace sg {
                     switch (INDEX(lval)) { // TODO add more assignment options, move to separate method
                         case lvalue::LOCAL_VAR: {
                             auto index = GET(lval, LOCAL_VAR);
-                            auto& var = vars[index];
-                            result = conv_clr.convert(assignment_ast, type, *var.tp, result);
+                            auto& var_tp = *var_types[index];
+                            result = conv_clr.convert(assignment_ast, type, var_tp, result);
                             add_instr(VARIANT(prog::instr, WRITE_VAR, make_ptr(prog::write_var_instr{ index, result })));
+                            var_states[index] = { true, false, false };
                         } break;
 
                         case lvalue::GLOBAL_VAR: {
@@ -172,7 +186,13 @@ namespace sg {
                 case ast::stmt::LOCALLY_BLOCK:
                 case ast::stmt::SWAP:
                 case ast::stmt::SWAP_BLOCK:
-                case ast::stmt::IF:
+                    clr.error(diags::not_implemented(), *stmt_ast); // TODO
+
+                case ast::stmt::IF: {
+                    auto branch_instr = compile_if_stmt_branches(*GET(*stmt_ast, IF), 0);
+                    add_instr(VARIANT(prog::instr, BRANCH, into_ptr(branch_instr)));
+                } break;
+
                 case ast::stmt::MATCH:
                 case ast::stmt::WHILE:
                 case ast::stmt::FOR:
@@ -183,6 +203,19 @@ namespace sg {
 
         if (cleanup)
             add_cleanup_instrs();
+    }
+
+    void function_compiler::restore_var_states(const vector<var_state>& states) {
+        for (size_t index = 0; index < states.size(); index++)
+            var_states[index] = states[index];
+    }
+
+    void function_compiler::merge_var_states(const vector<var_state>& states, size_t count) {
+        for (size_t index = 0; index < count; index++) {
+            var_states[index].initialized |= states[index].initialized;
+            var_states[index].uninitialized |= states[index].uninitialized;
+            var_states[index].moved_out |= states[index].moved_out;
+        }
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<reference_wrapper<const prog::type_local>> implicit_type) {
@@ -199,7 +232,7 @@ namespace sg {
                 if (local_var)
                     return VARIANT(lvalue, LOCAL_VAR, *local_var);
 
-                auto& global_name = clr.get_global_name(ast, name, global_name_kind::VARIABLE);
+                auto& global_name = clr.get_global_name(ast, name, global_name_kind::VARIABLE, true);
                 return VARIANT(lvalue, GLOBAL_VAR, global_name.index);
             }
 
@@ -221,7 +254,7 @@ namespace sg {
         }
     }
 
-    pair<prog::reg_index, prog::type_local> function_compiler::compile_expr(const ast::expr& ast) {
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_expr(const ast::expr& ast, bool copy) {
         switch (INDEX(ast)) {
             case ast::expr::TUPLE:
                 return compile_tuple(ast, GET(ast, TUPLE));
@@ -239,13 +272,29 @@ namespace sg {
 
                 auto local_var = get_var(name);
                 if (local_var) {
-                    // TODO move out if not copyable
+                    auto& state = var_states[*local_var];
+
+                    if (!(state.initialized && !state.uninitialized && !state.moved_out))
+                        clr.error(diags::invalid_variable_state(name, state.initialized, state.uninitialized, state.moved_out), ast);
+
                     auto result = new_reg();
                     add_instr(VARIANT(prog::instr, READ_VAR, make_ptr(prog::read_var_instr{ *local_var, result })));
-                    return { result, copy_type_local(*vars[*local_var].tp) };
+
+                    auto& type = *var_types[*local_var];
+
+                    if (copy && !type.confined) {
+                        if (clr.type_copyable(*type.tp))
+                            result = add_copy_instrs(*type.tp, result);
+                        else {
+                            state.initialized = false;
+                            state.moved_out = true;
+                        }
+                    }
+
+                    return { result, copy_type_local(type) };
                 }
 
-                auto& global_name = clr.get_global_name(ast, name);
+                auto& global_name = clr.get_global_name(ast, name, true);
                 switch (global_name.kind) {
                     case global_name_kind::VARIABLE: {
                         auto& global_var = clr.program.global_vars[global_name.index];
@@ -284,7 +333,7 @@ namespace sg {
                 if (get_var(name))
                     clr.error(diags::expected_variant_name(), ast);
 
-                auto& global_name = clr.get_global_name(ast, name, global_name_kind::ENUM);
+                auto& global_name = clr.get_global_name(ast, name, global_name_kind::ENUM, true);
                 auto& enum_type = *clr.program.enum_types[global_name.index];
                 if (!enum_type.variant_names.count(variant_name))
                     clr.error(diags::invalid_enum_variant(enum_type, name), ast);
@@ -508,10 +557,10 @@ namespace sg {
 
         switch (ast.operation) {
             case ast::unary_operation_expr::NOT: {
-                auto bool_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }));
-                value = conv_clr.convert(*ast.value, *type.tp, bool_type, value);
+                auto bool_type = prog::type_local { make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }))), false };
+                value = conv_clr.convert_call(*ast.value, type, bool_type, value);
                 add_instr(VARIANT(prog::instr, BOOL_NOT, make_ptr(prog::unary_operation_instr{ value, result })));
-                return { result, prog::type_local{ into_ptr(bool_type), type.confined } };
+                return { result, move(bool_type) };
             }
 
             case ast::unary_operation_expr::MINUS: {
@@ -558,7 +607,50 @@ namespace sg {
             }
         }
 
-        UNREACHABLE
+        UNREACHABLE;
+    }
+
+    prog::branch_instr function_compiler::compile_if_stmt_branches(const ast::if_stmt& ast, size_t index) {
+        auto& branch_ast = *ast.branches[index];
+        auto& cond_ast = *branch_ast.cond;
+        auto& block_ast = *branch_ast.block;
+
+        prog::branch_instr result;
+
+        auto init_var_states = var_states;
+
+        if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
+            auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
+            auto[value, type] = compile_expr(expr_ast, false);
+            auto bool_type = prog::type_local { make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }))), false };
+            result.condition = conv_clr.convert_call(expr_ast, type, bool_type, value);
+
+            push_frame();
+            compile_stmt_block(block_ast);
+            result.true_instrs = make_ptr(prog::instr_block { into_ptr_vector(frames.back().instrs) });
+            pop_frame();
+        } else
+            clr.error(diags::not_implemented(), cond_ast);
+
+        auto true_var_states = var_states;
+        restore_var_states(init_var_states);
+
+        if (index < ast.branches.size() - 1) {
+            auto instr = compile_if_stmt_branches(ast, index + 1);
+            vector<prog::ptr<prog::instr>> instr_vec;
+            instr_vec.push_back(make_ptr(VARIANT(prog::instr, BRANCH, into_ptr(instr))));
+            result.false_instrs = make_ptr(prog::instr_block { move(instr_vec) });
+        } else if (ast.else_branch) {
+            push_frame();
+            compile_stmt_block(**ast.else_branch);
+            result.false_instrs = make_ptr(prog::instr_block { into_ptr_vector(frames.back().instrs) });
+            pop_frame();
+        } else
+            result.false_instrs = make_ptr(prog::instr_block { { } });
+
+        merge_var_states(true_var_states, init_var_states.size());
+
+        return result;
     }
 
     tuple<vector<reference_wrapper<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, optional<function<size_t(const ast::node&, string)>> arg_with_name, optional<size_t> expected_number) {
@@ -599,8 +691,9 @@ namespace sg {
         vector<prog::reg_index> values;
         vector<prog::type_local> types;
 
-        for (auto& value_ast : values_ast) {
-            auto [value, type] = compile_expr(value_ast);
+        for (size_t index = 0; index < size; index++) {
+            auto& value_ast = values_ast[index];
+            auto [value, type] = compile_expr(value_ast, !ftype.param_tps[index]->confined);
             values.push_back(value);
             types.push_back(move(type));
         }

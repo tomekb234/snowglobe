@@ -32,7 +32,7 @@ namespace sg {
         if (global_names.count(name))
             error(diags::global_name_used(name), ast.name_loc);
 
-        return { name, ast.copyable, true, { }, { } };
+        return { name, ast.copyable, ast.copyable, { }, { } };
     }
 
     void compiler::compile_struct_type(const ast::struct_def& ast, prog::struct_type& struct_type) {
@@ -64,7 +64,7 @@ namespace sg {
         if (global_names.count(name))
             error(diags::global_name_used(name), ast.name_loc);
 
-        return { ast.name, ast.copyable, true, { }, { } };
+        return { ast.name, ast.copyable, ast.copyable, { }, { } };
     }
 
     void compiler::compile_enum_type(const ast::enum_def& ast, prog::enum_type& enum_type) {
