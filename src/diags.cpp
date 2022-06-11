@@ -145,6 +145,47 @@ namespace sg::diags {
         stream << "The number '" << value << "' does not fit in single-precision floating-point type" << endl;
     }
 
+    void invalid_unary_operation::write(ostream& stream) const {
+        stream << "Unary operator '";
+        switch (operation) {
+            case ast::unary_operation_expr::NOT: stream << "!"; break;
+            case ast::unary_operation_expr::MINUS: stream << "-"; break;
+            case ast::unary_operation_expr::BIT_NEG: stream << "~"; break;
+        }
+        stream << "' is not applicable to type ";
+        prog::print_type(stream, program, type);
+        stream << endl;
+    }
+
+    void invalid_binary_operation::write(ostream& stream) const {
+        stream << "Binary operator '";
+        switch (operation) {
+            case ast::binary_operation_expr::AND: stream << "&&"; break;
+            case ast::binary_operation_expr::OR: stream << "||"; break;
+            case ast::binary_operation_expr::ADD: stream << "+"; break;
+            case ast::binary_operation_expr::SUB: stream << "-"; break;
+            case ast::binary_operation_expr::MUL: stream << "*"; break;
+            case ast::binary_operation_expr::DIV: stream << "/"; break;
+            case ast::binary_operation_expr::MOD: stream << "%"; break;
+            case ast::binary_operation_expr::BIT_AND: stream << "&"; break;
+            case ast::binary_operation_expr::BIT_OR: stream << "|"; break;
+            case ast::binary_operation_expr::BIT_XOR: stream << "^"; break;
+            case ast::binary_operation_expr::BIT_LSH: stream << "<<"; break;
+            case ast::binary_operation_expr::BIT_RSH: stream << ">>"; break;
+            case ast::binary_operation_expr::EQ: stream << "=="; break;
+            case ast::binary_operation_expr::NEQ: stream << "!="; break;
+            case ast::binary_operation_expr::LS: stream << "<"; break;
+            case ast::binary_operation_expr::LSEQ: stream << "<="; break;
+            case ast::binary_operation_expr::GT: stream << ">"; break;
+            case ast::binary_operation_expr::GTEQ: stream << ">="; break;
+        }
+        stream << "' is not applicable to types ";
+        prog::print_type(stream, program, type1);
+        stream << " and ";
+        prog::print_type(stream, program, type2);
+        stream << endl;
+    }
+
     void not_convertible::write(ostream& stream) const {
         stream << "A value with type '";
         prog::print_type(stream, program, type1);

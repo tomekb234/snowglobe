@@ -312,6 +312,8 @@ namespace sg {
             }
 
             case ast::expr::UNARY_OPERATION:
+                return compile_unary_operation(*GET(ast, UNARY_OPERATION));
+
             case ast::expr::BINARY_OPERATION:
             case ast::expr::NUMERIC_CAST:
                 clr.error(diags::not_implemented(), ast); // TODO
@@ -497,6 +499,66 @@ namespace sg {
             default:
                 clr.error(diags::invalid_expression(), ast);
         }
+    }
+
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_unary_operation(const ast::unary_operation_expr& ast) {
+        auto[value, type] = compile_expr(*ast.value);
+        auto result = new_reg();
+
+        switch (ast.operation) {
+            case ast::unary_operation_expr::NOT: {
+                auto bool_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }));
+                value = conv_clr.convert(*ast.value, *type.tp, bool_type, value);
+                add_instr(VARIANT(prog::instr, BOOL_NOT, make_ptr(prog::unary_operation_instr{ value, result })));
+                return { result, prog::type_local{ into_ptr(bool_type), type.confined } };
+            }
+
+            case ast::unary_operation_expr::MINUS: {
+                if (!INDEX_EQ(*type.tp, PRIMITIVE))
+                    clr.error(diags::invalid_unary_operation(clr.program, ast.operation, copy_type(*type.tp)), ast);
+                switch (GET(*type.tp, PRIMITIVE)->tp) {
+                    case prog::primitive_type::I8:
+                    case prog::primitive_type::I16:
+                    case prog::primitive_type::I32:
+                    case prog::primitive_type::I64: {
+                        add_instr(VARIANT(prog::instr, INT_NEG, make_ptr(prog::unary_operation_instr{ value, result })));
+                    } break;
+
+                    case prog::primitive_type::F32:
+                    case prog::primitive_type::F64: {
+                        add_instr(VARIANT(prog::instr, FLOAT_NEG, make_ptr(prog::unary_operation_instr{ value, result })));
+                    } break;
+
+                    default:
+                        clr.error(diags::invalid_unary_operation(clr.program, ast.operation, copy_type(*type.tp)), ast);
+                }
+                return { result, move(type) };
+            }
+
+            case ast::unary_operation_expr::BIT_NEG: {
+                if (!INDEX_EQ(*type.tp, PRIMITIVE))
+                    clr.error(diags::invalid_unary_operation(clr.program, ast.operation, copy_type(*type.tp)), ast);
+                switch (GET(*type.tp, PRIMITIVE)->tp) {
+                    case prog::primitive_type::I8:
+                    case prog::primitive_type::I16:
+                    case prog::primitive_type::I32:
+                    case prog::primitive_type::I64:
+                    case prog::primitive_type::U8:
+                    case prog::primitive_type::U16:
+                    case prog::primitive_type::U32:
+                    case prog::primitive_type::U64: {
+                        add_instr(VARIANT(prog::instr, BIT_NEG, make_ptr(prog::unary_operation_instr{ value, result })));
+                        return { result, move(type) };
+                    }
+
+                    default:
+                        clr.error(diags::invalid_unary_operation(clr.program, ast.operation, copy_type(*type.tp)), ast);
+                }
+            }
+        }
+
+        UNREACHABLE
     }
 
     tuple<vector<reference_wrapper<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_arguments(const ast::node& ast, const vector<ast::ptr<ast::expr_marked>>& args_ast, optional<function<size_t(const ast::node&, string)>> arg_with_name, optional<size_t> expected_number) {

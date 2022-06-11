@@ -59,6 +59,8 @@ namespace sg::prog {
     struct make_enum_variant_instr;
     struct make_global_ptr_instr;
     struct ptr_conversion_instr;
+    struct unary_operation_instr;
+    struct binary_operation_instr;
     struct make_inner_ptr_instr;
     struct extract_field_instr;
     struct test_optional_instr;
@@ -290,6 +292,11 @@ namespace sg::prog {
             EXTRACT_PTR,
             EXTRACT_FUNC,
 
+            BOOL_NOT,
+            INT_NEG,
+            FLOAT_NEG,
+            BIT_NEG,
+
             ZERO_EXT,
             SIGNED_EXT,
             FLOAT_EXT,
@@ -328,6 +335,11 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_FUNC
+
+            ptr<unary_operation_instr>, // BOOL_NOT
+            ptr<unary_operation_instr>, // INT_NEG
+            ptr<unary_operation_instr>, // FLOAT_NEG
+            ptr<unary_operation_instr>, // BIT_NEG
 
             ptr<primitive_conversion_instr>, // ZERO_EXT
             ptr<primitive_conversion_instr>, // SIGNED_EXT
@@ -415,6 +427,17 @@ namespace sg::prog {
 
     struct ptr_conversion_instr {
         reg_index value;
+        reg_index result;
+    };
+
+    struct unary_operation_instr {
+        reg_index value;
+        reg_index result;
+    };
+
+    struct binary_operation_instr {
+        reg_index left;
+        reg_index right;
         reg_index result;
     };
 

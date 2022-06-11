@@ -103,6 +103,8 @@ namespace sg::diags {
     DIAG0(expected_variant_name, error);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
     DIAG1(single_float_overflow, error, double, value);
+    DIAG3(invalid_unary_operation, error, const prog::program&, program, ast::unary_operation_expr::operation_t, operation, prog::type, type);
+    DIAG4(invalid_binary_operation, error, const prog::program&, program, ast::binary_operation_expr::operation_t, operation, prog::type, type1, prog::type, type2);
 
     // Typing related
 

@@ -430,7 +430,7 @@ namespace sg::ast {
     };
 
     struct unary_operation_expr : node {
-        enum {
+        enum operation_t {
             NOT,
             MINUS,
             BIT_NEG
@@ -440,7 +440,7 @@ namespace sg::ast {
     };
 
     struct binary_operation_expr : node {
-        enum {
+        enum operation_t {
             AND,
             OR,
             ADD,
