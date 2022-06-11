@@ -64,9 +64,9 @@ namespace sg::diags {
         stream << "The name '" << name << "' may not refer to ";
 
         switch (kind) {
-            case global_name_kind::VARIABLE: stream << "a variable"; break;
-            case global_name_kind::CONSTANT: stream << "a constant"; break;
-            case global_name_kind::FUNCTION: stream << "a function"; break;
+            case global_name_kind::VAR: stream << "a variable"; break;
+            case global_name_kind::CONST: stream << "a constant"; break;
+            case global_name_kind::FUNC: stream << "a function"; break;
             case global_name_kind::STRUCT: stream << "a struct"; break;
             case global_name_kind::ENUM: stream << "an enum"; break;
         }
@@ -77,9 +77,9 @@ namespace sg::diags {
             stream << "Expected ";
 
             switch (*expected_kind) {
-                case global_name_kind::VARIABLE: stream << "a variable"; break;
-                case global_name_kind::CONSTANT: stream << "a constant"; break;
-                case global_name_kind::FUNCTION: stream << "a function"; break;
+                case global_name_kind::VAR: stream << "a variable"; break;
+                case global_name_kind::CONST: stream << "a constant"; break;
+                case global_name_kind::FUNC: stream << "a function"; break;
                 case global_name_kind::STRUCT: stream << "a struct"; break;
                 case global_name_kind::ENUM: stream << "an enum"; break;
             }
@@ -100,8 +100,8 @@ namespace sg::diags {
         stream << "Expression not assignable" << endl;
     }
 
-    void invalid_argument_number::write(ostream& stream) const {
-        stream << "Got " << num_args << " arguments, but expected " << expected << endl;
+    void invalid_argument_count::write(ostream& stream) const {
+        stream << "Applied " << count << " arguments but expected " << expected << endl;
     }
 
     void invalid_argument_marker::write(ostream& stream) const {
@@ -110,7 +110,7 @@ namespace sg::diags {
 
     void invalid_argument_index::write(ostream& stream) const {
         stream << "Invalid argument with index " << index << endl;
-        stream << "Expected " << num_args << " arguments" << endl;
+        stream << "Expected " << argument_count << " arguments" << endl;
     }
 
     void reused_argument_index::write(ostream& stream) const {
@@ -122,15 +122,15 @@ namespace sg::diags {
     }
 
     void invalid_struct_field::write(ostream& stream) const {
-        stream << "The struct '" << struct_type.name << "' does not have a field named '" << field_name << "'" << endl;
+        stream << "The struct '" << st.name << "' does not have a field named '" << name << "'" << endl;
     }
 
     void invalid_enum_variant::write(ostream& stream) const {
-        stream << "The enum '" << enum_type.name << "' does not have a variant named '" << variant_name << "'" << endl;
+        stream << "The enum '" << en.name << "' does not have a variant named '" << name << "'" << endl;
     }
 
     void invalid_function_parameter::write(ostream& stream) const {
-        stream << "The function '" << func.name << "' has no parameter named '" << parameter_name << "'" << endl;
+        stream << "The function '" << func.name << "' has no parameter named '" << name << "'" << endl;
     }
 
     void expected_variant_name::write(ostream& stream) const {
@@ -146,19 +146,22 @@ namespace sg::diags {
     }
 
     void invalid_unary_operation::write(ostream& stream) const {
-        stream << "Unary operator '";
+        stream << "The unary operator '";
+
         switch (operation) {
             case ast::unary_operation_expr::NOT: stream << "!"; break;
             case ast::unary_operation_expr::MINUS: stream << "-"; break;
             case ast::unary_operation_expr::BIT_NEG: stream << "~"; break;
         }
+
         stream << "' is not applicable to type ";
-        prog::print_type(stream, program, type);
+        prog::print_type(stream, prog, type);
         stream << endl;
     }
 
     void invalid_binary_operation::write(ostream& stream) const {
-        stream << "Binary operator '";
+        stream << "The binary operator '";
+
         switch (operation) {
             case ast::binary_operation_expr::AND: stream << "&&"; break;
             case ast::binary_operation_expr::OR: stream << "||"; break;
@@ -179,51 +182,54 @@ namespace sg::diags {
             case ast::binary_operation_expr::GT: stream << ">"; break;
             case ast::binary_operation_expr::GTEQ: stream << ">="; break;
         }
+
         stream << "' is not applicable to types ";
-        prog::print_type(stream, program, type1);
+        prog::print_type(stream, prog, left_type);
         stream << " and ";
-        prog::print_type(stream, program, type2);
+        prog::print_type(stream, prog, right_type);
         stream << endl;
     }
 
     void not_convertible::write(ostream& stream) const {
         stream << "A value with type '";
-        prog::print_type(stream, program, type1);
-        stream << "' cannot be converted to a value of type '";
-        prog::print_type(stream, program, type2);
+        prog::print_type(stream, prog, type);
+        stream << "' cannot be converted to a value with type '";
+        prog::print_type(stream, prog, new_type);
         stream << "'" << endl;
     }
 
-    void type_confinement_mismatch::write(ostream& stream) const {
-        stream << "A value with ";
-        if (!confined1)
-            stream << "non-";
-        stream << "confined type cannot be used as a value with ";
-        if (!confined2)
-            stream << "non-";
-        stream << "confined type";
-        if (func_call)
-            stream << " in a function call";
-        stream << endl;
+    void confinement_mismatch::write(ostream& stream) const {
+        if (confined)
+            stream << "Leaked confined value" << endl;
+        else
+            stream << "A value can only be confined when passed as an argument to a function" << endl;
+    }
+
+    void confinement_ambiguous::write(ostream& stream) const {
+        stream << "Either all or none arguments can have confined types" << endl;
+    }
+
+    void function_call_in_confined_context::write(ostream& stream) const {
+        stream << "Cannot receive a function result with non-trivial destructor in a confined context" << endl;
     }
 
     void no_common_supertype::write(ostream& stream) const {
         stream << "The types '";
-        prog::print_type(stream, program, type1);
+        prog::print_type(stream, prog, type_a);
         stream << "' and '";
-        prog::print_type(stream, program, type2);
+        prog::print_type(stream, prog, type_b);
         stream << "' have no common supertype" << endl;
     }
 
     void type_not_copyable::write(ostream& stream) const {
         stream << "The type '";
-        prog::print_type(stream, program, type);
+        prog::print_type(stream, prog, type);
         stream << "' is not copyable" << endl;
     }
 
     void expected_array_type::write(ostream& stream) const {
         stream << "Expression with invalid type '";
-        prog::print_type(stream, program, type);
+        prog::print_type(stream, prog, type);
         stream << "'" << endl;
         stream << "Expected an array type";
     }
@@ -232,12 +238,12 @@ namespace sg::diags {
         stream << "Size constant without unsigned integer type" << endl;
     }
 
-    void restrictive_ptr_type::write(ostream& stream) const {
+    void restrictive_pointer_type::write(ostream& stream) const {
         stream << "Restrictive pointer type" << endl;
         stream << "Use '&' instead" << endl;
     }
 
-    void global_func_copyable::write(ostream& stream) const {
+    void global_function_copyable::write(ostream& stream) const {
         stream << "Global function marked as copyable" << endl;
     }
 
@@ -245,7 +251,7 @@ namespace sg::diags {
         stream << "Variable declared without type" << endl;
     }
 
-    void invalid_variable_state::write(ostream& stream) const {
+    void variable_not_usable::write(ostream& stream) const {
         stream << "Variable '" << name << "' is ";
         if (initialized)
             stream << "potentially ";

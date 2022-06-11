@@ -857,7 +857,7 @@ expr:
     }
 
     | "?" expr[inner] {
-        $$ = AST_VARIANT(expr, WEAK_PTR_TEST, @$, into_ptr($inner));
+        $$ = AST_VARIANT(expr, TEST, @$, into_ptr($inner));
     }
 
     | "[" expr[inner] ";" const_int "]" {

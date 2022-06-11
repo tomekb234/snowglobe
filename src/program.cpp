@@ -4,81 +4,81 @@
 namespace sg::prog {
     using namespace sg::utils;
 
-    static array_type copy_array_type(const array_type& source);
-    static ptr_type copy_ptr_type(const ptr_type& source);
-    static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& source);
-    static func_type copy_func_type(const func_type& source);
-    static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& source);
-    static type_pointed copy_type_pointed(const type_pointed& source);
+    static array_type copy_array_type(const array_type& tp);
+    static ptr_type copy_ptr_type(const ptr_type& tp);
+    static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& tp);
+    static func_type copy_func_type(const func_type& tp);
+    static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& tp);
+    static type_pointed copy_type_pointed(const type_pointed& tp);
 
-    static bool ptr_types_equal(const ptr_type& type1, const ptr_type& type2);
-    static bool types_pointed_equal(const type_pointed& type1, const type_pointed& type2);
+    static bool ptr_types_equal(const ptr_type& type_a, const ptr_type& type_b);
+    static bool types_pointed_equal(const type_pointed& type_a, const type_pointed& type_b);
 
     static void print_ptr_kind(ostream& stream, const ptr_type::kind_t& tp);
     static void print_type_pointed(ostream& stream, const program& prog, const type_pointed& tp);
     static void print_func_type(ostream& stream, const program& prog, const func_type& func);
 
-    constant copy_constant(const constant& source) {
-        switch (INDEX(source)) {
+    constant copy_const(const constant& con) {
+        switch (INDEX(con)) {
             case constant::UNIT:
                 return VARIANT(constant, UNIT, monostate{ });
 
             case constant::BOOL:
-                return VARIANT(constant, BOOL, GET(source, BOOL));
+                return VARIANT(constant, BOOL, GET(con, BOOL));
 
             case constant::INT:
-                return VARIANT(constant, INT, GET(source, INT));
+                return VARIANT(constant, INT, GET(con, INT));
 
             case constant::FLOAT32:
-                return VARIANT(constant, FLOAT32, GET(source, FLOAT32));
+                return VARIANT(constant, FLOAT32, GET(con, FLOAT32));
 
             case constant::FLOAT64:
-                return VARIANT(constant, FLOAT64, GET(source, FLOAT64));
+                return VARIANT(constant, FLOAT64, GET(con, FLOAT64));
 
             case constant::STRUCT: {
-                auto vec = copy_ptr_vector<constant>(GET(source, STRUCT), copy_constant);
+                auto vec = copy_ptr_vector<constant>(GET(con, STRUCT), copy_const);
                 return VARIANT(constant, STRUCT, move(vec));
             }
 
             case constant::ENUM: {
-                auto& p = GET(source, ENUM);
-                auto vec = copy_ptr_vector<constant>(p.second, copy_constant);
-                return VARIANT(constant, ENUM, make_pair(p.first, move(vec)));
+                auto& pr = GET(con, ENUM);
+                auto vec = copy_ptr_vector<constant>(pr.second, copy_const);
+                return VARIANT(constant, ENUM, make_pair(pr.first, move(vec)));
             }
 
             case constant::TUPLE: {
-                auto vec = copy_ptr_vector<constant>(GET(source, TUPLE), copy_constant);
+                auto vec = copy_ptr_vector<constant>(GET(con, TUPLE), copy_const);
                 return VARIANT(constant, TUPLE, move(vec));
             }
 
             case constant::ARRAY: {
-                auto vec = copy_ptr_vector<constant>(GET(source, ARRAY), copy_constant);
+                auto vec = copy_ptr_vector<constant>(GET(con, ARRAY), copy_const);
                 return VARIANT(constant, ARRAY, move(vec));
             }
 
             case constant::SIZED_ARRAY: {
-                auto& p = GET(source, SIZED_ARRAY);
-                return VARIANT(constant, SIZED_ARRAY, make_pair(make_ptr(copy_constant(*p.first)), p.second));
+                auto& pr = GET(con, SIZED_ARRAY);
+                return VARIANT(constant, SIZED_ARRAY, make_pair(make_ptr(copy_const(*pr.first)), pr.second));
             }
 
             case constant::SOME:
-                return VARIANT(constant, SOME, make_ptr(copy_constant(*GET(source, SOME))));
+                return VARIANT(constant, SOME, make_ptr(copy_const(*GET(con, SOME))));
 
             case constant::NONE:
                 return VARIANT(constant, NONE, monostate());
 
             case constant::GLOBAL_VAR_PTR:
-                return VARIANT(constant, GLOBAL_VAR_PTR, GET(source, GLOBAL_VAR_PTR));
+                return VARIANT(constant, GLOBAL_VAR_PTR, GET(con, GLOBAL_VAR_PTR));
 
             case constant::GLOBAL_FUNC_PTR:
-                return VARIANT(constant, GLOBAL_FUNC_PTR, GET(source, GLOBAL_FUNC_PTR));
+                return VARIANT(constant, GLOBAL_FUNC_PTR, GET(con, GLOBAL_FUNC_PTR));
         }
 
         UNREACHABLE;
     }
 
-    type copy_type(const type& source) {
-        switch (INDEX(source)) {
+    type copy_type(const type& tp) {
+        switch (INDEX(tp)) {
             case type::NEVER:
                 return VARIANT(type, NEVER, monostate());
 
@@ -86,109 +86,109 @@ namespace sg::prog {
                 return VARIANT(type, UNIT, monostate());
 
             case type::PRIMITIVE:
-                return VARIANT(type, PRIMITIVE, make_ptr(primitive_type { GET(source, PRIMITIVE)->tp }));
+                return VARIANT(type, PRIMITIVE, make_ptr(primitive_type { GET(tp, PRIMITIVE)->tp }));
 
             case type::STRUCT:
-                return VARIANT(type, STRUCT, GET(source, STRUCT));
+                return VARIANT(type, STRUCT, GET(tp, STRUCT));
 
             case type::ENUM:
-                return VARIANT(type, ENUM, GET(source, ENUM));
+                return VARIANT(type, ENUM, GET(tp, ENUM));
 
             case type::TUPLE: {
-                auto vec = copy_ptr_vector<type>(GET(source, TUPLE), copy_type);
+                auto vec = copy_ptr_vector<type>(GET(tp, TUPLE), copy_type);
                 return VARIANT(type, TUPLE, move(vec));
             }
 
             case type::ARRAY:
-                return VARIANT(type, ARRAY, make_ptr(copy_array_type(*GET(source, ARRAY))));
+                return VARIANT(type, ARRAY, make_ptr(copy_array_type(*GET(tp, ARRAY))));
 
             case type::OPTIONAL:
-                return VARIANT(type, OPTIONAL, make_ptr(copy_type(*GET(source, OPTIONAL))));
+                return VARIANT(type, OPTIONAL, make_ptr(copy_type(*GET(tp, OPTIONAL))));
 
             case type::PTR:
-                return VARIANT(type, PTR, make_ptr(copy_ptr_type(*GET(source, PTR))));
+                return VARIANT(type, PTR, make_ptr(copy_ptr_type(*GET(tp, PTR))));
 
             case type::INNER_PTR:
-                return VARIANT(type, INNER_PTR, make_ptr(copy_inner_ptr_type(*GET(source, INNER_PTR))));
+                return VARIANT(type, INNER_PTR, make_ptr(copy_inner_ptr_type(*GET(tp, INNER_PTR))));
 
             case type::FUNC:
-                return VARIANT(type, FUNC, make_ptr(copy_func_type(*GET(source, FUNC))));
+                return VARIANT(type, FUNC, make_ptr(copy_func_type(*GET(tp, FUNC))));
 
             case type::GLOBAL_FUNC:
-                return VARIANT(type, GLOBAL_FUNC, make_ptr(copy_func_type(*GET(source, GLOBAL_FUNC))));
+                return VARIANT(type, GLOBAL_FUNC, make_ptr(copy_func_type(*GET(tp, GLOBAL_FUNC))));
 
             case type::FUNC_WITH_PTR:
-                return VARIANT(type, FUNC_WITH_PTR, make_ptr(copy_func_with_ptr_type(*GET(source, FUNC_WITH_PTR))));
+                return VARIANT(type, FUNC_WITH_PTR, make_ptr(copy_func_with_ptr_type(*GET(tp, FUNC_WITH_PTR))));
 
             case type::KNOWN_FUNC:
-                return VARIANT(type, KNOWN_FUNC, GET(source, KNOWN_FUNC));
+                return VARIANT(type, KNOWN_FUNC, GET(tp, KNOWN_FUNC));
 
             case type::STRUCT_CTOR:
-                return VARIANT(type, STRUCT_CTOR, GET(source, STRUCT_CTOR));
+                return VARIANT(type, STRUCT_CTOR, GET(tp, STRUCT_CTOR));
 
             case type::ENUM_CTOR:
-                return VARIANT(type, ENUM_CTOR, GET(source, ENUM_CTOR));
+                return VARIANT(type, ENUM_CTOR, GET(tp, ENUM_CTOR));
         }
 
         UNREACHABLE;
     }
 
-    type_local copy_type_local(const type_local& source) {
-        return { make_ptr(copy_type(*source.tp)), source.confined };
+    type_local copy_type_local(const type_local& tp) {
+        return { make_ptr(copy_type(*tp.tp)), tp.confined };
     }
 
-    static array_type copy_array_type(const array_type& source) {
-        return { make_ptr(copy_type(*source.tp)), source.size };
+    static array_type copy_array_type(const array_type& tp) {
+        return { make_ptr(copy_type(*tp.tp)), tp.size };
     }
 
-    static ptr_type copy_ptr_type(const ptr_type& source) {
-        return { source.kind, make_ptr(copy_type_pointed(*source.target_tp)) };
+    static ptr_type copy_ptr_type(const ptr_type& tp) {
+        return { tp.kind, make_ptr(copy_type_pointed(*tp.target_tp)) };
     }
 
-    static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& source) {
-        return { copy_ptr_type(source), make_ptr(copy_type_pointed(*source.owner_tp)) };
+    static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& tp) {
+        return { copy_ptr_type(tp), make_ptr(copy_type_pointed(*tp.owner_tp)) };
     }
 
-    static func_type copy_func_type(const func_type& source) {
-        auto vec = copy_ptr_vector<type_local>(source.param_tps, copy_type_local);
-        return { move(vec), make_ptr(copy_type(*source.return_tp)) };
+    static func_type copy_func_type(const func_type& tp) {
+        auto vec = copy_ptr_vector<type_local>(tp.param_tps, copy_type_local);
+        return { move(vec), make_ptr(copy_type(*tp.return_tp)) };
     }
 
-    static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& source) {
-        return { copy_func_type(source), copy_ptr_type(source) };
+    static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& tp) {
+        return { copy_func_type(tp), copy_ptr_type(tp) };
     }
 
-    static type_pointed copy_type_pointed(const type_pointed& source) {
-        return { make_ptr(copy_type(*source.tp)), source.slice };
+    static type_pointed copy_type_pointed(const type_pointed& tp) {
+        return { make_ptr(copy_type(*tp.tp)), tp.slice };
     }
 
-    bool types_equal(const type& type1, const type& type2) {
-        if (INDEX(type1) != INDEX(type2))
+    bool types_equal(const type& type_a, const type& type_b) {
+        if (INDEX(type_a) != INDEX(type_b))
             return false;
 
-        switch (INDEX(type1)) {
+        switch (INDEX(type_a)) {
             case type::NEVER:
                 return true;
 
             case type::PRIMITIVE:
-                return GET(type1, PRIMITIVE)->tp == GET(type2, PRIMITIVE)->tp;
+                return GET(type_a, PRIMITIVE)->tp == GET(type_b, PRIMITIVE)->tp;
 
             case type::STRUCT:
-                return GET(type1, STRUCT) == GET(type2, STRUCT);
+                return GET(type_a, STRUCT) == GET(type_b, STRUCT);
 
             case type::ENUM:
-                return GET(type1, ENUM) == GET(type2, ENUM);
+                return GET(type_a, ENUM) == GET(type_b, ENUM);
 
             case type::TUPLE: {
-                auto& tuple1 = GET(type1, TUPLE);
-                auto& tuple2 = GET(type2, TUPLE);
-                auto size = tuple1.size();
+                auto& tuple_a = GET(type_a, TUPLE);
+                auto& tuple_b = GET(type_b, TUPLE);
+                auto size = tuple_a.size();
 
-                if (size != tuple2.size())
+                if (size != tuple_b.size())
                     return false;
 
                 for (size_t index = 0; index < size; index++) {
-                    if (!types_equal(*tuple1[index], *tuple2[index]))
+                    if (!types_equal(*tuple_a[index], *tuple_b[index]))
                         return false;
                 }
 
@@ -196,76 +196,76 @@ namespace sg::prog {
             }
 
             case type::ARRAY: {
-                auto& array1 = *GET(type1, ARRAY);
-                auto& array2 = *GET(type2, ARRAY);
-                return array1.size == array2.size && types_equal(*array1.tp, *array2.tp);
+                auto& array_a = *GET(type_a, ARRAY);
+                auto& array_b = *GET(type_b, ARRAY);
+                return array_a.size == array_b.size && types_equal(*array_a.tp, *array_b.tp);
             }
 
             case type::OPTIONAL:
-                return types_equal(*GET(type1, OPTIONAL), *GET(type2, OPTIONAL));
+                return types_equal(*GET(type_a, OPTIONAL), *GET(type_b, OPTIONAL));
 
             case type::PTR:
-                return ptr_types_equal(*GET(type1, PTR), *GET(type2, PTR));
+                return ptr_types_equal(*GET(type_a, PTR), *GET(type_b, PTR));
 
             case type::INNER_PTR: {
-                auto& inptr1 = *GET(type1, INNER_PTR);
-                auto& inptr2 = *GET(type2, INNER_PTR);
-                return ptr_types_equal(inptr1, inptr2) && types_pointed_equal(*inptr1.owner_tp, *inptr2.owner_tp);
+                auto& inptr_a = *GET(type_a, INNER_PTR);
+                auto& inptr_b = *GET(type_b, INNER_PTR);
+                return ptr_types_equal(inptr_a, inptr_b) && types_pointed_equal(*inptr_a.owner_tp, *inptr_b.owner_tp);
             }
 
             case type::FUNC:
-                return func_types_equal(*GET(type1, FUNC), *GET(type2, FUNC));
+                return func_types_equal(*GET(type_a, FUNC), *GET(type_b, FUNC));
 
             case type::GLOBAL_FUNC:
-                return func_types_equal(*GET(type1, GLOBAL_FUNC), *GET(type2, GLOBAL_FUNC));
+                return func_types_equal(*GET(type_a, GLOBAL_FUNC), *GET(type_b, GLOBAL_FUNC));
 
             case type::FUNC_WITH_PTR: {
-                auto& fptr1 = *GET(type1, FUNC_WITH_PTR);
-                auto& fptr2 = *GET(type2, FUNC_WITH_PTR);
-                return func_types_equal(fptr1, fptr2) && ptr_types_equal(fptr1, fptr2);
+                auto& fptr_a = *GET(type_a, FUNC_WITH_PTR);
+                auto& fptr_b = *GET(type_b, FUNC_WITH_PTR);
+                return func_types_equal(fptr_a, fptr_b) && ptr_types_equal(fptr_a, fptr_b);
             }
 
             case type::KNOWN_FUNC:
-                return GET(type1, KNOWN_FUNC) == GET(type2, KNOWN_FUNC);
+                return GET(type_a, KNOWN_FUNC) == GET(type_b, KNOWN_FUNC);
 
             case type::STRUCT_CTOR:
-                return GET(type1, STRUCT_CTOR) == GET(type2, STRUCT_CTOR);
+                return GET(type_a, STRUCT_CTOR) == GET(type_b, STRUCT_CTOR);
 
             case type::ENUM_CTOR:
-                return GET(type1, ENUM_CTOR) == GET(type2, ENUM_CTOR);
+                return GET(type_a, ENUM_CTOR) == GET(type_b, ENUM_CTOR);
         }
 
         return true;
     }
 
-    bool types_local_equal(const type_local& type1, const type_local& type2) {
-        return type1.confined == type2.confined && types_equal(*type1.tp, *type2.tp);
+    bool types_local_equal(const type_local& type_a, const type_local& type_b) {
+        return type_a.confined == type_b.confined && types_equal(*type_a.tp, *type_b.tp);
     }
 
-    bool func_types_equal(const func_type& type1, const func_type& type2) {
-        if (!types_equal(*type1.return_tp, *type2.return_tp))
+    bool func_types_equal(const func_type& type_a, const func_type& type_b) {
+        if (!types_equal(*type_a.return_tp, *type_b.return_tp))
             return false;
 
-        auto& params1 = type1.param_tps;
-        auto& params2 = type2.param_tps;
+        auto& params_a = type_a.param_tps;
+        auto& params_b = type_b.param_tps;
 
-        if (params1.size() != params2.size())
+        if (params_a.size() != params_b.size())
             return false;
 
-        for (size_t index = 0; index < params1.size(); index++) {
-            if (!types_local_equal(*params1[index], *params2[index]))
+        for (size_t index = 0; index < params_a.size(); index++) {
+            if (!types_local_equal(*params_a[index], *params_b[index]))
                 return false;
         }
 
         return true;
     }
 
-    static bool ptr_types_equal(const ptr_type& type1, const ptr_type& type2) {
-        return type1.kind == type2.kind && types_pointed_equal(*type1.target_tp, *type2.target_tp);
+    static bool ptr_types_equal(const ptr_type& type_a, const ptr_type& type_b) {
+        return type_a.kind == type_b.kind && types_pointed_equal(*type_a.target_tp, *type_b.target_tp);
     }
 
-    static bool types_pointed_equal(const type_pointed& type1, const type_pointed& type2) {
-        return type1.slice == type2.slice && types_equal(*type1.tp, *type2.tp);
+    static bool types_pointed_equal(const type_pointed& type_a, const type_pointed& type_b) {
+        return type_a.slice == type_b.slice && types_equal(*type_a.tp, *type_b.tp);
     }
 
     func_type get_func_type(const global_func& func) {
@@ -420,9 +420,9 @@ namespace sg::prog {
 
             case type::ENUM_CTOR: {
                 auto& en = *prog.enum_types[GET(tp, ENUM_CTOR).first];
-                auto var = GET(tp, ENUM_CTOR).second;
+                auto variant = GET(tp, ENUM_CTOR).second;
                 stream << "<enum " << en.name;
-                stream << " variant " << en.variants[var]->name << " constructor>";
+                stream << " variant " << en.variants[variant]->name << " constructor>";
             } break;
         }
     }

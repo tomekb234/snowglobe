@@ -17,7 +17,7 @@ utils_hpp = $I/utils.hpp
 diagcol_hpp = $I/diagcol.hpp $(location_hpp)
 compiler_hpp = $I/compiler.hpp $(ast_hpp) $(program_hpp) $(diagcol_hpp)
 parser_hpp = $G/parser.cpp $(location_hpp) $(input_hpp) $(diagcol_hpp) $(ast_hpp)
-diags_hpp = $I/diags.hpp $(diagcol_hpp) $(program_hpp) $(compiler_hpp)
+diags_hpp = $I/diags.hpp $(diagcol_hpp) $(ast_hpp) $(program_hpp) $(compiler_hpp)
 
 compiler = $C/compiler.o $C/globals.o $C/functions.o $C/constants.o $C/types.o $C/conversions.o
 

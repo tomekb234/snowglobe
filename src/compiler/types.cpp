@@ -91,7 +91,7 @@ namespace sg {
                 case prog::ptr_type::SHARED:
                 case prog::ptr_type::WEAK:
                 case prog::ptr_type::UNIQUE:
-                    warning(diags::restrictive_ptr_type(), ast);
+                    warning(diags::restrictive_pointer_type(), ast);
                     break;
 
                 default:
@@ -150,7 +150,7 @@ namespace sg {
 
     prog::array_type compiler::compile_array_type(const ast::array_type& ast, bool allow_uncompiled) {
         auto type = compile_type(*ast.tp, allow_uncompiled);
-        auto size = compile_constant_size(*ast.size);
+        auto size = compile_const_size(*ast.size);
         return { into_ptr(type), size };
     }
 
@@ -242,10 +242,10 @@ namespace sg {
                 return true;
 
             case prog::type::STRUCT:
-                return program.struct_types[GET(type, STRUCT)]->copyable;
+                return prog.struct_types[GET(type, STRUCT)]->copyable;
 
             case prog::type::ENUM:
-                return program.enum_types[GET(type, ENUM)]->copyable;
+                return prog.enum_types[GET(type, ENUM)]->copyable;
 
             case prog::type::TUPLE: {
                 for (auto& type_ptr : GET(type, TUPLE))
@@ -291,10 +291,10 @@ namespace sg {
                 return true;
 
             case prog::type::STRUCT:
-                return program.struct_types[GET(type, STRUCT)]->trivially_copyable;
+                return prog.struct_types[GET(type, STRUCT)]->trivially_copyable;
 
             case prog::type::ENUM:
-                return program.struct_types[GET(type, ENUM)]->trivially_copyable;
+                return prog.struct_types[GET(type, ENUM)]->trivially_copyable;
 
             case prog::type::TUPLE: {
                 for (auto& type_ptr : GET(type, TUPLE))
@@ -331,5 +331,19 @@ namespace sg {
         }
 
         UNREACHABLE;
+    }
+
+    prog::type compiler::common_supertype(const ast::node& ast, const prog::type& type_a, const prog::type& type_b) {
+        auto new_reg = [] () -> prog::reg_index { return 0; };
+        auto add_instr = [] (prog::instr&&) { };
+        conversion_compiler conv_clr(*this, new_reg, add_instr);
+
+        if (conv_clr.try_convert(0, type_a, type_b, false))
+            return prog::copy_type(type_b);
+
+        if (conv_clr.try_convert(0, type_b, type_a, false))
+            return prog::copy_type(type_a);
+
+        error(diags::no_common_supertype(prog, copy_type(type_a), copy_type(type_b)), ast);
     }
 }

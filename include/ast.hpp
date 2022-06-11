@@ -10,15 +10,15 @@
 #include <utility>
 
 namespace sg::ast {
-    template<typename T>
-    using ptr = std::unique_ptr<T>;
-
     using std::vector;
     using std::optional;
     using std::variant;
     using std::monostate;
     using std::string;
     using std::pair;
+
+    template<typename T>
+    using ptr = std::unique_ptr<T>;
 
     struct program;
     struct global_def;
@@ -333,7 +333,7 @@ namespace sg::ast {
             REFERENCE,
             HEAP_ALLOC,
             DEREFERENCE,
-            WEAK_PTR_TEST,
+            TEST,
             SIZED_ARRAY,
             HEAP_SLICE_ALLOC,
             LENGTH,
@@ -361,7 +361,7 @@ namespace sg::ast {
             string, // REFERENCE
             ptr<expr>, // HEAP_ALLOC
             ptr<expr>, // DEREFERENCE
-            ptr<expr>, // WEAK_PTR_TEST
+            ptr<expr>, // TEST
             ptr<sized_array_expr>, // SIZED_ARRAY
             ptr<heap_slice_alloc_expr>, // HEAP_SLICE_ALLOC
             ptr<expr>, // LENGTH

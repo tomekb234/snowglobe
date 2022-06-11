@@ -11,9 +11,6 @@
 #include <unordered_map>
 
 namespace sg::prog {
-    template<typename T>
-    using ptr = std::unique_ptr<T>;
-
     using std::vector;
     using std::optional;
     using std::variant;
@@ -22,6 +19,9 @@ namespace sg::prog {
     using std::pair;
     using std::ostream;
     using std::unordered_map;
+
+    template<typename T>
+    using ptr = std::unique_ptr<T>;
 
     struct program;
     struct global_var;
@@ -472,7 +472,7 @@ namespace sg::prog {
     struct transform_instr {
         reg_index value;
         reg_index extracted;
-        vector<ptr<instr>> instrs;
+        ptr<instr_block> instrs;
         reg_index inner_result;
         reg_index result;
     };
@@ -483,13 +483,13 @@ namespace sg::prog {
         ptr<instr_block> false_instrs;
     };
 
-    constant copy_constant(const constant& source);
-    type copy_type(const type& source);
-    type_local copy_type_local(const type_local& source);
+    constant copy_const(const constant& con);
+    type copy_type(const type& tp);
+    type_local copy_type_local(const type_local& tp);
 
-    bool types_equal(const type& type1, const type& type2);
-    bool types_local_equal(const type_local& type1, const type_local& type2);
-    bool func_types_equal(const func_type& type1, const func_type& type2);
+    bool types_equal(const type& type_a, const type& type_b);
+    bool types_local_equal(const type_local& type_a, const type_local& type_b);
+    bool func_types_equal(const func_type& type_a, const func_type& type_b);
 
     func_type get_func_type(const global_func& func);
 
