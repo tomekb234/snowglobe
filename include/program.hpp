@@ -323,7 +323,10 @@ namespace sg::prog {
             ADD_WEAK_REF,
             FORGET_REF_COUNTER,
 
-            BRANCH
+            BRANCH,
+            LOOP,
+            CONTINUE_LOOP,
+            BREAK_LOOP
         };
 
         variant<
@@ -384,7 +387,10 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // ADD_WEAK_REF
             ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
 
-            ptr<branch_instr> // BRANCH
+            ptr<branch_instr>, // BRANCH
+            ptr<instr_block>, // LOOP
+            monostate, // CONTINUE_LOOP
+            monostate // BREAK_LOOP
         > value;
     };
 
@@ -523,7 +529,7 @@ namespace sg::prog {
     };
 
     struct branch_instr {
-        reg_index condition;
+        reg_index cond;
         ptr<instr_block> true_instrs;
         ptr<instr_block> false_instrs;
     };

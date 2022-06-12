@@ -163,11 +163,12 @@ namespace sg {
             bool initialized;
             bool uninitialized;
             bool moved_out;
+            size_t loop_level;
         };
 
-        static constexpr var_state VAR_INITIALIZED = { true, false, false };
-        static constexpr var_state VAR_UNINITIALIZED = { false, true, false };
-        static constexpr var_state VAR_MOVED_OUT = { false, false, true };
+        static constexpr var_state VAR_INITIALIZED = { true, false, false, 0 };
+        static constexpr var_state VAR_UNINITIALIZED = { false, true, false, 0 };
+        static constexpr var_state VAR_MOVED_OUT = { false, false, true, 0 };
 
         struct frame {
             vector<prog::instr> instrs;
@@ -214,17 +215,22 @@ namespace sg {
 
         prog::var_index add_var(string name, prog::ptr<prog::type_local> type);
         optional<prog::var_index> get_var(string name);
+        vector<var_state> backup_var_states();
         void restore_var_states(const vector<var_state>& states);
         void merge_var_states(const vector<var_state>& states);
+        void incr_loop_level();
+        void decr_loop_level();
 
         prog::reg_index add_copy_instrs(prog::reg_index value, const prog::type& type);
         void add_delete_instrs(prog::reg_index value, const prog::type_local& type);
         void add_cleanup_instrs(bool all_frames = false);
-        void add_branch_instr(prog::reg_index condition, function<void()> true_branch, function<void()> false_branch);
+        void add_return_instr(prog::reg_index value);
+        void add_branch_instr(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
 
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
-        void compile_return(const optional<ast::ptr<ast::expr>>& ast, const ast::node& node);
+        void compile_return(const ast::node& ast, const optional<ast::ptr<ast::expr>>& expr_ast);
         void compile_if_stmt_branches(const ast::if_stmt& ast, size_t index = 0);
+        void compile_while_stmt(const ast::while_stmt& ast);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<ref<const prog::type_local>> implicit_type);
 

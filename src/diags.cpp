@@ -264,6 +264,14 @@ namespace sg::diags {
         stream << endl;
     }
 
+    void variable_moved_inside_loop::write(ostream& stream) const {
+        stream << "Variable '" << name << "' moved out multiple times inside a loop" << endl;
+    }
+
+    void global_variable_moved::write(ostream& stream) const {
+        stream << "Cannot move out global variable '" << name << "'" << endl;
+    }
+
     void missing_return::write(ostream& stream) const {
         stream << "Missing return statement" << endl;
     }

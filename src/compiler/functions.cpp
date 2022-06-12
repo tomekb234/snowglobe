@@ -10,6 +10,10 @@ namespace sg {
     using std::monostate;
     using std::tie;
 
+    const prog::type_local NEVER_TYPE = { make_ptr(VARIANT(prog::type, NEVER, monostate())), false };
+    const prog::type_local UNIT_TYPE = { make_ptr(VARIANT(prog::type, UNIT, monostate())), false };
+    const prog::type_local BOOL_TYPE = { make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::BOOL }))), false };
+
     void function_compiler::compile(const ast::func_def& ast) {
         push_frame();
 
@@ -22,12 +26,16 @@ namespace sg {
 
         compile_stmt_block(*ast.body->block, false);
 
-        if (!returned || ast.body->return_value) {
-            if (!ast.body->return_value && !INDEX_EQ(*func.return_tp, UNIT))
-                clr.error(diags::missing_return(), ast.end_loc);
+        if (ast.body->return_value) {
             if (returned)
                 clr.warning(diags::dead_code(), **ast.body->return_value);
-            compile_return(ast.body->return_value, **ast.body->return_value);
+            compile_return(**ast.body->return_value, ast.body->return_value);
+        } else if (!returned) {
+            if (!INDEX_EQ(*func.return_tp, UNIT))
+                clr.error(diags::missing_return(), ast.end_loc);
+            auto result = new_reg();
+            add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
+            add_return_instr(result);
         }
 
         func.vars = move(var_types);
@@ -77,20 +85,34 @@ namespace sg {
         return { var_names[name].back() };
     }
 
+    vector<function_compiler::var_state> function_compiler::backup_var_states() {
+        return var_states;
+    }
+
     void function_compiler::restore_var_states(const vector<var_state>& states) {
         auto count = states.size();
-
         for (size_t index = 0; index < count; index++)
             var_states[index] = states[index];
     }
 
     void function_compiler::merge_var_states(const vector<var_state>& states) {
         auto count = states.size();
-
         for (size_t index = 0; index < count; index++) {
             var_states[index].initialized |= states[index].initialized;
             var_states[index].uninitialized |= states[index].uninitialized;
             var_states[index].moved_out |= states[index].moved_out;
+        }
+    }
+
+    void function_compiler::incr_loop_level() {
+        for (auto& state : var_states)
+            state.loop_level++;
+    }
+
+    void function_compiler::decr_loop_level() {
+        for (auto& state : var_states) {
+            if (state.loop_level > 0)
+                state.loop_level--;
         }
     }
 
@@ -113,30 +135,38 @@ namespace sg {
         (void)all_frames;
     }
 
-    void function_compiler::add_branch_instr(prog::reg_index condition, function<void()> true_branch, function<void()> false_branch) {
-        prog::branch_instr instr;
-        instr.condition = condition;
+    void function_compiler::add_return_instr(prog::reg_index value) {
+        add_cleanup_instrs(true);
 
-        auto init_var_states = var_states;
+        auto instr = prog::return_instr { value };
+        add_instr(VARIANT(prog::instr, RETURN, into_ptr(instr)));
+
+        returned = true;
+    }
+
+    void function_compiler::add_branch_instr(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch) {
+        auto init_var_states = backup_var_states();
         auto init_returned = returned;
 
         push_frame();
         true_branch();
-        instr.true_instrs = make_ptr(pop_frame());
+        auto true_block = pop_frame();
 
-        auto true_branch_var_states = var_states;
-        auto true_branch_returned = returned;
+        auto branch_var_states = backup_var_states();
+        auto branch_returned = returned;
 
         restore_var_states(init_var_states);
         returned = init_returned;
 
         push_frame();
         false_branch();
-        instr.false_instrs = make_ptr(pop_frame());
+        auto false_block = pop_frame();
 
+        auto instr = prog::branch_instr { cond, into_ptr(true_block), into_ptr(false_block) };
         add_instr(VARIANT(prog::instr, BRANCH, into_ptr(instr)));
-        merge_var_states(true_branch_var_states);
-        returned &= true_branch_returned;
+
+        merge_var_states(branch_var_states);
+        returned &= branch_returned;
     }
 
     void function_compiler::compile_stmt_block(const ast::stmt_block& ast, bool cleanup) {
@@ -189,12 +219,17 @@ namespace sg {
                 case ast::stmt::SWAP_BLOCK:
                     clr.error(diags::not_implemented(), *stmt_ast); // TODO
 
-                case ast::stmt::IF: {
+                case ast::stmt::IF:
                     compile_if_stmt_branches(*GET(*stmt_ast, IF));
-                } break;
+                    break;
 
                 case ast::stmt::MATCH:
+                    clr.error(diags::not_implemented(), *stmt_ast); // TODO
+
                 case ast::stmt::WHILE:
+                    compile_while_stmt(*GET(*stmt_ast, WHILE));
+                    break;
+
                 case ast::stmt::FOR:
                 case ast::stmt::FUNC_DEF:
                     clr.error(diags::not_implemented(), *stmt_ast); // TODO
@@ -205,26 +240,21 @@ namespace sg {
             add_cleanup_instrs();
     }
 
-    void function_compiler::compile_return(const optional<ast::ptr<ast::expr>>& ast, const ast::node& node) {
+    void function_compiler::compile_return(const ast::node& ast, const optional<ast::ptr<ast::expr>>& expr_ast) {
         prog::reg_index result;
         prog::type_local type;
 
-        if (ast)
-            tie(result, type) = compile_expr(**ast, false);
+        if (expr_ast)
+            tie(result, type) = compile_expr(**expr_ast, false);
         else {
             result = new_reg();
-            type = prog::type_local { make_ptr(VARIANT(prog::type, UNIT, monostate())), false };
+            type = copy_type_local(UNIT_TYPE);
             add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
         }
 
-        result = conv_clr.convert(node, result, type, *func.return_tp);
+        result = conv_clr.convert(ast, result, type, *func.return_tp);
 
-        add_cleanup_instrs(true);
-
-        auto instr = prog::return_instr { result };
-        add_instr(VARIANT(prog::instr, RETURN, into_ptr(instr)));
-
-        returned = true;
+        add_return_instr(result);
     }
 
     void function_compiler::compile_if_stmt_branches(const ast::if_stmt& ast, size_t index) {
@@ -232,26 +262,74 @@ namespace sg {
         auto& cond_ast = *branch_ast.cond;
         auto& block_ast = *branch_ast.block;
 
-        prog::reg_index condition;
-        function<void()> true_branch, false_branch;
+        prog::reg_index cond;
 
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
             auto [value, type] = compile_expr(expr_ast, true);
             auto bool_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::BOOL }));
-            condition = conv_clr.convert(expr_ast, value, type, bool_type);
-            true_branch = [&](){compile_stmt_block(block_ast);};
+            cond = conv_clr.convert(expr_ast, value, type, bool_type);
         } else
             clr.error(diags::not_implemented(), cond_ast); // TODO
-        
-        if (index < ast.branches.size() - 1)
-            false_branch = [&](){compile_if_stmt_branches(ast, index + 1);};
-        else if (ast.else_branch)
-            false_branch = [&](){compile_stmt_block(**ast.else_branch);};
-        else
-            false_branch = [](){};
 
-        add_branch_instr(condition, true_branch, false_branch);
+        auto true_branch = [&] () {
+            compile_stmt_block(block_ast);
+        };
+
+        auto false_branch = [&] () {
+            if (index < ast.branches.size() - 1)
+                compile_if_stmt_branches(ast, index + 1);
+            else if (ast.else_branch)
+                compile_stmt_block(**ast.else_branch);
+        };
+
+        add_branch_instr(cond, true_branch, false_branch);
+    }
+
+    void function_compiler::compile_while_stmt(const ast::while_stmt& ast) {
+        auto& cond_ast = *ast.cond;
+
+        push_frame();
+
+        prog::reg_index cond;
+
+        if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
+            auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
+            auto [value, type] = compile_expr(expr_ast, true);
+            cond = conv_clr.convert(ast, value, type, BOOL_TYPE);
+        } else
+            clr.error(diags::not_implemented(), cond_ast); // TODO
+
+        auto init_var_states = backup_var_states();
+        auto init_returned = returned;
+
+        push_frame();
+        incr_loop_level();
+        compile_stmt_block(*ast.block);
+        decr_loop_level();
+        auto true_block = pop_frame();
+
+        auto branch_var_states = backup_var_states();
+        auto branch_returned = returned;
+
+        merge_var_states(init_var_states);
+        returned &= init_returned;
+
+        push_frame();
+        if (ast.else_block)
+            compile_stmt_block(**ast.else_block);
+        add_instr(VARIANT(prog::instr, BREAK_LOOP, monostate()));
+        auto false_block = pop_frame();
+
+        auto branch_instr = prog::branch_instr { cond, into_ptr(true_block), into_ptr(false_block) };
+        add_instr(VARIANT(prog::instr, BRANCH, into_ptr(branch_instr)));
+
+        auto block = pop_frame();
+        add_instr(VARIANT(prog::instr, LOOP, into_ptr(block)));
+
+        merge_var_states(init_var_states);
+        merge_var_states(branch_var_states);
+        returned &= init_returned & branch_returned;
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<ref<const prog::type_local>> implicit_type) {
@@ -318,55 +396,68 @@ namespace sg {
                     auto instr = prog::read_var_instr { *local_var, result };
                     add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(instr)));
 
-                    auto& type = *var_types[*local_var];
+                    auto& var_type = *var_types[*local_var];
 
-                    if (!confined && !type.confined) {
-                        if (clr.type_copyable(*type.tp))
-                            result = add_copy_instrs(result, *type.tp);
-                        else
+                    if (!confined && !var_type.confined) {
+                        if (clr.type_copyable(*var_type.tp))
+                            result = add_copy_instrs(result, *var_type.tp);
+                        else if (state.loop_level == 0)
                             state = VAR_MOVED_OUT;
+                        else
+                            clr.error(diags::variable_moved_inside_loop(name), ast);
                     }
 
-                    auto result_type = copy_type_local(type);
+                    auto type = copy_type_local(var_type);
 
                     if (confined)
-                        result_type.confined = true;
+                        type.confined = true;
 
-                    return { result, move(result_type) };
+                    return { result, move(type) };
                 }
 
                 auto& global_name = clr.get_global_name(ast, name);
 
                 switch (global_name.kind) {
                     case global_name_kind::VAR: {
-                        auto& var = clr.prog.global_vars[global_name.index];
+                        auto& var = *clr.prog.global_vars[global_name.index];
+
                         auto result = new_reg();
                         auto instr = prog::read_global_var_instr { global_name.index, result };
                         add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(instr)));
-                        auto type = prog::type_local { make_ptr(copy_type(*var->tp)), confined };
+
+                        if (!confined) {
+                            if (clr.type_copyable(*var.tp))
+                                result = add_copy_instrs(result, *var.tp);
+                            else
+                                clr.error(diags::global_variable_moved(name), ast);
+                        }
+
+                        auto type = prog::type_local { make_ptr(copy_type(*var.tp)), confined };
                         return { result, move(type) };
                     }
 
                     case global_name_kind::CONST: {
-                        auto& con = clr.consts[global_name.index];
+                        auto& value = clr.consts[global_name.index];
+
                         auto result = new_reg();
-                        auto instr = prog::make_const_instr { make_ptr(copy_const(*con.value)), result };
+                        auto instr = prog::make_const_instr { make_ptr(copy_const(*value.value)), result };
                         add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
-                        auto type = prog::type_local { make_ptr(copy_type(*con.tp)), confined };
+
+                        auto type = prog::type_local { make_ptr(copy_type(*value.tp)), confined };
                         return { result, move(type) };
                     }
 
                     case global_name_kind::FUNC: {
                         auto result = new_reg();
                         add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
-                        auto type = prog::type_local { make_ptr(VARIANT(prog::type, KNOWN_FUNC, global_name.index)), confined };
+                        auto type = prog::type_local { make_ptr(VARIANT(prog::type, KNOWN_FUNC, global_name.index)), false };
                         return { result, move(type) };
                     }
 
                     case global_name_kind::STRUCT: {
                         auto result = new_reg();
                         add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
-                        auto type = prog::type_local { make_ptr(VARIANT(prog::type, STRUCT_CTOR, global_name.index)), confined };
+                        auto type = prog::type_local { make_ptr(VARIANT(prog::type, STRUCT_CTOR, global_name.index)), false };
                         return { result, move(type) };
                     }
 
@@ -399,17 +490,20 @@ namespace sg {
 
                 auto result = new_reg();
                 add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
-                auto type = prog::type_local { make_ptr(VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index))), confined };
+                auto type = prog::type_local { make_ptr(VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index))), false };
                 return { result, move(type) };
             }
 
             case ast::expr::LITERAL: {
                 auto& literal_ast = *GET(ast, LITERAL);
-                auto [constant, type] = clr.compile_const_literal(literal_ast);
+                auto [value, value_type] = clr.compile_const_literal(literal_ast);
+
                 auto result = new_reg();
-                auto instr = prog::make_const_instr { into_ptr(constant), result };
+                auto instr = prog::make_const_instr { into_ptr(value), result };
                 add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
-                return { result, prog::type_local { into_ptr(type), confined } };
+
+                auto type = prog::type_local { into_ptr(value_type), false };
+                return { result, move(type) };
             }
 
             case ast::expr::UNARY_OPERATION:
@@ -425,31 +519,42 @@ namespace sg {
                 auto result = new_reg();
                 auto instr = prog::make_optional_instr { { }, result };
                 add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(instr)));
-                auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate())))), confined };
+                auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate())))), false };
                 return { result, move(type) };
             }
 
             case ast::expr::SOME: {
                 auto& expr_ast = *GET(ast, SOME);
-                auto [value, inner_type] = compile_expr(expr_ast, confined);
+                auto [value, value_type] = compile_expr(expr_ast, confined);
                 auto result = new_reg();
                 auto instr = prog::make_optional_instr { { value }, result };
                 add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(instr)));
-                auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, move(inner_type.tp))), inner_type.confined };
+                auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, move(value_type.tp))), value_type.confined };
                 return { result, move(type) };
             }
 
             case ast::expr::RETURN: {
                 auto& return_expr = GET(ast, RETURN);
-                compile_return(return_expr, return_expr ? **return_expr : ast);
+                compile_return(return_expr ? **return_expr : ast, return_expr);
                 auto result = new_reg();
                 add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
-                auto type = prog::type_local { make_ptr(VARIANT(prog::type, NEVER, monostate())), confined };
-                return { result, move(type) };
+                return { result, copy_type_local(NEVER_TYPE) };
             }
 
-            case ast::expr::BREAK:
-            case ast::expr::CONTINUE:
+            case ast::expr::BREAK: {
+                add_instr(VARIANT(prog::instr, BREAK_LOOP, monostate()));
+                auto result = new_reg();
+                add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
+                return { result, copy_type_local(NEVER_TYPE) };
+            }
+
+            case ast::expr::CONTINUE: {
+                add_instr(VARIANT(prog::instr, CONTINUE_LOOP, monostate()));
+                auto result = new_reg();
+                add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
+                return { result, copy_type_local(NEVER_TYPE) };
+            }
+
             case ast::expr::REFERENCE:
             case ast::expr::HEAP_ALLOC:
             case ast::expr::DEREFERENCE:
@@ -476,8 +581,7 @@ namespace sg {
         if (size == 0) {
             auto result = new_reg();
             add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
-            auto type = prog::type_local { make_ptr(VARIANT(prog::type, UNIT, prog::monostate())), all_confined };
-            return { result, move(type) };
+            return { result, copy_type_local(UNIT_TYPE) };
         }
 
         if (size == 1) {
@@ -634,11 +738,10 @@ namespace sg {
 
         switch (ast.operation) {
             case ast::unary_operation_expr::NOT: {
-                auto bool_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }));
-                value = conv_clr.convert(*ast.value, value, *type.tp, bool_type);
+                value = conv_clr.convert(*ast.value, value, type, BOOL_TYPE);
                 auto instr = prog::unary_operation_instr { value, result };
                 add_instr(VARIANT(prog::instr, BOOL_NOT, into_ptr(instr)));
-                return { result, prog::type_local{ into_ptr(bool_type), true } };
+                return { result, copy_type_local(BOOL_TYPE) };
             }
 
             case ast::unary_operation_expr::MINUS: {
@@ -701,16 +804,16 @@ namespace sg {
             case ast::binary_operation_expr::AND:
             case ast::binary_operation_expr::OR: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
-                auto bool_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }));
-                auto left_value_converted = conv_clr.convert(*ast.left, left_value, *left_type.tp, bool_type);
+                auto left_value_converted = conv_clr.convert(*ast.left, left_value, left_type, BOOL_TYPE);
                 auto result = new_reg();
 
                 auto return_left_branch = [&](){
                     add_instr(VARIANT(prog::instr, REG_COPY, make_ptr(prog::reg_copy_instr{ left_value_converted, result })));
                 };
+
                 auto eval_right_branch = [&](){
                     auto[right_value, right_type] = compile_expr(*ast.right, true);
-                    right_value = conv_clr.convert(*ast.right, right_value, *right_type.tp, bool_type);
+                    right_value = conv_clr.convert(*ast.right, right_value, right_type, BOOL_TYPE);
                     add_instr(VARIANT(prog::instr, REG_COPY, make_ptr(prog::reg_copy_instr{ right_value, result })));
                 };
 
@@ -718,7 +821,7 @@ namespace sg {
                     add_branch_instr(left_value, eval_right_branch, return_left_branch);
                 else
                     add_branch_instr(left_value, return_left_branch, eval_right_branch);
-                return { result, prog::type_local{ into_ptr(bool_type), true } };
+                return { result, copy_type_local(BOOL_TYPE) };
             } break;
 
             case ast::binary_operation_expr::EQ:
@@ -817,7 +920,7 @@ namespace sg {
                         UNREACHABLE;
                 }
 
-                return { result, prog::type_local{ into_ptr(common_type), true } };
+                return { result, prog::type_local{ into_ptr(common_type), false } };
             }
 
             case ast::binary_operation_expr::BIT_LSH:
@@ -854,7 +957,6 @@ namespace sg {
         #undef UINT
         #undef INVALID_BINARY_OP
     }
-
 
     tuple<vector<ref<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_args(
             const ast::node& ast,
