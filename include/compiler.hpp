@@ -172,17 +172,17 @@ namespace sg {
         struct frame {
             vector<prog::instr> instrs;
             vector<string> vars;
-            bool always_returns;
         };
 
         compiler& clr;
         prog::global_func& func;
         conversion_compiler conv_clr;
         vector<frame> frames;
-        prog::reg_index reg_counter;
+        prog::reg_index reg_counter = 0;
         vector<prog::ptr<prog::type_local>> var_types;
         vector<var_state> var_states;
         unordered_map<string, vector<prog::var_index>> var_names;
+        bool returned = false;
 
         prog::reg_index new_reg();
         void add_instr(prog::instr&& instr);

@@ -11,8 +11,6 @@ namespace sg {
     using std::tie;
 
     void function_compiler::compile(const ast::func_def& ast) {
-        reg_counter = 0;
-
         push_frame();
 
         for (auto& param : func.params) {
@@ -24,10 +22,10 @@ namespace sg {
 
         compile_stmt_block(*ast.body->block, false);
 
-        if (!frames.back().always_returns || ast.body->return_value) {
+        if (!returned || ast.body->return_value) {
             if (!ast.body->return_value && !INDEX_EQ(*func.return_tp, UNIT))
                 clr.error(diags::missing_return(), ast.end_loc);
-            if (frames.back().always_returns)
+            if (returned)
                 clr.warning(diags::dead_code(), **ast.body->return_value);
             compile_return(ast.body->return_value);
         }
@@ -37,7 +35,7 @@ namespace sg {
     }
 
     void function_compiler::push_frame() {
-        frames.push_back({ { }, { }, false });
+        frames.push_back({ { }, { } });
     }
 
     prog::instr_block function_compiler::pop_frame() {
@@ -117,7 +115,7 @@ namespace sg {
 
     void function_compiler::compile_stmt_block(const ast::stmt_block& ast, bool cleanup) {
         for (auto& stmt_ast : ast.stmts) {
-            if (frames.back().always_returns)
+            if (returned)
                 clr.warning(diags::dead_code(), *stmt_ast);
 
             switch (INDEX(*stmt_ast)) {
@@ -201,7 +199,7 @@ namespace sg {
         auto instr = prog::return_instr { result };
         add_instr(VARIANT(prog::instr, RETURN, into_ptr(instr)));
 
-        frames.back().always_returns = true;
+        returned = true;
     }
 
     prog::branch_instr function_compiler::compile_if_stmt_branches(const ast::if_stmt& ast, size_t index) {
@@ -212,6 +210,7 @@ namespace sg {
         auto& block_ast = *branch_ast.block;
 
         auto init_var_states = var_states;
+        auto init_returned = returned;
 
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
@@ -222,12 +221,14 @@ namespace sg {
             push_frame();
             compile_stmt_block(block_ast);
             result.true_instrs = make_ptr(pop_frame());
-            // TODO check if always returns
         } else
             clr.error(diags::not_implemented(), cond_ast); // TODO
 
         auto branch_var_states = var_states;
+        auto branch_returned = returned;
+
         restore_var_states(init_var_states);
+        returned = init_returned;
 
         if (index < ast.branches.size() - 1) {
             auto instr = compile_if_stmt_branches(ast, index + 1);
@@ -242,6 +243,7 @@ namespace sg {
             result.false_instrs = make_ptr(prog::instr_block { { } });
 
         merge_var_states(branch_var_states);
+        returned &= branch_returned;
 
         return result;
     }
