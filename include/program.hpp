@@ -48,6 +48,7 @@ namespace sg::prog {
     struct read_global_var_instr;
     struct write_var_instr;
     struct write_global_var_instr;
+    struct reg_copy_instr;
     struct return_instr;
     struct func_call_instr;
     struct func_ptr_call_instr;
@@ -61,6 +62,7 @@ namespace sg::prog {
     struct ptr_conversion_instr;
     struct unary_operation_instr;
     struct binary_operation_instr;
+    struct numeric_binary_operation_instr;
     struct make_inner_ptr_instr;
     struct extract_field_instr;
     struct test_optional_instr;
@@ -268,6 +270,7 @@ namespace sg::prog {
             READ_GLOBAL_VAR,
             WRITE_VAR,
             WRITE_GLOBAL_VAR,
+            REG_COPY,
             RETURN,
             FUNC_CALL,
             FUNC_PTR_CALL,
@@ -297,6 +300,20 @@ namespace sg::prog {
             INT_NEG,
             FLOAT_NEG,
             BIT_NEG,
+            ADD,
+            SUB,
+            MUL,
+            DIV,
+            MOD,
+            BIT_AND,
+            BIT_OR,
+            BIT_XOR,
+            BIT_LSH,
+            BIT_RSH,
+            LS,
+            LSEQ,
+            GT,
+            GTEQ,
 
             ZERO_EXT,
             SIGNED_EXT,
@@ -314,6 +331,7 @@ namespace sg::prog {
             ptr<read_global_var_instr>, // READ_GLOBAL_VAR
             ptr<write_var_instr>, // WRITE_VAR
             ptr<write_global_var_instr>, // WRITE_GLOBAL_VAR
+            ptr<reg_copy_instr>, // REG_COPY
             ptr<return_instr>, // RETURN
             ptr<func_call_instr>, // FUNC_CALL
             ptr<func_ptr_call_instr>, // FUNC_PTR_CALL
@@ -343,6 +361,20 @@ namespace sg::prog {
             ptr<unary_operation_instr>, // INT_NEG
             ptr<unary_operation_instr>, // FLOAT_NEG
             ptr<unary_operation_instr>, // BIT_NEG
+            ptr<numeric_binary_operation_instr>, // ADD
+            ptr<numeric_binary_operation_instr>, // SUB
+            ptr<numeric_binary_operation_instr>, // MUL
+            ptr<numeric_binary_operation_instr>, // DIV
+            ptr<numeric_binary_operation_instr>, // MOD
+            ptr<numeric_binary_operation_instr>, // BIT_AND
+            ptr<numeric_binary_operation_instr>, // BIT_OR
+            ptr<numeric_binary_operation_instr>, // BIT_XOR
+            ptr<numeric_binary_operation_instr>, // BIT_LSH
+            ptr<numeric_binary_operation_instr>, // BIT_RSH
+            ptr<numeric_binary_operation_instr>, // LS
+            ptr<numeric_binary_operation_instr>, // LSEQ
+            ptr<numeric_binary_operation_instr>, // GT
+            ptr<numeric_binary_operation_instr>, // GTEQ
 
             ptr<primitive_conversion_instr>, // ZERO_EXT
             ptr<primitive_conversion_instr>, // SIGNED_EXT
@@ -374,6 +406,11 @@ namespace sg::prog {
     struct write_global_var_instr {
         global_index var;
         reg_index value;
+    };
+
+    struct reg_copy_instr {
+        reg_index source;
+        reg_index result;
     };
 
     struct return_instr {
@@ -444,6 +481,14 @@ namespace sg::prog {
         reg_index left;
         reg_index right;
         reg_index result;
+    };
+
+    struct numeric_binary_operation_instr : binary_operation_instr {
+        enum kind_t {
+            UNSIGNED,
+            SIGNED,
+            FLOAT
+        } kind;
     };
 
     struct make_inner_ptr_instr {

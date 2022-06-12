@@ -220,10 +220,11 @@ namespace sg {
         prog::reg_index add_copy_instrs(prog::reg_index value, const prog::type& type);
         void add_delete_instrs(prog::reg_index value, const prog::type_local& type);
         void add_cleanup_instrs(bool all_frames = false);
+        void add_branch_instr(prog::reg_index condition, function<void()> true_branch, function<void()> false_branch);
 
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
         void compile_return(const optional<ast::ptr<ast::expr>>& ast);
-        prog::branch_instr compile_if_stmt_branches(const ast::if_stmt& ast, size_t index = 0);
+        void compile_if_stmt_branches(const ast::if_stmt& ast, size_t index = 0);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<ref<const prog::type_local>> implicit_type);
 
@@ -232,6 +233,7 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> compile_array(const ast::node& ast, const args_ast_vector& args_ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_application(const ast::node& ast, const ast::expr& receiver_ast, const args_ast_vector& args_ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_unary_operation(const ast::unary_operation_expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_binary_operation(const ast::binary_operation_expr& ast);
 
         tuple<vector<ref<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> compile_args(
                 const ast::node& ast,

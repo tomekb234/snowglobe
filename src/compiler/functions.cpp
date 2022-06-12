@@ -113,6 +113,32 @@ namespace sg {
         (void)all_frames;
     }
 
+    void function_compiler::add_branch_instr(prog::reg_index condition, function<void()> true_branch, function<void()> false_branch) {
+        prog::branch_instr instr;
+        instr.condition = condition;
+
+        auto init_var_states = var_states;
+        auto init_returned = returned;
+
+        push_frame();
+        true_branch();
+        instr.true_instrs = make_ptr(pop_frame());
+
+        auto true_branch_var_states = var_states;
+        auto true_branch_returned = returned;
+
+        restore_var_states(init_var_states);
+        returned = init_returned;
+
+        push_frame();
+        false_branch();
+        instr.false_instrs = make_ptr(pop_frame());
+
+        add_instr(VARIANT(prog::instr, BRANCH, into_ptr(instr)));
+        merge_var_states(true_branch_var_states);
+        returned &= true_branch_returned;
+    }
+
     void function_compiler::compile_stmt_block(const ast::stmt_block& ast, bool cleanup) {
         for (auto& stmt_ast : ast.stmts) {
             if (returned)
@@ -164,8 +190,7 @@ namespace sg {
                     clr.error(diags::not_implemented(), *stmt_ast); // TODO
 
                 case ast::stmt::IF: {
-                    auto instr = compile_if_stmt_branches(*GET(*stmt_ast, IF));
-                    add_instr(VARIANT(prog::instr, BRANCH, into_ptr(instr)));
+                    compile_if_stmt_branches(*GET(*stmt_ast, IF));
                 } break;
 
                 case ast::stmt::MATCH:
@@ -202,50 +227,31 @@ namespace sg {
         returned = true;
     }
 
-    prog::branch_instr function_compiler::compile_if_stmt_branches(const ast::if_stmt& ast, size_t index) {
-        prog::branch_instr result;
-
+    void function_compiler::compile_if_stmt_branches(const ast::if_stmt& ast, size_t index) {
         auto& branch_ast = *ast.branches[index];
         auto& cond_ast = *branch_ast.cond;
         auto& block_ast = *branch_ast.block;
 
-        auto init_var_states = var_states;
-        auto init_returned = returned;
+        prog::reg_index condition;
+        function<void()> true_branch, false_branch;
 
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
             auto [value, type] = compile_expr(expr_ast, true);
-            auto bool_type = prog::type_local { make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::BOOL }))), false };
-            result.condition = conv_clr.convert(expr_ast, value, type, bool_type);
-
-            push_frame();
-            compile_stmt_block(block_ast);
-            result.true_instrs = make_ptr(pop_frame());
+            auto bool_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::BOOL }));
+            condition = conv_clr.convert(expr_ast, value, type, bool_type);
+            true_branch = [&](){compile_stmt_block(block_ast);};
         } else
             clr.error(diags::not_implemented(), cond_ast); // TODO
+        
+        if (index < ast.branches.size() - 1)
+            false_branch = [&](){compile_if_stmt_branches(ast, index + 1);};
+        else if (ast.else_branch)
+            false_branch = [&](){compile_stmt_block(**ast.else_branch);};
+        else
+            false_branch = [](){};
 
-        auto branch_var_states = var_states;
-        auto branch_returned = returned;
-
-        restore_var_states(init_var_states);
-        returned = init_returned;
-
-        if (index < ast.branches.size() - 1) {
-            auto instr = compile_if_stmt_branches(ast, index + 1);
-            vector<prog::ptr<prog::instr>> instr_vec;
-            instr_vec.push_back(make_ptr(VARIANT(prog::instr, BRANCH, into_ptr(instr))));
-            result.false_instrs = make_ptr(prog::instr_block { move(instr_vec) });
-        } else if (ast.else_branch) {
-            push_frame();
-            compile_stmt_block(**ast.else_branch);
-            result.false_instrs = make_ptr(pop_frame());
-        } else
-            result.false_instrs = make_ptr(prog::instr_block { { } });
-
-        merge_var_states(branch_var_states);
-        returned &= branch_returned;
-
-        return result;
+        add_branch_instr(condition, true_branch, false_branch);
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<ref<const prog::type_local>> implicit_type) {
@@ -410,6 +416,8 @@ namespace sg {
                 return compile_unary_operation(*GET(ast, UNARY_OPERATION));
 
             case ast::expr::BINARY_OPERATION:
+                return compile_binary_operation(*GET(ast, BINARY_OPERATION));
+
             case ast::expr::NUMERIC_CAST:
                 clr.error(diags::not_implemented(), ast); // TODO
 
@@ -626,11 +634,11 @@ namespace sg {
 
         switch (ast.operation) {
             case ast::unary_operation_expr::NOT: {
-                auto bool_type = prog::type_local { make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }))), false };
-                value = conv_clr.convert(*ast.value, value, type, bool_type);
+                auto bool_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }));
+                value = conv_clr.convert(*ast.value, value, *type.tp, bool_type);
                 auto instr = prog::unary_operation_instr { value, result };
                 add_instr(VARIANT(prog::instr, BOOL_NOT, into_ptr(instr)));
-                return { result, move(bool_type) };
+                return { result, prog::type_local{ into_ptr(bool_type), true } };
             }
 
             case ast::unary_operation_expr::MINUS: {
@@ -682,6 +690,171 @@ namespace sg {
 
         UNREACHABLE;
     }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_binary_operation(const ast::binary_operation_expr& ast) {
+        #define INVALID_BINARY_OP { clr.error(diags::invalid_binary_operation(clr.prog, ast.operation, copy_type(*left_type.tp), copy_type(*right_type.tp)), ast); }
+        #define UINT(tp) ((tp) == prog::primitive_type::U8 || (tp) == prog::primitive_type::U16 || (tp) == prog::primitive_type::U32 || (tp) == prog::primitive_type::U64)
+        #define SINT(tp) ((tp) == prog::primitive_type::I8 || (tp) == prog::primitive_type::I16 || (tp) == prog::primitive_type::I32 || (tp) == prog::primitive_type::I64)
+        #define FLOAT(tp) ((tp) == prog::primitive_type::F32 || (tp) == prog::primitive_type::F64)
+
+        switch (ast.operation) {
+            case ast::binary_operation_expr::AND:
+            case ast::binary_operation_expr::OR: {
+                auto[left_value, left_type] = compile_expr(*ast.left, true);
+                auto bool_type = VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type{ prog::primitive_type::BOOL }));
+                auto left_value_converted = conv_clr.convert(*ast.left, left_value, *left_type.tp, bool_type);
+                auto result = new_reg();
+
+                auto return_left_branch = [&](){
+                    add_instr(VARIANT(prog::instr, REG_COPY, make_ptr(prog::reg_copy_instr{ left_value_converted, result })));
+                };
+                auto eval_right_branch = [&](){
+                    auto[right_value, right_type] = compile_expr(*ast.right, true);
+                    right_value = conv_clr.convert(*ast.right, right_value, *right_type.tp, bool_type);
+                    add_instr(VARIANT(prog::instr, REG_COPY, make_ptr(prog::reg_copy_instr{ right_value, result })));
+                };
+
+                if (ast.operation == ast::binary_operation_expr::AND)
+                    add_branch_instr(left_value, eval_right_branch, return_left_branch);
+                else
+                    add_branch_instr(left_value, return_left_branch, eval_right_branch);
+                return { result, prog::type_local{ into_ptr(bool_type), true } };
+            } break;
+
+            case ast::binary_operation_expr::EQ:
+            case ast::binary_operation_expr::NEQ: 
+                clr.error(diags::not_implemented(), ast); // TODO
+
+            case ast::binary_operation_expr::LS:
+            case ast::binary_operation_expr::LSEQ:
+            case ast::binary_operation_expr::GT:
+            case ast::binary_operation_expr::GTEQ:
+            case ast::binary_operation_expr::ADD:
+            case ast::binary_operation_expr::SUB:
+            case ast::binary_operation_expr::MUL:
+            case ast::binary_operation_expr::DIV:
+            case ast::binary_operation_expr::MOD:
+            case ast::binary_operation_expr::BIT_AND:
+            case ast::binary_operation_expr::BIT_OR:
+            case ast::binary_operation_expr::BIT_XOR: {
+                auto[left_value, left_type] = compile_expr(*ast.left, true);
+                auto[right_value, right_type] = compile_expr(*ast.right, true);
+                auto common_type = clr.common_supertype(ast, *left_type.tp, *right_type.tp);
+                if (!INDEX_EQ(common_type, PRIMITIVE))
+                    INVALID_BINARY_OP
+                left_value = conv_clr.convert(*ast.left, left_value, *left_type.tp, common_type);
+                right_value = conv_clr.convert(*ast.right, right_value, *right_type.tp, common_type);
+                auto result = new_reg();
+
+                prog::numeric_binary_operation_instr::kind_t kind;
+                auto& primitive_type = GET(common_type, PRIMITIVE)->tp;
+                if (UINT(primitive_type))
+                    kind = prog::numeric_binary_operation_instr::UNSIGNED;
+                else if (SINT(primitive_type))
+                    kind = prog::numeric_binary_operation_instr::SIGNED;
+                else if (FLOAT(primitive_type))
+                    kind = prog::numeric_binary_operation_instr::FLOAT;
+                else
+                    INVALID_BINARY_OP;
+                auto numeric_binary_operation = make_ptr(prog::numeric_binary_operation_instr{ { left_value, right_value, result }, kind });
+
+                switch (ast.operation) {
+                    case ast::binary_operation_expr::LS: {
+                        add_instr(VARIANT(prog::instr, LS, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::LSEQ: {
+                        add_instr(VARIANT(prog::instr, LSEQ, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::GT: {
+                        add_instr(VARIANT(prog::instr, GT, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::GTEQ: {
+                        add_instr(VARIANT(prog::instr, GTEQ, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::ADD: {
+                        add_instr(VARIANT(prog::instr, ADD, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::SUB: {
+                        add_instr(VARIANT(prog::instr, SUB, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::MUL: {
+                        add_instr(VARIANT(prog::instr, MUL, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::DIV: {
+                        add_instr(VARIANT(prog::instr, DIV, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::MOD: {
+                        add_instr(VARIANT(prog::instr, MOD, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::BIT_AND: {
+                        if (FLOAT(primitive_type))
+                            INVALID_BINARY_OP;
+                        add_instr(VARIANT(prog::instr, BIT_AND, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::BIT_OR: {
+                        if (FLOAT(primitive_type))
+                            INVALID_BINARY_OP;
+                        add_instr(VARIANT(prog::instr, BIT_OR, move(numeric_binary_operation)));
+                    } break;
+
+                    case ast::binary_operation_expr::BIT_XOR: {
+                        if (FLOAT(primitive_type))
+                            INVALID_BINARY_OP;
+                        add_instr(VARIANT(prog::instr, BIT_XOR, move(numeric_binary_operation)));
+                    } break;
+
+                    default:
+                        UNREACHABLE;
+                }
+
+                return { result, prog::type_local{ into_ptr(common_type), true } };
+            }
+
+            case ast::binary_operation_expr::BIT_LSH:
+            case ast::binary_operation_expr::BIT_RSH: {
+                auto[left_value, left_type] = compile_expr(*ast.left, true);
+                auto[right_value, right_type] = compile_expr(*ast.right, true);
+                if (!INDEX_EQ(*left_type.tp, PRIMITIVE) || !INDEX_EQ(*right_type.tp, PRIMITIVE) || !UINT(GET(*right_type.tp, PRIMITIVE)->tp))
+                    INVALID_BINARY_OP;
+                auto result = new_reg();
+
+                prog::numeric_binary_operation_instr::kind_t kind;
+                auto& left_primitive_type = GET(*left_type.tp, PRIMITIVE)->tp;
+                if (UINT(left_primitive_type))
+                    kind = prog::numeric_binary_operation_instr::UNSIGNED;
+                else if (SINT(left_primitive_type))
+                    kind = prog::numeric_binary_operation_instr::SIGNED;
+                else
+                    INVALID_BINARY_OP;
+                auto numeric_binary_operation = make_ptr(prog::numeric_binary_operation_instr{ {left_value, right_value, result }, kind });
+
+                if (ast.operation == ast::binary_operation_expr::BIT_LSH)
+                    add_instr(VARIANT(prog::instr, BIT_LSH, move(numeric_binary_operation)));
+                else
+                    add_instr(VARIANT(prog::instr, BIT_RSH, move(numeric_binary_operation)));
+
+                return { result, move(left_type) };
+            }
+        }
+
+        UNREACHABLE;
+
+        #undef FLOAT
+        #undef SINT
+        #undef UINT
+        #undef INVALID_BINARY_OP
+    }
+
 
     tuple<vector<ref<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_args(
             const ast::node& ast,
