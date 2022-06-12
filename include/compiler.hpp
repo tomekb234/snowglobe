@@ -223,7 +223,7 @@ namespace sg {
         void add_branch_instr(prog::reg_index condition, function<void()> true_branch, function<void()> false_branch);
 
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
-        void compile_return(const optional<ast::ptr<ast::expr>>& ast);
+        void compile_return(const optional<ast::ptr<ast::expr>>& ast, const ast::node& node);
         void compile_if_stmt_branches(const ast::if_stmt& ast, size_t index = 0);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<ref<const prog::type_local>> implicit_type);

@@ -27,7 +27,7 @@ namespace sg {
                 clr.error(diags::missing_return(), ast.end_loc);
             if (returned)
                 clr.warning(diags::dead_code(), **ast.body->return_value);
-            compile_return(ast.body->return_value);
+            compile_return(ast.body->return_value, **ast.body->return_value);
         }
 
         func.vars = move(var_types);
@@ -205,7 +205,7 @@ namespace sg {
             add_cleanup_instrs();
     }
 
-    void function_compiler::compile_return(const optional<ast::ptr<ast::expr>>& ast) {
+    void function_compiler::compile_return(const optional<ast::ptr<ast::expr>>& ast, const ast::node& node) {
         prog::reg_index result;
         prog::type_local type;
 
@@ -217,7 +217,7 @@ namespace sg {
             add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
         }
 
-        result = conv_clr.convert(**ast, result, type, *func.return_tp);
+        result = conv_clr.convert(node, result, type, *func.return_tp);
 
         add_cleanup_instrs(true);
 
@@ -441,7 +441,7 @@ namespace sg {
 
             case ast::expr::RETURN: {
                 auto& return_expr = GET(ast, RETURN);
-                compile_return(return_expr);
+                compile_return(return_expr, return_expr ? **return_expr : ast);
                 auto result = new_reg();
                 add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
                 auto type = prog::type_local { make_ptr(VARIANT(prog::type, NEVER, monostate())), confined };
