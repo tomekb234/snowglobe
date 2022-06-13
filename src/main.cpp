@@ -4,6 +4,7 @@
 #include "parser.hpp"
 #include "compiler.hpp"
 #include "program.hpp"
+#include "codegen.hpp"
 #include <fstream>
 
 using std::string;
@@ -36,7 +37,12 @@ int main(int argc, const char** argv) {
         sg::compiler compiler(prog, diags);
 
         if (compiler.compile(ast)) {
-            // TODO
+            sg::code_generator codegen(prog, diags, "test_module");
+
+            if (codegen.generate())
+                codegen.write(std::cout);
+            else
+                ok = false;
         } else
             ok = false;
     } else

@@ -128,6 +128,10 @@ namespace sg::diags {
     DIAG1(global_variable_moved, error, string, name);
     DIAG0(missing_return, error);
     DIAG0(dead_code, warning);
+
+    // Code generator diagnostics
+    
+    DIAG1(code_generator_fail, error, string, text);
 }
 
 #endif

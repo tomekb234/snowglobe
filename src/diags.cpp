@@ -279,4 +279,8 @@ namespace sg::diags {
     void dead_code::write(ostream& stream) const {
         stream << "Dead code" << endl;
     }
+
+    void code_generator_fail::write(ostream& stream) const {
+        stream << "Code generator verification failed:" << endl << text << endl;
+    }
 }
