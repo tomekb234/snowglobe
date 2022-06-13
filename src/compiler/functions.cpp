@@ -861,21 +861,26 @@ namespace sg {
                     INVALID_BINARY_OP;
                 auto numeric_binary_operation = make_ptr(prog::numeric_binary_operation_instr{ { left_value, right_value, result }, kind });
 
+                bool bool_result_type = false;
                 switch (ast.operation) {
                     case ast::binary_operation_expr::LS: {
                         add_instr(VARIANT(prog::instr, LS, move(numeric_binary_operation)));
+                        bool_result_type = true;
                     } break;
 
                     case ast::binary_operation_expr::LSEQ: {
                         add_instr(VARIANT(prog::instr, LSEQ, move(numeric_binary_operation)));
+                        bool_result_type = true;
                     } break;
 
                     case ast::binary_operation_expr::GT: {
                         add_instr(VARIANT(prog::instr, GT, move(numeric_binary_operation)));
+                        bool_result_type = true;
                     } break;
 
                     case ast::binary_operation_expr::GTEQ: {
                         add_instr(VARIANT(prog::instr, GTEQ, move(numeric_binary_operation)));
+                        bool_result_type = true;
                     } break;
 
                     case ast::binary_operation_expr::ADD: {
@@ -920,7 +925,10 @@ namespace sg {
                         UNREACHABLE;
                 }
 
-                return { result, prog::type_local{ into_ptr(common_type), false } };
+                if (bool_result_type)
+                    return { result, copy_type_local(BOOL_TYPE) };
+                else
+                    return { result, prog::type_local{ into_ptr(common_type), false } };
             }
 
             case ast::binary_operation_expr::BIT_LSH:
