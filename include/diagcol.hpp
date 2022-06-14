@@ -7,7 +7,7 @@
 #include <vector>
 #include <memory>
 #include <utility>
-#include <functional>
+#include <unordered_map>
 #include <istream>
 
 namespace sg {
@@ -16,8 +16,11 @@ namespace sg {
     using std::vector;
     using std::unique_ptr;
     using std::move;
-    using std::reference_wrapper;
+    using std::unordered_map;
     using std::istream;
+
+    template<typename T>
+    using ref = std::reference_wrapper<T>;
 
     struct diagnostic {
         enum level_t {
@@ -44,7 +47,7 @@ namespace sg {
             diags.push_back(move(diag));
         }
 
-        void report_all(ostream& stream, bool enable_colors, optional<reference_wrapper<istream>> source_file) const;
+        void report_all(ostream& stream, bool enable_colors, const unordered_map<string, ref<istream>>& files) const;
     };
 }
 

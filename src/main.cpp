@@ -42,9 +42,7 @@ int main(int argc, const char** argv) {
     } else
         ok = false;
 
-    file.clear();
-    file.seekg(0);
-    diags.report_all(cerr, true, file);
+    diags.report_all(cerr, true, { { file_name, file } });
 
     return ok ? 0 : 1;
 }
