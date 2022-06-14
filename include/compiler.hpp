@@ -42,6 +42,8 @@ namespace sg {
             bool compiled;
         };
 
+        struct compilation_error { };
+
         prog::program& prog;
         diagnostic_collector& diags;
         unordered_map<string, global_name> global_names;
@@ -58,15 +60,13 @@ namespace sg {
 
         private:
 
-        struct compiler_error { };
-
         // Utilities
 
         template<typename T>
         [[noreturn]] void error(T&& diag, location loc) {
             diag.loc = { loc };
             diags.add(make_unique<T>(move(diag)));
-            throw compiler_error();
+            throw compilation_error();
         }
 
         template<typename T>
@@ -160,43 +160,16 @@ namespace sg {
 
     class function_compiler {
         struct var_state {
-            bool initialized;
-            bool uninitialized;
-            bool moved_out;
-            size_t loop_level;
+            bool initialized = false;
+            bool uninitialized = true;
+            bool moved_out = false;
+            size_t loop_level = 0;
         };
-
-        static constexpr var_state VAR_INITIALIZED = { true, false, false, 0 };
-        static constexpr var_state VAR_UNINITIALIZED = { false, true, false, 0 };
-        static constexpr var_state VAR_MOVED_OUT = { false, false, true, 0 };
 
         struct frame {
             vector<prog::instr> instrs;
             vector<string> vars;
         };
-
-        compiler& clr;
-        prog::global_func& func;
-        conversion_compiler conv_clr;
-        vector<frame> frames;
-        prog::reg_index reg_counter = 0;
-        vector<prog::ptr<prog::type_local>> var_types;
-        vector<var_state> var_states;
-        unordered_map<string, vector<prog::var_index>> var_names;
-        bool returned = false;
-
-        prog::reg_index new_reg();
-        void add_instr(prog::instr&& instr);
-
-        public:
-
-        function_compiler(compiler& clr, prog::global_func& func) : clr(clr), func(func), conv_clr(clr,
-                    [this] () { return new_reg(); },
-                    [this] (prog::instr&& instr) { add_instr(move(instr)); }) { }
-
-        void compile(const ast::func_def& ast);
-
-        private:
 
         struct lvalue {
             enum {
@@ -210,16 +183,52 @@ namespace sg {
             > value;
         };
 
+        static const prog::type_local NEVER_TYPE;
+        static const prog::type_local UNIT_TYPE;
+        static const prog::type_local BOOL_TYPE;
+
+        compiler& clr;
+        prog::global_func& func;
+        conversion_compiler conv_clr;
+        vector<frame> frames;
+        prog::reg_index reg_counter = 0;
+        vector<prog::ptr<prog::type_local>> var_types;
+        vector<var_state> var_states;
+        unordered_map<string, vector<prog::var_index>> var_names;
+        bool returned = false;
+
+        prog::reg_index new_reg();
+        prog::reg_index unit_reg();
+        void add_instr(prog::instr&& instr);
+
+        public:
+
+        function_compiler(compiler& clr, prog::global_func& func) : clr(clr), func(func), conv_clr(clr,
+                    [this] () { return new_reg(); },
+                    [this] (prog::instr&& instr) { add_instr(move(instr)); }) { }
+
+        void compile(const ast::func_def& ast);
+
+        private:
+
+        // Frames
+
         void push_frame();
         prog::instr_block pop_frame();
 
+        // Variabes
+
         prog::var_index add_var(string name, prog::ptr<prog::type_local> type);
         optional<prog::var_index> get_var(string name);
+        void init_var(prog::var_index index);
+        void move_out_var(prog::var_index indedx);
         vector<var_state> backup_var_states();
         void restore_var_states(const vector<var_state>& states);
         void merge_var_states(const vector<var_state>& states);
         void incr_loop_level();
         void decr_loop_level();
+
+        // Instructions
 
         prog::reg_index add_copy_instrs(prog::reg_index value, const prog::type& type);
         void add_delete_instrs(prog::reg_index value, const prog::type_local& type);
@@ -227,14 +236,19 @@ namespace sg {
         void add_return_instr(prog::reg_index value);
         void add_branch_instr(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
 
+        // Statements
+
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
-        void compile_return(const ast::node& ast, const optional<ast::ptr<ast::expr>>& expr_ast);
-        void compile_if_stmt_branches(const ast::if_stmt& ast, size_t index = 0);
+        void compile_stmt(const ast::stmt& ast);
+        void compile_if_stmt(const ast::if_stmt& ast, size_t branch_index = 0);
         void compile_while_stmt(const ast::while_stmt& ast);
+
+        // Expressions
 
         lvalue compile_left_expr(const ast::expr& ast, optional<ref<const prog::type_local>> implicit_type);
 
         pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_return(const ast::node& ast, const optional<ast::ptr<ast::expr>>& expr_ast);
         pair<prog::reg_index, prog::type_local> compile_tuple(const ast::node& ast, const args_ast_vector& args_ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_array(const ast::node& ast, const args_ast_vector& args_ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_application(const ast::node& ast, const ast::expr& receiver_ast, const args_ast_vector& args_ast, bool confined);

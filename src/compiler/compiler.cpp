@@ -47,7 +47,7 @@ namespace sg {
                     default:
                         break;
                 }
-            } catch (compiler_error) {
+            } catch (compilation_error) {
                 ok = false;
             }
         }
@@ -104,7 +104,7 @@ namespace sg {
                     default:
                         break;
                 }
-            } catch (compiler_error) {
+            } catch (compilation_error) {
                 ok = false;
             }
         }
@@ -126,7 +126,7 @@ namespace sg {
                     default:
                         break;
                 }
-            } catch (compiler_error) {
+            } catch (compilation_error) {
                 ok = false;
             }
         }
@@ -150,7 +150,7 @@ namespace sg {
                     default:
                         break;
                 }
-            } catch (compiler_error) {
+            } catch (compilation_error) {
                 ok = false;
             }
         }
