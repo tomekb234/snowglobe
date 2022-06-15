@@ -8,6 +8,7 @@ namespace sg {
     using namespace sg::utils;
 
     using std::monostate;
+    using std::make_pair;
     using std::tie;
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<ref<const prog::type_local>> implicit_type) {
@@ -118,7 +119,7 @@ namespace sg {
                         auto& value = clr.consts[global_name.index];
 
                         auto result = new_reg();
-                        auto instr = prog::make_const_instr { make_ptr(copy_const(*value.value)), result };
+                        auto instr = prog::make_const_instr { make_ptr(copy_const(*value.value)), make_ptr(copy_type(*value.tp)), result };
                         add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
 
                         auto type = prog::type_local { make_ptr(copy_type(*value.tp)), confined };
@@ -148,10 +149,11 @@ namespace sg {
 
                 auto& global_name = clr.get_global_name(ast, name, global_name_kind::ENUM);
                 auto& en = *clr.prog.enum_types[global_name.index];
-                if (!en.variant_names.count(variant_name))
-                    clr.error(diags::invalid_enum_variant(en, name), ast);
 
-                prog::variant_index variant_index = en.variant_names[variant_name];
+                auto it = en.variant_names.find(variant_name);
+                if (it == en.variant_names.end())
+                    clr.error(diags::invalid_enum_variant(en, name), ast);
+                auto variant_index = it->second;
                 auto& variant = *en.variants[variant_index];
 
                 if (variant.tps.empty()) {
@@ -171,7 +173,7 @@ namespace sg {
                 auto [value, value_type] = clr.compile_const_literal(literal_ast);
 
                 auto result = new_reg();
-                auto instr = prog::make_const_instr { into_ptr(value), result };
+                auto instr = prog::make_const_instr { into_ptr(value), make_ptr(copy_type(value_type)), result };
                 add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
 
                 auto type = prog::type_local { into_ptr(value_type), false };
@@ -307,9 +309,10 @@ namespace sg {
                 auto size = st.fields.size();
 
                 auto arg_with_name = [&] (const ast::node& ast, string name) -> size_t {
-                    if (!st.field_names.count(name))
+                    auto it = st.field_names.find(name);
+                    if (it == st.field_names.end())
                         clr.error(diags::invalid_struct_field(st, name), ast);
-                    return st.field_names[name];
+                    return it->second;
                 };
 
                 auto [values_ast, values, types, all_confined] = compile_args(ast, args_ast, { arg_with_name }, { size }, confined);
@@ -488,13 +491,13 @@ namespace sg {
                 auto result = new_reg();
 
                 auto return_left_branch = [&](){
-                    add_instr(VARIANT(prog::instr, REG_COPY, make_ptr(prog::reg_copy_instr{ left_value_converted, result })));
+                    add_instr(VARIANT(prog::instr, COPY_REG, make_ptr(prog::copy_reg_instr{ left_value_converted, result })));
                 };
 
                 auto eval_right_branch = [&](){
                     auto[right_value, right_type] = compile_expr(*ast.right, true);
                     right_value = conv_clr.convert(*ast.right, right_value, right_type, BOOL_TYPE);
-                    add_instr(VARIANT(prog::instr, REG_COPY, make_ptr(prog::reg_copy_instr{ right_value, result })));
+                    add_instr(VARIANT(prog::instr, COPY_REG, make_ptr(prog::copy_reg_instr{ right_value, result })));
                 };
 
                 if (ast.operation == ast::binary_operation_expr::AND)
@@ -686,9 +689,10 @@ namespace sg {
         auto size = ftype.param_tps.size();
 
         auto arg_with_name = [&] (const ast::node& ast, string name) -> size_t {
-            if (func->get().param_names.count(name))
+            auto it = func->get().param_names.find(name);
+            if (it == func->get().param_names.end())
                 clr.error(diags::invalid_function_parameter(*func, name), ast);
-            return func->get().param_names.at(name);
+            return it->second;
         };
 
         auto values_ast = clr.order_args(ast, args_ast, func ? make_optional(arg_with_name) : optional<decltype(arg_with_name)>(), { size });

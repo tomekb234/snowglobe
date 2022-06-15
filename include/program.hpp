@@ -48,7 +48,7 @@ namespace sg::prog {
     struct read_global_var_instr;
     struct write_var_instr;
     struct write_global_var_instr;
-    struct reg_copy_instr;
+    struct copy_reg_instr;
     struct return_instr;
     struct func_call_instr;
     struct func_ptr_call_instr;
@@ -58,12 +58,13 @@ namespace sg::prog {
     struct make_optional_instr;
     struct make_struct_instr;
     struct make_enum_variant_instr;
-    struct make_global_ptr_instr;
+    struct get_global_ptr_instr;
     struct ptr_conversion_instr;
     struct unary_operation_instr;
     struct binary_operation_instr;
     struct numeric_binary_operation_instr;
     struct make_inner_ptr_instr;
+    struct extract_coord_instr;
     struct extract_field_instr;
     struct test_optional_instr;
     struct primitive_conversion_instr;
@@ -133,35 +134,29 @@ namespace sg::prog {
     struct constant {
         enum {
             UNIT,
-            BOOL,
-            INT,
-            FLOAT32,
-            FLOAT64,
+            PRIMITIVE,
             STRUCT,
             ENUM,
             TUPLE,
             ARRAY,
             SIZED_ARRAY,
-            SOME,
-            NONE,
+            OPTIONAL,
             GLOBAL_VAR_PTR,
+            GLOBAL_VAR_SLICE,
             GLOBAL_FUNC_PTR
         };
 
         variant<
             monostate, // UNIT
-            bool, // BOOL
-            unsigned long long, // INT
-            float, // FLOAT32
-            double, // FLOAT64
+            unsigned long long, // PRIMITIVE
             vector<ptr<constant>>, // STRUCT
             pair<variant_index, vector<ptr<constant>>>, // ENUM
             vector<ptr<constant>>, // TUPLE
             vector<ptr<constant>>, // ARRAY
             pair<ptr<constant>, size_t>, // SIZED_ARRAY
-            ptr<constant>, // SOME
-            monostate, // NONE
+            optional<ptr<constant>>, // OPTIONAL
             global_index, // GLOBAL_VAR_PTR
+            global_index, // GLOBAL_VAR_SLICE
             global_index // GLOBAL_FUNC_PTR
         > value;
     };
@@ -270,7 +265,7 @@ namespace sg::prog {
             READ_GLOBAL_VAR,
             WRITE_VAR,
             WRITE_GLOBAL_VAR,
-            REG_COPY,
+            COPY_REG,
             RETURN,
             FUNC_CALL,
             FUNC_PTR_CALL,
@@ -282,15 +277,14 @@ namespace sg::prog {
             MAKE_OPTIONAL,
             MAKE_STRUCT,
             MAKE_ENUM_VARIANT,
-            MAKE_GLOBAL_FUNC_PTR,
-            MAKE_SLICE,
             MAKE_INNER_PTR,
-            MAKE_SHARED_PTR,
             MAKE_EMPTY_WEAK_PTR,
-            MAKE_FAKE_SHARED_PTR,
+            GET_GLOBAL_VAR_PTR,
+            GET_GLOBAL_FUNC_PTR,
 
-            EXTRACT_FIELD,
             TEST_OPTIONAL,
+            EXTRACT_COORD,
+            EXTRACT_FIELD,
             EXTRACT_INNER_PTR,
             EXTRACT_OUTER_PTR,
             EXTRACT_PTR,
@@ -320,8 +314,16 @@ namespace sg::prog {
             FLOAT_EXT,
             TRANSFORM_ARRAY,
             TRANSFORM_OPTIONAL,
-            ADD_WEAK_REF,
-            FORGET_REF_COUNTER,
+            ARRAY_PTR_INTO_SLICE,
+            INTO_SHARED_PTR,
+            INTO_FAKE_SHARED_PTR,
+            FORGET_REF_COUNT,
+
+            DELETE,
+            INCR_REF_COUNT,
+            INCR_WEAK_REF_COUNT,
+            DECR_REF_COUNT,
+            DECR_WEAK_REF_COUNT,
 
             BRANCH,
             LOOP,
@@ -334,7 +336,7 @@ namespace sg::prog {
             ptr<read_global_var_instr>, // READ_GLOBAL_VAR
             ptr<write_var_instr>, // WRITE_VAR
             ptr<write_global_var_instr>, // WRITE_GLOBAL_VAR
-            ptr<reg_copy_instr>, // REG_COPY
+            ptr<copy_reg_instr>, // COPY_REG
             ptr<return_instr>, // RETURN
             ptr<func_call_instr>, // FUNC_CALL
             ptr<func_ptr_call_instr>, // FUNC_PTR_CALL
@@ -346,15 +348,14 @@ namespace sg::prog {
             ptr<make_optional_instr>, // MAKE_OPTIONAL
             ptr<make_struct_instr>, // MAKE_STRUCT
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
-            ptr<make_global_ptr_instr>, // MAKE_GLOBAL_FUNC_PTR
-            ptr<ptr_conversion_instr>, // MAKE_SLICE
             ptr<make_inner_ptr_instr>, // MAKE_INNER_PTR
-            ptr<ptr_conversion_instr>, // MAKE_SHARED_PTR
-            ptr<ptr_conversion_instr>, // MAKE_EMPTY_WEAK_PTR
-            ptr<ptr_conversion_instr>, // MAKE_FAKE_SHARED_PTR
+            reg_index, // MAKE_EMPTY_WEAK_PTR
+            ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
+            ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
 
-            ptr<extract_field_instr>, // EXTRACT_FIELD
             ptr<test_optional_instr>, // TEST_OPTIONAL
+            ptr<extract_coord_instr>, // EXTRACT_COORD
+            ptr<extract_field_instr>, // EXTRACT_FIELD
             ptr<ptr_conversion_instr>, // EXTRACT_INNER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_PTR
@@ -384,8 +385,16 @@ namespace sg::prog {
             ptr<primitive_conversion_instr>, // FLOAT_EXT
             ptr<transform_instr>, // TRANSFORM_ARRAY
             ptr<transform_instr>, // TRANSFORM_OPTIONAL
-            ptr<ptr_conversion_instr>, // ADD_WEAK_REF
-            ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
+            ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
+            ptr<ptr_conversion_instr>, // INTO_SHARED_PTR
+            ptr<ptr_conversion_instr>, // INTO_FAKE_SHARED_PTR
+            ptr<ptr_conversion_instr>, // FORGET_REF_COUNT
+
+            reg_index, // DELETE
+            reg_index, // INCR_REF_COUNT
+            reg_index, // INCR_WEAK_REF_COUNT
+            reg_index, // DECR_REF_COUNT
+            reg_index, // DECR_WEAK_REF_COUNT
 
             ptr<branch_instr>, // BRANCH
             ptr<instr_block>, // LOOP
@@ -414,8 +423,8 @@ namespace sg::prog {
         reg_index value;
     };
 
-    struct reg_copy_instr {
-        reg_index source;
+    struct copy_reg_instr {
+        reg_index value;
         reg_index result;
     };
 
@@ -437,6 +446,7 @@ namespace sg::prog {
 
     struct make_const_instr {
         ptr<constant> value;
+        ptr<type> tp;
         reg_index result;
     };
 
@@ -468,8 +478,8 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct make_global_ptr_instr {
-        global_index var;
+    struct get_global_ptr_instr {
+        global_index index;
         reg_index result;
     };
 
@@ -500,6 +510,12 @@ namespace sg::prog {
     struct make_inner_ptr_instr {
         reg_index outer;
         reg_index inner;
+        reg_index result;
+    };
+
+    struct extract_coord_instr {
+        reg_index value;
+        size_t coord;
         reg_index result;
     };
 

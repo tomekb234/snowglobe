@@ -200,8 +200,8 @@ namespace sg {
 
                 for (size_t index = 0; index < size; index++) {
                     auto extracted = new_reg();
-                    auto instr = prog::extract_field_instr { value, index, extracted };
-                    add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
+                    auto instr = prog::extract_coord_instr { value, index, extracted };
+                    add_instr(VARIANT(prog::instr, EXTRACT_COORD, into_ptr(instr)));
 
                     auto result = try_convert(extracted, *tuple[index], *new_tuple[index], confined);
 
@@ -401,8 +401,8 @@ namespace sg {
                         break;
 
                     auto result = new_reg();
-                    auto instr = prog::make_global_ptr_instr { index, result };
-                    add_instr(VARIANT(prog::instr, MAKE_GLOBAL_FUNC_PTR, into_ptr(instr)));
+                    auto instr = prog::get_global_ptr_instr { index, result };
+                    add_instr(VARIANT(prog::instr, GET_GLOBAL_FUNC_PTR, into_ptr(instr)));
                     return { result };
                 }
 
@@ -436,7 +436,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -458,7 +458,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -476,14 +476,9 @@ namespace sg {
             case prog::ptr_type::SHARED: {
                 switch (new_kind) {
                     case prog::ptr_type::WEAK: {
-                        if (confined)
-                            return { value };
-                        else {
-                            auto result = new_reg();
-                            auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, ADD_WEAK_REF, into_ptr(instr)));
-                            return { result };
-                        }
+                        if (!confined)
+                            add_instr(VARIANT(prog::instr, INCR_WEAK_REF_COUNT, value));
+                        return { value };
                     } break;
 
                     case prog::ptr_type::BASIC:
@@ -491,7 +486,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, FORGET_REF_COUNTER, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, FORGET_REF_COUNT, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -507,12 +502,12 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         } else {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -521,13 +516,12 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         } else {
                             auto result = new_reg();
-                            auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_EMPTY_WEAK_PTR, into_ptr(instr)));
-                            // TODO this should cause a warning
+                            add_instr(VARIANT(prog::instr, DELETE, value));
+                            add_instr(VARIANT(prog::instr, MAKE_EMPTY_WEAK_PTR, result));
                             return { result };
                         }
                     } break;
@@ -559,7 +553,7 @@ namespace sg {
             if (prog::types_equal(*array.tp, *new_type.tp) || INDEX_EQ(*array.tp, NEVER)) {
                 auto result = new_reg();
                 auto instr = prog::ptr_conversion_instr { value, result };
-                add_instr(VARIANT(prog::instr, MAKE_SLICE, into_ptr(instr)));
+                add_instr(VARIANT(prog::instr, ARRAY_PTR_INTO_SLICE, into_ptr(instr)));
                 return { result };
             }
         }

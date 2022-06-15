@@ -159,13 +159,13 @@ namespace sg {
     }
 
     compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled_types) {
-        if (!global_names.count(name))
+        auto it = global_names.find(name);
+        if (it == global_names.end())
             error(diags::name_not_declared(name), ast);
 
-        auto& global_name = global_names[name];
+        auto& global_name = it->second;
 
         auto type = global_name.kind == global_name_kind::STRUCT || global_name.kind == global_name_kind::ENUM;
-
         if (type && !allow_uncompiled_types && !global_name.compiled)
             error(diags::name_not_compiled(name), ast);
 
@@ -212,6 +212,7 @@ namespace sg {
                         index = (*arg_with_name)(*arg_ast, name);
                     else
                         error(diags::invalid_argument_marker(), *arg_ast);
+                    value_ast = GET(*arg_ast, EXPR_WITH_NAME).second.get();
                 } break;
 
                 case ast::expr_marked::EXPR_WITH_COORD: {

@@ -18,60 +18,53 @@ namespace sg::prog {
     static void print_type_pointed(ostream& stream, const program& prog, const type_pointed& tp);
     static void print_func_type(ostream& stream, const program& prog, const func_type& func);
 
-    constant copy_const(const constant& con) {
-        switch (INDEX(con)) {
+    constant copy_const(const constant& value) {
+        switch (INDEX(value)) {
             case constant::UNIT:
                 return VARIANT(constant, UNIT, monostate{ });
 
-            case constant::BOOL:
-                return VARIANT(constant, BOOL, GET(con, BOOL));
-
-            case constant::INT:
-                return VARIANT(constant, INT, GET(con, INT));
-
-            case constant::FLOAT32:
-                return VARIANT(constant, FLOAT32, GET(con, FLOAT32));
-
-            case constant::FLOAT64:
-                return VARIANT(constant, FLOAT64, GET(con, FLOAT64));
+            case constant::PRIMITIVE:
+                return VARIANT(constant, PRIMITIVE, GET(value, PRIMITIVE));
 
             case constant::STRUCT: {
-                auto vec = copy_ptr_vector<constant>(GET(con, STRUCT), copy_const);
+                auto vec = copy_ptr_vector<constant>(GET(value, STRUCT), copy_const);
                 return VARIANT(constant, STRUCT, move(vec));
             }
 
             case constant::ENUM: {
-                auto& pr = GET(con, ENUM);
+                auto& pr = GET(value, ENUM);
                 auto vec = copy_ptr_vector<constant>(pr.second, copy_const);
                 return VARIANT(constant, ENUM, make_pair(pr.first, move(vec)));
             }
 
             case constant::TUPLE: {
-                auto vec = copy_ptr_vector<constant>(GET(con, TUPLE), copy_const);
+                auto vec = copy_ptr_vector<constant>(GET(value, TUPLE), copy_const);
                 return VARIANT(constant, TUPLE, move(vec));
             }
 
             case constant::ARRAY: {
-                auto vec = copy_ptr_vector<constant>(GET(con, ARRAY), copy_const);
+                auto vec = copy_ptr_vector<constant>(GET(value, ARRAY), copy_const);
                 return VARIANT(constant, ARRAY, move(vec));
             }
 
             case constant::SIZED_ARRAY: {
-                auto& pr = GET(con, SIZED_ARRAY);
+                auto& pr = GET(value, SIZED_ARRAY);
                 return VARIANT(constant, SIZED_ARRAY, make_pair(make_ptr(copy_const(*pr.first)), pr.second));
             }
 
-            case constant::SOME:
-                return VARIANT(constant, SOME, make_ptr(copy_const(*GET(con, SOME))));
-
-            case constant::NONE:
-                return VARIANT(constant, NONE, monostate());
+            case constant::OPTIONAL: {
+                auto& opt = GET(value, OPTIONAL);
+                return VARIANT(constant, OPTIONAL, opt ? optional<ptr<constant>>(make_ptr(copy_const(**opt))) : optional<ptr<constant>>());
+            }
 
             case constant::GLOBAL_VAR_PTR:
-                return VARIANT(constant, GLOBAL_VAR_PTR, GET(con, GLOBAL_VAR_PTR));
+                return VARIANT(constant, GLOBAL_VAR_PTR, GET(value, GLOBAL_VAR_PTR));
+
+            case constant::GLOBAL_VAR_SLICE:
+                return VARIANT(constant, GLOBAL_VAR_SLICE, GET(value, GLOBAL_VAR_SLICE));
 
             case constant::GLOBAL_FUNC_PTR:
-                return VARIANT(constant, GLOBAL_FUNC_PTR, GET(con, GLOBAL_FUNC_PTR));
+                return VARIANT(constant, GLOBAL_FUNC_PTR, GET(value, GLOBAL_FUNC_PTR));
         }
 
         UNREACHABLE;

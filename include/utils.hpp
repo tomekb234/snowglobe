@@ -17,7 +17,6 @@ namespace sg::utils {
     using std::make_optional;
     using std::vector;
     using std::in_place_index;
-    using std::make_pair;
     using std::get;
     using std::remove_reference;
 
