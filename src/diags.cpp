@@ -234,6 +234,13 @@ namespace sg::diags {
         stream << "Expected an array type";
     }
 
+    void expected_integer_type::write(ostream& stream) const {
+        stream << "Expression with invalid type '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+        stream << "Expected an integer type";
+    }
+
     void invalid_size_constant_type::write(ostream& stream) const {
         stream << "Size constant without unsigned integer type" << endl;
     }
@@ -270,6 +277,14 @@ namespace sg::diags {
 
     void global_variable_moved::write(ostream& stream) const {
         stream << "Cannot move out global variable '" << name << "'" << endl;
+    }
+
+    void break_outside_loop::write(ostream& stream) const {
+        stream << "Break outside loop" << endl;
+    }
+
+    void continue_outside_loop::write(ostream& stream) const {
+        stream << "Continue outside loop" << endl;
     }
 
     void missing_return::write(ostream& stream) const {

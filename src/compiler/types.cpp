@@ -68,7 +68,7 @@ namespace sg {
 
     prog::type compiler::compile_user_type(const ast::type& ast, bool allow_uncompiled) {
         auto name = GET(ast, USER_TYPE);
-        auto& global_name = get_global_name(ast, name, allow_uncompiled);
+        auto& global_name = get_global_name(name, ast.loc, allow_uncompiled);
 
         switch (global_name.kind) {
             case global_name_kind::ENUM:
@@ -78,7 +78,7 @@ namespace sg {
                 return VARIANT(prog::type, STRUCT, global_name.index);
 
             default:
-                error(diags::invalid_kind(name, global_name.kind, { }), ast);
+                error(diags::invalid_kind(name, global_name.kind, { }), ast.loc);
         }
     }
 
@@ -91,7 +91,7 @@ namespace sg {
                 case prog::ptr_type::SHARED:
                 case prog::ptr_type::WEAK:
                 case prog::ptr_type::UNIQUE:
-                    warning(diags::restrictive_pointer_type(), ast);
+                    warning(diags::restrictive_pointer_type(), ast.loc);
                     break;
 
                 default:
@@ -333,7 +333,7 @@ namespace sg {
         UNREACHABLE;
     }
 
-    prog::type compiler::common_supertype(const ast::node& ast, const prog::type& type_a, const prog::type& type_b) {
+    prog::type compiler::common_supertype(const prog::type& type_a, const prog::type& type_b, location loc) {
         auto new_reg = [] () -> prog::reg_index { return 0; };
         auto add_instr = [] (prog::instr&&) { };
         conversion_compiler conv_clr(*this, new_reg, add_instr);
@@ -344,6 +344,6 @@ namespace sg {
         if (conv_clr.try_convert(0, type_b, type_a, false))
             return prog::copy_type(type_a);
 
-        error(diags::no_common_supertype(prog, copy_type(type_a), copy_type(type_b)), ast);
+        error(diags::no_common_supertype(prog, copy_type(type_a), copy_type(type_b)), loc);
     }
 }

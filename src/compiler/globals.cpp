@@ -21,7 +21,7 @@ namespace sg {
 
         if (ast.tp) {
             type = compile_type(**ast.tp);
-            value = convert_const(ast, move(value), value_type, type);
+            value = convert_const(move(value), value_type, type, ast.loc);
         } else
             type = move(value_type);
 
@@ -82,11 +82,11 @@ namespace sg {
 
         for (auto& field_ast : ast.fields) {
             if (field_names.count(field_ast->name))
-                error(diags::field_name_used(field_ast->name), *field_ast);
+                error(diags::field_name_used(field_ast->name), field_ast->loc);
 
             auto type = compile_type(*field_ast->tp);
             if (st.copyable && !type_copyable(type))
-                error(diags::type_not_copyable(prog, copy_type(type)), *field_ast->tp);
+                error(diags::type_not_copyable(prog, copy_type(type)), field_ast->tp->loc);
             if (!type_trivially_copyable(type))
                 st.trivially_copyable = false;
 
@@ -105,13 +105,13 @@ namespace sg {
 
         for (auto& variant_ast : ast.variants) {
             if (variant_names.count(variant_ast->name))
-                error(diags::variant_name_used(variant_ast->name), *variant_ast);
+                error(diags::variant_name_used(variant_ast->name), variant_ast->loc);
 
             vector<prog::ptr<prog::type>> types;
             for (const auto& type_ast : variant_ast->tps) {
                 auto type = compile_type(*type_ast);
                 if (en.copyable && !type_copyable(type))
-                    error(diags::type_not_copyable(prog, copy_type(type)), *type_ast);
+                    error(diags::type_not_copyable(prog, copy_type(type)), type_ast->loc);
                 if (!type_trivially_copyable(type))
                     en.trivially_copyable = false;
                 types.push_back(into_ptr(type));

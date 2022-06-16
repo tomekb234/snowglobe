@@ -294,7 +294,8 @@ const_int:
 
 func_def:
     "func" optional_copying NAME "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
-        $$ = { { @$ }, move($NAME), $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body), @NAME, @end };
+        $func_body.block->end_loc = @end;
+        $$ = { { @$ }, move($NAME), $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body), @NAME };
     }
 
 optional_copying:
@@ -505,7 +506,8 @@ stmt_seq:
     }
 
 locally_stmt:
-    "locally" name_seq_nempty "{" stmt_seq "}" {
+    "locally" name_seq_nempty "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, move($name_seq_nempty), into_ptr($stmt_seq) };
     }
 
@@ -525,7 +527,8 @@ swap_stmt:
     }
 
 swap_block_stmt:
-    "swap" expr "with" expr_or_name_locally "{" stmt_seq "}" {
+    "swap" expr "with" expr_or_name_locally "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, into_ptr($expr), into_ptr($expr_or_name_locally), into_ptr($stmt_seq) };
     }
 
@@ -539,7 +542,8 @@ expr_or_name_locally:
     }
 
 if_stmt:
-    "if" condition "{" stmt_seq "}" elif_seq[branches] optional_else {
+    "if" condition "{" stmt_seq "}"[end] elif_seq[branches] optional_else {
+        $stmt_seq.end_loc = @end;
         $branches.insert($branches.begin(), { { @condition }, into_ptr($condition), into_ptr($stmt_seq) });
         $$ = { { @$ }, into_ptr_vector($branches), into_optional_ptr($optional_else) };
     }
@@ -554,7 +558,8 @@ condition:
     }
 
 elif:
-    "elif" condition "{" stmt_seq "}" {
+    "elif" condition "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, into_ptr($condition), into_ptr($stmt_seq) };
     }
 
@@ -569,7 +574,8 @@ elif_seq:
 optional_else:
     %empty { }
 
-    | "else" "{" stmt_seq "}" {
+    | "else" "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { move($stmt_seq) };
     }
 
@@ -579,7 +585,8 @@ match_stmt:
     }
 
 with:
-    "with" expr "{" stmt_seq "}" {
+    "with" expr "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, into_ptr($expr), into_ptr($stmt_seq) };
     }
 
@@ -594,7 +601,8 @@ with_seq_nempty:
     }
 
 while_stmt:
-    "while" condition "{" stmt_seq "}" optional_else {
+    "while" condition "{" stmt_seq "}"[end] optional_else {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, into_ptr($condition), into_ptr($stmt_seq), into_optional_ptr($optional_else) };
     }
 
@@ -640,7 +648,8 @@ for_slice_stmt:
     }
 
 for_stmt_tail:
-    optional_reversed "{" stmt_seq "}" optional_else {
+    optional_reversed "{" stmt_seq "}"[end] optional_else {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, { }, $optional_reversed, into_ptr($stmt_seq), into_optional_ptr($optional_else) };
     }
 
@@ -904,7 +913,8 @@ expr:
         $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, RANGE, @$, make_pair(into_ptr($arr), make_pair(into_optional_ptr($lrange), into_optional_ptr($rrange))))));
     }
 
-    | "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}" {
+    | "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
+        $func_body.block->end_loc = @end;
         $$ = AST_VARIANT(expr, LAMBDA, @$, make_ptr(lambda_expr { { @$ }, $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body) }));
     }
 

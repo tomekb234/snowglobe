@@ -125,7 +125,6 @@ namespace sg::ast {
         optional<ptr<type>> return_tp;
         ptr<func_body> body;
         location name_loc;
-        location end_loc;
     };
 
     struct func_body : node {
@@ -194,6 +193,7 @@ namespace sg::ast {
 
     struct stmt_block : node {
         vector<ptr<stmt>> stmts;
+        location end_loc;
     };
 
     struct assignment_stmt : node {

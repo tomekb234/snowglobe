@@ -158,44 +158,44 @@ namespace sg {
         return ok;
     }
 
-    compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled_types) {
+    compiler::global_name& compiler::get_global_name(const string& name, location loc, bool allow_uncompiled_types) {
         auto it = global_names.find(name);
         if (it == global_names.end())
-            error(diags::name_not_declared(name), ast);
+            error(diags::name_not_declared(name), loc);
 
         auto& global_name = it->second;
 
         auto type = global_name.kind == global_name_kind::STRUCT || global_name.kind == global_name_kind::ENUM;
         if (type && !allow_uncompiled_types && !global_name.compiled)
-            error(diags::name_not_compiled(name), ast);
+            error(diags::name_not_compiled(name), loc);
 
         return global_name;
     }
 
-    compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, global_name_kind expected_kind, bool allow_uncompiled_types) {
-        auto& global_name = get_global_name(ast, name, allow_uncompiled_types);
+    compiler::global_name& compiler::get_global_name(const string& name, global_name_kind expected_kind, location loc, bool allow_uncompiled_types) {
+        auto& global_name = get_global_name(name, loc, allow_uncompiled_types);
 
         if (global_name.kind != expected_kind)
-            error(diags::invalid_kind(name, global_name.kind, { expected_kind }), ast);
+            error(diags::invalid_kind(name, global_name.kind, { expected_kind }), loc);
 
         return global_name;
     }
 
     vector<ref<const ast::expr>> compiler::order_args(
-            const ast::node& ast,
-            const args_ast_vector& args_ast,
+            const args_ast_vector& ast_vec,
             optional<arg_with_name_function> arg_with_name,
-            optional<size_t> expected_count) {
-        auto size = args_ast.size();
+            optional<size_t> expected_count,
+            location loc) {
+        auto size = ast_vec.size();
 
         if (expected_count && size != *expected_count)
-            error(diags::invalid_argument_count(size, *expected_count), ast);
+            error(diags::invalid_argument_count(size, *expected_count), loc);
 
         vector<bool> used(size, false);
         vector<size_t> indices(size);
         vector<const ast::expr*> value_ptrs(size);
 
-        for (auto& arg_ast : args_ast) {
+        for (auto& arg_ast : ast_vec) {
             size_t index = 0;
             const ast::expr* value_ast;
 
@@ -209,9 +209,9 @@ namespace sg {
                 case ast::expr_marked::EXPR_WITH_NAME: {
                     auto name = GET(*arg_ast, EXPR_WITH_NAME).first;
                     if (arg_with_name)
-                        index = (*arg_with_name)(*arg_ast, name);
+                        index = (*arg_with_name)(arg_ast->loc, name);
                     else
-                        error(diags::invalid_argument_marker(), *arg_ast);
+                        error(diags::invalid_argument_marker(), arg_ast->loc);
                     value_ast = GET(*arg_ast, EXPR_WITH_NAME).second.get();
                 } break;
 
@@ -222,9 +222,9 @@ namespace sg {
             }
 
             if (index >= size)
-                error(diags::invalid_argument_index(index, size), *arg_ast);
+                error(diags::invalid_argument_index(index, size), arg_ast->loc);
             if (used[index])
-                error(diags::reused_argument_index(index), *arg_ast);
+                error(diags::reused_argument_index(index), arg_ast->loc);
 
             value_ptrs[index] = value_ast;
             used[index] = true;
@@ -232,7 +232,7 @@ namespace sg {
 
         for (size_t index = 0; index < size; index++) {
             if (!used[index])
-                error(diags::missing_argument(index), ast);
+                error(diags::missing_argument(index), loc);
         }
 
         vector<ref<const ast::expr>> values;

@@ -116,6 +116,7 @@ namespace sg::diags {
     DIAG3(no_common_supertype, error, const prog::program&, prog, prog::type, type_a, prog::type, type_b);
     DIAG2(type_not_copyable, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_array_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_integer_type, error, const prog::program&, prog, prog::type, type);
     DIAG0(invalid_size_constant_type, error);
     DIAG0(restrictive_pointer_type, warning);
 
@@ -126,6 +127,8 @@ namespace sg::diags {
     DIAG4(variable_not_usable, error, string, name, bool, initialized, bool, uninitialized, bool, moved_out);
     DIAG1(variable_moved_inside_loop, error, string, name);
     DIAG1(global_variable_moved, error, string, name);
+    DIAG0(break_outside_loop, error);
+    DIAG0(continue_outside_loop, error);
     DIAG0(missing_return, error);
     DIAG0(dead_code, warning);
 }

@@ -9,27 +9,27 @@ namespace sg {
 
     static bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined);
 
-    prog::reg_index conversion_compiler::convert(const ast::node& ast, prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined) {
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc, bool confined) {
         auto result = try_convert(value, type, new_type, confined);
 
         if (!result)
-            clr.error(diags::not_convertible(clr.prog, copy_type(type), copy_type(new_type)), ast);
+            clr.error(diags::not_convertible(clr.prog, copy_type(type), copy_type(new_type)), loc);
 
         return *result;
     }
 
-    prog::reg_index conversion_compiler::convert(const ast::node& ast, prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type) {
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc) {
         if (type.confined != new_type.confined && !clr.type_trivially_copyable(*type.tp))
-            clr.error(diags::confinement_mismatch(type.confined), ast);
+            clr.error(diags::confinement_mismatch(type.confined), loc);
 
-        return convert(ast, value, *type.tp, *new_type.tp, new_type.confined);
+        return convert(value, *type.tp, *new_type.tp, loc, new_type.confined);
     }
 
-    prog::reg_index conversion_compiler::convert(const ast::node& ast, prog::reg_index value, const prog::type_local& type, const prog::type& new_type) {
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc) {
         if (type.confined && !clr.type_trivially_copyable(*type.tp))
-            clr.error(diags::confinement_mismatch(type.confined), ast);
+            clr.error(diags::confinement_mismatch(type.confined), loc);
 
-        return convert(ast, value, *type.tp, new_type, false);
+        return convert(value, *type.tp, new_type, loc, false);
     }
 
     optional<prog::reg_index> conversion_compiler::try_convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined) {
