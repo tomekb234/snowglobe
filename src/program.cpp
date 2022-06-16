@@ -24,40 +24,38 @@ namespace sg::prog {
                 return VARIANT(constant, UNIT, monostate{ });
 
             case constant::NUMBER: {
-                auto& pr = GET(value, NUMBER);
-                return VARIANT(constant, NUMBER, make_pair(pr.first, make_ptr(number_type { pr.second->tp })));
+                auto& [number, ntype_ptr] = GET(value, NUMBER);
+                return VARIANT(constant, NUMBER, make_pair(number, make_ptr(number_type { ntype_ptr->tp })));
             } break;
 
             case constant::STRUCT: {
-                auto& pr = GET(value, STRUCT);
-                auto vec = copy_ptr_vector<constant>(pr.second, copy_const);
-                return VARIANT(constant, STRUCT, make_pair(pr.first, move(vec)));
+                auto& [index, value_ptrs] = GET(value, STRUCT);
+                return VARIANT(constant, STRUCT, make_pair(index, copy_ptr_vector<constant>(value_ptrs, copy_const)));
             }
 
             case constant::ENUM: {
-                auto& tup = GET(value, ENUM);
-                auto vec = copy_ptr_vector<constant>(get<2>(tup), copy_const);
-                return VARIANT(constant, ENUM, make_tuple(get<0>(tup), get<1>(tup), move(vec)));
+                auto& [enum_index, variant_index, value_ptrs] = GET(value, ENUM);
+                return VARIANT(constant, ENUM, make_tuple(enum_index, variant_index, copy_ptr_vector<constant>(value_ptrs, copy_const)));
             }
 
             case constant::TUPLE: {
-                auto vec = copy_ptr_vector<constant>(GET(value, TUPLE), copy_const);
-                return VARIANT(constant, TUPLE, move(vec));
+                auto& value_ptrs = GET(value, TUPLE);
+                return VARIANT(constant, TUPLE, copy_ptr_vector<constant>(value_ptrs, copy_const));
             }
 
             case constant::ARRAY: {
-                auto vec = copy_ptr_vector<constant>(GET(value, ARRAY), copy_const);
-                return VARIANT(constant, ARRAY, move(vec));
+                auto& value_ptrs = GET(value, ARRAY);
+                return VARIANT(constant, ARRAY, copy_ptr_vector<constant>(value_ptrs, copy_const));
             }
 
             case constant::SIZED_ARRAY: {
-                auto& pr = GET(value, SIZED_ARRAY);
-                return VARIANT(constant, SIZED_ARRAY, make_pair(make_ptr(copy_const(*pr.first)), pr.second));
+                auto& [value_ptr, size] = GET(value, SIZED_ARRAY);
+                return VARIANT(constant, SIZED_ARRAY, make_pair(make_ptr(copy_const(*value_ptr)), size));
             }
 
             case constant::OPTIONAL: {
-                auto& opt = GET(value, OPTIONAL);
-                return VARIANT(constant, OPTIONAL, opt ? optional<ptr<constant>>(make_ptr(copy_const(**opt))) : optional<ptr<constant>>());
+                auto& value_ptr = GET(value, OPTIONAL);
+                return VARIANT(constant, OPTIONAL, value_ptr ? optional<ptr<constant>>(make_ptr(copy_const(**value_ptr))) : optional<ptr<constant>>());
             }
 
             case constant::GLOBAL_VAR_PTR:
@@ -91,8 +89,8 @@ namespace sg::prog {
                 return VARIANT(type, ENUM, GET(tp, ENUM));
 
             case type::TUPLE: {
-                auto vec = copy_ptr_vector<type>(GET(tp, TUPLE), copy_type);
-                return VARIANT(type, TUPLE, move(vec));
+                auto& type_ptrs = GET(tp, TUPLE);
+                return VARIANT(type, TUPLE, copy_ptr_vector<type>(type_ptrs, copy_type));
             }
 
             case type::ARRAY:
@@ -176,15 +174,15 @@ namespace sg::prog {
                 return GET(type_a, ENUM) == GET(type_b, ENUM);
 
             case type::TUPLE: {
-                auto& tuple_a = GET(type_a, TUPLE);
-                auto& tuple_b = GET(type_b, TUPLE);
+                auto tuple_a = as_cref_vector(GET(type_a, TUPLE));
+                auto tuple_b = as_cref_vector(GET(type_b, TUPLE));
                 auto size = tuple_a.size();
 
                 if (size != tuple_b.size())
                     return false;
 
                 for (size_t index = 0; index < size; index++) {
-                    if (!types_equal(*tuple_a[index], *tuple_b[index]))
+                    if (!types_equal(tuple_a[index], tuple_b[index]))
                         return false;
                 }
 
@@ -265,12 +263,12 @@ namespace sg::prog {
     }
 
     func_type get_func_type(const global_func& func) {
-        vector<ptr<type_local>> param_types;
+        vector<type_local> param_types;
 
         for (auto& param : func.params)
-            param_types.push_back(make_ptr(copy_type_local(*param->tp)));
+            param_types.push_back(copy_type_local(*param->tp));
 
-        return { move(param_types), make_ptr(copy_type(*func.return_tp)) };
+        return { into_ptr_vector(param_types), make_ptr(copy_type(*func.return_tp)) };
     }
 
     void print_type(ostream& stream, const program& prog, const type& tp) {
@@ -342,7 +340,7 @@ namespace sg::prog {
                 break;
 
             case type::TUPLE: {
-                auto& tuple = GET(tp, TUPLE);
+                auto tuple = as_cref_vector(GET(tp, TUPLE));
 
                 stream << '(';
 
@@ -351,7 +349,7 @@ namespace sg::prog {
                     if (!first)
                         stream << ", ";
                     first = false;
-                    print_type(stream, prog, *coord);
+                    print_type(stream, prog, coord);
                 }
 
                 stream << ')';
@@ -461,13 +459,13 @@ namespace sg::prog {
         stream << '(';
 
         auto first = true;
-        for (auto& param : func.param_tps) {
+        for (auto& param_ptr : func.param_tps) {
             if (!first)
                 stream << ", ";
             first = false;
-            if (!param->confined)
+            if (!param_ptr->confined)
                 stream << "!";
-            print_type(stream, prog, *param->tp);
+            print_type(stream, prog, *param_ptr->tp);
         }
 
         stream << ") -> ";

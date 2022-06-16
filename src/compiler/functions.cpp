@@ -7,8 +7,6 @@
 namespace sg {
     using namespace sg::utils;
 
-    using std::monostate;
-
     const prog::type_local function_compiler::NEVER_TYPE = { make_ptr(VARIANT(prog::type, NEVER, monostate())), false };
     const prog::type_local function_compiler::UNIT_TYPE = { make_ptr(VARIANT(prog::type, UNIT, monostate())), false };
     const prog::type_local function_compiler::BOOL_TYPE = { make_ptr(VARIANT(prog::type, NUMBER, make_ptr(prog::number_type { prog::number_type::BOOL }))), false };
@@ -16,8 +14,8 @@ namespace sg {
     void function_compiler::compile(const ast::func_def& ast) {
         push_frame();
 
-        for (auto& param : func.params) {
-            auto var = add_var(param->name, copy_type_local(*param->tp));
+        for (auto& param_ptr : func.params) {
+            auto var = add_var(param_ptr->name, copy_type_local(*param_ptr->tp));
             auto instr = prog::write_var_instr { var, reg_counter++ };
             add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(instr)));
             init_var(var);
@@ -28,7 +26,7 @@ namespace sg {
         if (ast.body->return_value) {
             if (returned)
                 clr.warning(diags::dead_code(), (*ast.body->return_value)->loc);
-            compile_return(ast.body->return_value, (*ast.body->return_value)->loc);
+            compile_return(as_optional_cref(ast.body->return_value), (*ast.body->return_value)->loc);
         } else if (!returned) {
             if (!INDEX_EQ(*func.return_tp, UNIT))
                 clr.error(diags::missing_return(), ast.body->block->end_loc);
@@ -107,10 +105,10 @@ namespace sg {
     }
 
     optional<prog::var_index> function_compiler::get_var(string name) {
-        auto it = var_names.find(name);
-        if (it == var_names.end())
+        auto iter = var_names.find(name);
+        if (iter == var_names.end())
             return { };
-        return { it->second.back() };
+        return { iter->second.back() };
     }
 
     void function_compiler::init_var(prog::var_index var) {
@@ -168,8 +166,8 @@ namespace sg {
     }
 
     void function_compiler::add_return_instr(prog::reg_index value, location loc) {
-        for (auto it = frames.rbegin(); it != frames.rend(); it++)
-            add_cleanup_instrs(*it, loc);
+        for (auto iter = frames.rbegin(); iter != frames.rend(); iter++)
+            add_cleanup_instrs(*iter, loc);
 
         auto instr = prog::return_instr { value };
         add_instr(VARIANT(prog::instr, RETURN, into_ptr(instr)));
@@ -178,11 +176,11 @@ namespace sg {
     }
 
     void function_compiler::add_break_instr(location loc) {
-        for (auto it = frames.rbegin(); true; it++) {
-            if (it == frames.rend())
+        for (auto iter = frames.rbegin(); true; iter++) {
+            if (iter == frames.rend())
                 clr.error(diags::break_outside_loop(), loc);
-            add_cleanup_instrs(*it, loc);
-            if (it->loop)
+            add_cleanup_instrs(*iter, loc);
+            if (iter->loop)
                 break;
         }
 
@@ -190,12 +188,12 @@ namespace sg {
     }
 
     void function_compiler::add_continue_instr(location loc) {
-        for (auto it = frames.rbegin(); true; it++) {
-            if (it == frames.rend())
+        for (auto iter = frames.rbegin(); true; iter++) {
+            if (iter == frames.rend())
                 clr.error(diags::continue_outside_loop(), loc);
-            if (it->loop)
+            if (iter->loop)
                 break;
-            add_cleanup_instrs(*it, loc);
+            add_cleanup_instrs(*iter, loc);
         }
 
         add_instr(VARIANT(prog::instr, CONTINUE_LOOP, monostate()));

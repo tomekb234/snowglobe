@@ -9,7 +9,7 @@ namespace sg {
 
     static bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined);
 
-    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc, bool confined) {
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined, location loc) {
         auto result = try_convert(value, type, new_type, confined);
 
         if (!result)
@@ -18,18 +18,22 @@ namespace sg {
         return *result;
     }
 
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc) {
+        return convert(value, type, new_type, false, loc);
+    }
+
     prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc) {
         if (type.confined != new_type.confined && !clr.type_trivially_copyable(*type.tp))
             clr.error(diags::confinement_mismatch(type.confined), loc);
 
-        return convert(value, *type.tp, *new_type.tp, loc, new_type.confined);
+        return convert(value, *type.tp, *new_type.tp, new_type.confined, loc);
     }
 
     prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc) {
         if (type.confined && !clr.type_trivially_copyable(*type.tp))
             clr.error(diags::confinement_mismatch(type.confined), loc);
 
-        return convert(value, *type.tp, new_type, loc, false);
+        return convert(value, *type.tp, new_type, false, loc);
     }
 
     optional<prog::reg_index> conversion_compiler::try_convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined) {
@@ -188,8 +192,8 @@ namespace sg {
                 if (!INDEX_EQ(new_type, TUPLE))
                     break;
 
-                auto& tuple = GET(type, TUPLE);
-                auto& new_tuple = GET(new_type, TUPLE);
+                auto tuple = as_cref_vector(GET(type, TUPLE));
+                auto new_tuple = as_cref_vector(GET(new_type, TUPLE));
                 auto size = tuple.size();
 
                 if (size != new_tuple.size())
@@ -203,7 +207,7 @@ namespace sg {
                     auto instr = prog::extract_coord_instr { value, index, extracted };
                     add_instr(VARIANT(prog::instr, EXTRACT_COORD, into_ptr(instr)));
 
-                    auto result = try_convert(extracted, *tuple[index], *new_tuple[index], confined);
+                    auto result = try_convert(extracted, tuple[index], new_tuple[index], confined);
 
                     if (result)
                         values.push_back(*result);

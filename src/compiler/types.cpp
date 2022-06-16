@@ -7,8 +7,6 @@
 namespace sg {
     using namespace sg::utils;
 
-    using std::monostate;
-
     prog::type compiler::compile_type(const ast::type& ast, bool allow_uncompiled) {
         switch (INDEX(ast)) {
             case ast::type::NEVER:
@@ -23,7 +21,7 @@ namespace sg {
                 return compile_user_type(ast, allow_uncompiled);
 
             case ast::type::TUPLE: {
-                auto types = compile_tuple_type(GET(ast, TUPLE), allow_uncompiled);
+                auto types = compile_tuple_type(as_cref_vector(GET(ast, TUPLE)), allow_uncompiled);
                 return VARIANT(prog::type, TUPLE, into_ptr_vector(types));
             }
 
@@ -68,17 +66,17 @@ namespace sg {
 
     prog::type compiler::compile_user_type(const ast::type& ast, bool allow_uncompiled) {
         auto name = GET(ast, USER_TYPE);
-        auto& global_name = get_global_name(name, ast.loc, allow_uncompiled);
+        auto& gname = get_global_type(name, allow_uncompiled, ast.loc);
 
-        switch (global_name.kind) {
-            case global_name_kind::ENUM:
-                return VARIANT(prog::type, ENUM, global_name.index);
-
+        switch (gname.kind) {
             case global_name_kind::STRUCT:
-                return VARIANT(prog::type, STRUCT, global_name.index);
+                return VARIANT(prog::type, STRUCT, gname.index);
+
+            case global_name_kind::ENUM:
+                return VARIANT(prog::type, ENUM, gname.index);
 
             default:
-                error(diags::invalid_kind(name, global_name.kind, { }), ast.loc);
+                UNREACHABLE;
         }
     }
 
@@ -141,10 +139,10 @@ namespace sg {
         UNREACHABLE;
     }
 
-    vector<prog::type> compiler::compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled) {
+    vector<prog::type> compiler::compile_tuple_type(vector<cref<ast::type>> asts, bool allow_uncompiled) {
         vector<prog::type> types;
-        for (auto& type_ast : ast)
-            types.push_back(compile_type(*type_ast, allow_uncompiled));
+        for (const ast::type& type_ast : asts)
+            types.push_back(compile_type(type_ast, allow_uncompiled));
         return types;
     }
 
@@ -189,22 +187,22 @@ namespace sg {
     }
 
     prog::inner_ptr_type compiler::compile_inner_ptr_type(const ast::inner_ptr_type& ast) {
-        auto base = compile_ptr_type(ast);
+        auto ptr_type = compile_ptr_type(ast);
         auto owner_type = compile_type_pointed(*ast.owner_tp);
-        return { { base.kind, move(base.target_tp) }, into_ptr(owner_type) };
+        return { { ptr_type.kind, move(ptr_type.target_tp) }, into_ptr(owner_type) };
     }
 
     prog::func_type compiler::compile_func_type(const ast::func_type& ast, bool allow_uncompiled) {
-        vector<prog::ptr<prog::type_local>> param_types;
-        for (auto& type_ast : ast.param_tps)
-            param_types.push_back(make_ptr(compile_type_local(*type_ast, allow_uncompiled)));
+        vector<prog::type_local> param_types;
+        for (auto& type_ast_ptr : ast.param_tps)
+            param_types.push_back(compile_type_local(*type_ast_ptr, allow_uncompiled));
 
         auto return_type = compile_type(*ast.return_tp, allow_uncompiled);
-        return { move(param_types), into_ptr(return_type) };
+        return { into_ptr_vector(param_types), into_ptr(return_type) };
     }
 
     prog::func_with_ptr_type compiler::compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled) {
-        auto base = compile_func_type(ast, allow_uncompiled);
+        auto func_type = compile_func_type(ast, allow_uncompiled);
 
         prog::func_with_ptr_type::kind_t kind;
 
@@ -231,7 +229,7 @@ namespace sg {
         }
 
         auto type = compile_type_pointed(*ast.target_tp);
-        return { { move(base.param_tps), move(base.return_tp) }, { kind, into_ptr(type) } };
+        return { { move(func_type.param_tps), move(func_type.return_tp) }, { kind, into_ptr(type) } };
     }
 
     bool compiler::type_copyable(const prog::type& type) {

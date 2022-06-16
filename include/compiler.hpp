@@ -22,10 +22,10 @@ namespace sg {
     using std::function;
 
     template<typename T>
-    using ref = std::reference_wrapper<T>;
+    using ptr = std::unique_ptr<T>;
 
-    typedef vector<ast::ptr<ast::expr_marked>> args_ast_vector;
-    typedef function<size_t(location loc, string)> arg_with_name_function;
+    template<typename T>
+    using cref = std::reference_wrapper<const T>;
 
     enum struct global_name_kind {
         VAR,
@@ -75,12 +75,13 @@ namespace sg {
             diags.add(make_unique<T>(move(diag)));
         }
 
-        global_name& get_global_name(const string& name, location loc, bool allow_uncompiled_types = false);
-        global_name& get_global_name(const string& name, global_name_kind expected_kind, location loc, bool allow_uncompiled_types = false);
+        const global_name& get_global_name(string name, location loc);
+        const global_name& get_global_name(string name, vector<global_name_kind> expected_kinds, location loc);
+        const global_name& get_global_type(string name, bool allow_uncompiled, location loc);
 
-        vector<ref<const ast::expr>> order_args(
-                const args_ast_vector& ast_vec,
-                optional<arg_with_name_function> arg_with_name,
+        vector<cref<ast::expr>> order_args(
+                vector<cref<ast::expr_marked>> asts,
+                optional<function<size_t(string, location)>> arg_with_name,
                 optional<size_t> expected_count,
                 location loc);
 
@@ -97,11 +98,11 @@ namespace sg {
         // Constants
 
         pair<prog::constant, prog::type> compile_const(const ast::expr& ast);
-        pair<prog::constant, prog::type> compile_const_tuple(const args_ast_vector& ast_vec, location loc);
-        pair<prog::constant, prog::type> compile_const_array(const args_ast_vector& ast_vec, location loc);
-        pair<prog::constant, prog::type> compile_const_application(const ast::expr& receiver_ast, const args_ast_vector& args_ast_vec, location loc);
-        pair<prog::constant, prog::type> compile_const_name(const string& name, location loc);
-        pair<prog::constant, prog::type> compile_const_variant_name(const string& name, const string& variant_name, location loc);
+        pair<prog::constant, prog::type> compile_const_tuple(vector<cref<ast::expr_marked>> asts, location loc);
+        pair<prog::constant, prog::type> compile_const_array(vector<cref<ast::expr_marked>> asts, location loc);
+        pair<prog::constant, prog::type> compile_const_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, location loc);
+        pair<prog::constant, prog::type> compile_const_name(string name, location loc);
+        pair<prog::constant, prog::type> compile_const_variant_name(string name, string variant_name, location loc);
         pair<prog::constant, prog::type> compile_const_literal(const ast::literal_expr& ast);
         pair<prog::constant, prog::number_type> compile_int_token(const ast::int_token& ast);
         pair<prog::constant, prog::number_type> compile_float_token(const ast::float_token& ast);
@@ -110,17 +111,17 @@ namespace sg {
 
         // Types
 
-        prog::type compile_type(const ast::type& ast, bool allow_uncompiled = false);
-        prog::type_local compile_type_local(const ast::type_local& ast, bool allow_uncompiled = false);
-        prog::type compile_user_type(const ast::type& ast, bool allow_uncompiled = false);
+        prog::type compile_type(const ast::type& ast, bool allow_uncompiled);
+        prog::type_local compile_type_local(const ast::type_local& ast, bool allow_uncompiled);
+        prog::type compile_user_type(const ast::type& ast, bool allow_uncompiled);
         prog::number_type compile_number_type(const ast::number_type& ast);
-        vector<prog::type> compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled = false);
-        prog::array_type compile_array_type(const ast::array_type& ast, bool allow_uncompiled = false);
+        vector<prog::type> compile_tuple_type(vector<cref<ast::type>> asts, bool allow_uncompiled);
+        prog::array_type compile_array_type(const ast::array_type& ast, bool allow_uncompiled);
         prog::ptr_type compile_ptr_type(const ast::ptr_type& ast);
         prog::type_pointed compile_type_pointed(const ast::type_pointed& ast);
         prog::inner_ptr_type compile_inner_ptr_type(const ast::inner_ptr_type& ast);
-        prog::func_type compile_func_type(const ast::func_type& ast, bool allow_uncompiled = false);
-        prog::func_with_ptr_type compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled = false);
+        prog::func_type compile_func_type(const ast::func_type& ast, bool allow_uncompiled);
+        prog::func_with_ptr_type compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled);
 
         bool type_copyable(const prog::type& type);
         bool type_trivially_copyable(const prog::type& type);
@@ -137,7 +138,8 @@ namespace sg {
 
         conversion_compiler(compiler& clr, decltype(new_reg) new_reg, decltype(add_instr) add_instr) : clr(clr), new_reg(new_reg), add_instr(add_instr) { }
 
-        prog::reg_index convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc, bool confined = false);
+        prog::reg_index convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined, location loc);
+        prog::reg_index convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc);
         prog::reg_index convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc);
         prog::reg_index convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc);
         optional<prog::reg_index> try_convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined);
@@ -166,12 +168,20 @@ namespace sg {
         struct lvalue {
             enum {
                 VAR,
-                GLOBAL_VAR
+                GLOBAL_VAR,
+                TUPLE,
+                ARRAY,
+                STRUCT,
+                ENUM_VARIANT
             };
 
             variant<
                 prog::var_index, // VAR
-                prog::global_index // GLOBAL_VAR
+                prog::global_index, // GLOBAL_VAR
+                vector<ptr<lvalue>>, // TUPLE
+                vector<ptr<lvalue>>, // ARRAY
+                pair<prog::global_index, vector<ptr<lvalue>>>, // STRUCT
+                tuple<prog::global_index, prog::variant_index, vector<ptr<lvalue>>> // ENUM_VARIANT
             > value;
         };
 
@@ -234,36 +244,39 @@ namespace sg {
 
         // Statements
 
-        void compile_stmt_block(const ast::stmt_block& ast, bool cleanup = true);
+        void compile_stmt_block(const ast::stmt_block& ast, bool cleanup);
         void compile_stmt(const ast::stmt& ast);
-        void compile_if_stmt(const ast::if_stmt& ast, size_t branch_index = 0);
+        void compile_if_stmt(const ast::if_stmt& ast, size_t branch_index);
         void compile_while_stmt(const ast::while_stmt& ast);
         void compile_for_stmt(const ast::for_stmt& ast);
+        void compile_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
 
         // Expressions
 
-        lvalue compile_left_expr(const ast::expr& ast, optional<ref<const prog::type_local>> implicit_type);
-        void compile_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
-
         pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast, bool confined);
-        pair<prog::reg_index, prog::type_local> compile_return(const optional<ast::ptr<ast::expr>>& opt_ast, location loc);
-        pair<prog::reg_index, prog::type_local> compile_tuple(const args_ast_vector& ast_vec, bool confined, location loc);
-        pair<prog::reg_index, prog::type_local> compile_array(const args_ast_vector& ast_vec, bool confined, location loc);
-        pair<prog::reg_index, prog::type_local> compile_application(const ast::expr& receiver_ast, const args_ast_vector& args_ast_vec, bool confined, location loc);
+        pair<prog::reg_index, prog::type_local> compile_return(optional<cref<ast::expr>> ast, location loc);
+        pair<prog::reg_index, prog::type_local> compile_tuple(vector<cref<ast::expr_marked>> asts, bool confined, location loc);
+        pair<prog::reg_index, prog::type_local> compile_array(vector<cref<ast::expr_marked>> asts, bool confined, location loc);
+        pair<prog::reg_index, prog::type_local> compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_unary_operation(const ast::unary_operation_expr& ast);
         pair<prog::reg_index, prog::type_local> compile_binary_operation(const ast::binary_operation_expr& ast);
 
-        tuple<vector<ref<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> compile_args(
-                const args_ast_vector& ast_vec,
-                optional<arg_with_name_function> arg_with_name,
-                optional<size_t> expected_number,
+        lvalue compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type);
+        lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);
+        lvalue compile_left_array(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);
+        lvalue compile_left_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, optional<cref<prog::type_local>> implicit_type, location loc);
+
+        tuple<vector<cref<ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> compile_args(
+                vector<cref<ast::expr_marked>> asts,
+                optional<function<size_t(string, location)>> arg_with_name,
+                optional<size_t> expected_count,
                 bool confined,
                 location loc);
 
         vector<prog::reg_index> compile_call_args(
-                const args_ast_vector& ast_vec,
+                vector<cref<ast::expr_marked>> asts,
                 const prog::func_type& ftype,
-                optional<ref<const prog::global_func>> func,
+                optional<cref<prog::global_func>> func,
                 location loc);
     };
 }

@@ -7,14 +7,12 @@
 namespace sg {
     using namespace sg::utils;
 
-    using std::tie;
-
     void function_compiler::compile_stmt_block(const ast::stmt_block& ast, bool cleanup) {
-        for (auto& stmt_ast : ast.stmts) {
+        for (auto& stmt_ast_ptr : ast.stmts) {
             if (returned)
-                clr.warning(diags::dead_code(), stmt_ast->loc);
+                clr.warning(diags::dead_code(), stmt_ast_ptr->loc);
 
-            compile_stmt(*stmt_ast);
+            compile_stmt(*stmt_ast_ptr);
         }
 
         if (cleanup)
@@ -47,7 +45,7 @@ namespace sg {
                 clr.error(diags::not_implemented(), ast.loc); // TODO
 
             case ast::stmt::IF:
-                compile_if_stmt(*GET(ast, IF));
+                compile_if_stmt(*GET(ast, IF), 0);
                 break;
 
             case ast::stmt::MATCH:
@@ -81,14 +79,14 @@ namespace sg {
             clr.error(diags::not_implemented(), cond_ast.loc); // TODO
 
         auto true_branch = [&] () {
-            compile_stmt_block(block_ast);
+            compile_stmt_block(block_ast, true);
         };
 
         auto false_branch = [&] () {
             if (branch_index < ast.branches.size() - 1)
                 compile_if_stmt(ast, branch_index + 1);
             else if (ast.else_branch)
-                compile_stmt_block(**ast.else_branch);
+                compile_stmt_block(**ast.else_branch, true);
         };
 
         add_branch_instr(cond, true_branch, false_branch);
@@ -107,12 +105,12 @@ namespace sg {
         };
 
         auto body = [&] () {
-            compile_stmt_block(*ast.block);
+            compile_stmt_block(*ast.block, true);
         };
 
         auto end = [&] () {
             if (ast.else_block)
-                compile_stmt_block(**ast.else_block);
+                compile_stmt_block(**ast.else_block, true);
         };
 
         add_loop_instr(head, body, end);
@@ -198,7 +196,7 @@ namespace sg {
 
                 compile_assignment(lval, value, type_local, range_ast.lvalue->loc);
 
-                compile_stmt_block(*range_ast.block);
+                compile_stmt_block(*range_ast.block, true);
 
                 if (incr) {
                     auto new_value = new_reg();
@@ -213,12 +211,36 @@ namespace sg {
 
             auto end = [&] () {
                 if (range_ast.else_block)
-                    compile_stmt_block(**range_ast.else_block);
+                    compile_stmt_block(**range_ast.else_block, true);
             };
 
             add_loop_instr(head, body, end);
         } else if (INDEX_EQ(ast, SLICE)) {
             clr.error(diags::not_implemented(), ast.loc); // TODO
+        }
+    }
+
+    void function_compiler::compile_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
+        switch (INDEX(lval)) { // TODO add more assignment options
+            case lvalue::VAR: {
+                auto var_index = GET(lval, VAR);
+                auto& var_type = var_types[var_index];
+                value = conv_clr.convert(value, type, var_type, loc);
+                auto instr = prog::write_var_instr { var_index, value };
+                add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(instr)));
+                init_var(var_index);
+            } break;
+
+            case lvalue::GLOBAL_VAR: {
+                auto var_index = GET(lval, GLOBAL_VAR);
+                auto& var = *clr.prog.global_vars[var_index];
+                value = conv_clr.convert(value, type, *var.tp, loc);
+                auto instr = prog::write_global_var_instr { var_index, value };
+                add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, into_ptr(instr)));
+            } break;
+
+            default:
+                clr.error(diags::not_implemented(), loc);
         }
     }
 }

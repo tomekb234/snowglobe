@@ -40,12 +40,12 @@ namespace sg::diags {
         }
     }
 
-    void name_not_declared::write(ostream& stream) const {
-        stream << "The name '" << name << "' was not declared" << endl;
+    void global_name_not_found::write(ostream& stream) const {
+        stream << "Global name '" << name << "' not found" << endl;
     }
 
-    void name_not_compiled::write(ostream& stream) const {
-        stream << "The name '" << name << "' was declared but is not yet compiled" << endl;
+    void type_not_compiled::write(ostream& stream) const {
+        stream << "The type '" << name << "' cannot be used before its definition unless inside a pointer type" << endl;
     }
 
     void global_name_used::write(ostream& stream) const {
@@ -73,15 +73,26 @@ namespace sg::diags {
 
         stream << endl;
 
-        if (expected_kind) {
+        if (!expected_kinds.empty()) {
             stream << "Expected ";
 
-            switch (*expected_kind) {
-                case global_name_kind::VAR: stream << "a variable"; break;
-                case global_name_kind::CONST: stream << "a constant"; break;
-                case global_name_kind::FUNC: stream << "a function"; break;
-                case global_name_kind::STRUCT: stream << "a struct"; break;
-                case global_name_kind::ENUM: stream << "an enum"; break;
+            auto count = expected_kinds.size();
+
+            for (size_t index = 0; index < count; index++) {
+                auto expected_kind = expected_kinds[index];
+
+                switch (expected_kind) {
+                    case global_name_kind::VAR: stream << "a variable"; break;
+                    case global_name_kind::CONST: stream << "a constant"; break;
+                    case global_name_kind::FUNC: stream << "a function"; break;
+                    case global_name_kind::STRUCT: stream << "a struct"; break;
+                    case global_name_kind::ENUM: stream << "an enum"; break;
+                }
+
+                if (index < count - 2)
+                    stream << ", ";
+                else if (index == count - 2)
+                    stream << " or ";
             }
 
             stream << endl;

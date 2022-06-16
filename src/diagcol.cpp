@@ -49,10 +49,10 @@ namespace sg {
 
             if (diag->loc) {
                 auto& [begin, end] = *diag->loc;
-                auto it = files.find(*begin.file_name);
+                auto iter = files.find(*begin.file_name);
 
-                if (it != files.end()) {
-                    auto& file = it->second.get();
+                if (iter != files.end()) {
+                    auto& file = iter->second.get();
                     file.clear();
                     file.seekg(0);
 

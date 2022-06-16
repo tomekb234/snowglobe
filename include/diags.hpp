@@ -81,12 +81,12 @@ namespace sg::diags {
 
     // Name resolution related
 
-    DIAG1(name_not_declared, error, string, name);
-    DIAG1(name_not_compiled, error, string, name);
+    DIAG1(global_name_not_found, error, string, name);
+    DIAG1(type_not_compiled, error, string, name);
     DIAG1(global_name_used, error, string, name);
     DIAG1(field_name_used, error, string, name);
     DIAG1(variant_name_used, error, string, name);
-    DIAG3(invalid_kind, error, string, name, global_name_kind, kind, optional<global_name_kind>, expected_kind);
+    DIAG3(invalid_kind, error, string, name, global_name_kind, kind, vector<global_name_kind>, expected_kinds);
 
     // Expression compilation related
 

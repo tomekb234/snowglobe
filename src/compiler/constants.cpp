@@ -3,16 +3,9 @@
 #include "program.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
-#include <limits>
 
 namespace sg {
     using namespace sg::utils;
-
-    using std::monostate;
-    using std::make_pair;
-    using std::numeric_limits;
-    using std::is_signed;
-    using std::is_unsigned;
 
     template<typename T>
     static optional<T> try_make_number(unsigned long long abs_value, bool negative);
@@ -26,21 +19,21 @@ namespace sg {
     pair<prog::constant, prog::type> compiler::compile_const(const ast::expr& ast) {
         switch (INDEX(ast)) {
             case ast::expr::TUPLE:
-                return compile_const_tuple(GET(ast, TUPLE), ast.loc);
+                return compile_const_tuple(as_cref_vector(GET(ast, TUPLE)), ast.loc);
 
             case ast::expr::ARRAY:
-                return compile_const_array(GET(ast, ARRAY), ast.loc);
+                return compile_const_array(as_cref_vector(GET(ast, ARRAY)), ast.loc);
 
             case ast::expr::APPLICATION: {
-                auto& [receiver_ast, args_ast] = GET(ast, APPLICATION);
-                return compile_const_application(*receiver_ast, args_ast, ast.loc);
+                auto& [receiver_ast_ptr, arg_ast_ptrs] = GET(ast, APPLICATION);
+                return compile_const_application(*receiver_ast_ptr, as_cref_vector(arg_ast_ptrs), ast.loc);
             }
 
             case ast::expr::NAME:
                 return compile_const_name(GET(ast, NAME), ast.loc);
 
             case ast::expr::VARIANT_NAME: {
-                auto& [name, variant_name] = GET(ast, VARIANT_NAME);
+                auto [name, variant_name] = GET(ast, VARIANT_NAME);
                 return compile_const_variant_name(name, variant_name, ast.loc);
             }
 
@@ -53,25 +46,25 @@ namespace sg {
                 error(diags::not_implemented(), ast.loc); // TODO compile-time arithmetic
 
             case ast::expr::SOME: {
-                auto[inner_value, inner_type] = compile_const(*GET(ast, SOME));
-                auto value = VARIANT(prog::constant, OPTIONAL, optional<prog::ptr<prog::constant>>(into_ptr(inner_value)));
+                auto [inner_value, inner_type] = compile_const(*GET(ast, SOME));
+                auto value = VARIANT(prog::constant, OPTIONAL, optional<ptr<prog::constant>>(into_ptr(inner_value)));
                 auto type = VARIANT(prog::type, OPTIONAL, into_ptr(inner_type));
                 return { move(value), move(type) };
             }
 
             case ast::expr::NONE: {
-                auto value = VARIANT(prog::constant, OPTIONAL, optional<prog::ptr<prog::constant>>());
+                auto value = VARIANT(prog::constant, OPTIONAL, optional<ptr<prog::constant>>());
                 auto type = VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate())));
                 return { move(value), move(type) };
             }
 
             case ast::expr::REFERENCE: {
                 auto& name = GET(ast, REFERENCE);
-                auto& global_name = get_global_name(name, global_name_kind::VAR, ast.loc);
-                auto& target_type = *prog.global_vars[global_name.index]->tp;
+                auto index = get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
+                auto& target_type = *prog.global_vars[index]->tp;
                 auto type_pointed = prog::type_pointed { make_ptr(prog::copy_type(target_type)), false };
                 auto ptr_type = prog::ptr_type { prog::ptr_type::GLOBAL, into_ptr(type_pointed) };
-                auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, global_name.index);
+                auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, index);
                 auto type = VARIANT(prog::type, PTR, into_ptr(ptr_type));
                 return { move(value), move(type) };
             }
@@ -103,11 +96,11 @@ namespace sg {
         }
     }
 
-    pair<prog::constant, prog::type> compiler::compile_const_tuple(const args_ast_vector& ast_vec, location loc) {
-        auto values_ast = order_args(ast_vec, { }, { }, loc);
-        auto size = values_ast.size();
+    pair<prog::constant, prog::type> compiler::compile_const_tuple(vector<cref<ast::expr_marked>> asts, location loc) {
+        auto value_asts = order_args(asts, { }, { }, loc);
+        auto count = value_asts.size();
 
-        if (size == 0) {
+        if (count == 0) {
             auto value = VARIANT(prog::constant, UNIT, prog::monostate());
             auto type = VARIANT(prog::type, UNIT, prog::monostate());
             return { move(value), move(type) };
@@ -116,13 +109,13 @@ namespace sg {
         vector<prog::constant> values;
         vector<prog::type> types;
 
-        for (auto& value_ast : values_ast) {
+        for (auto& value_ast : value_asts) {
             auto [value, type] = compile_const(value_ast);
             values.push_back(move(value));
             types.push_back(move(type));
         }
 
-        if (size == 1)
+        if (count == 1)
             return { move(values[0]), move(types[0]) };
 
         auto value = VARIANT(prog::constant, TUPLE, into_ptr_vector(values));
@@ -130,53 +123,53 @@ namespace sg {
         return { move(value), move(type) };
     }
 
-    pair<prog::constant, prog::type> compiler::compile_const_array(const args_ast_vector& ast_vec, location loc) {
-        auto values_ast = order_args(ast_vec, { }, { }, loc);
-        auto size = values_ast.size();
+    pair<prog::constant, prog::type> compiler::compile_const_array(vector<cref<ast::expr_marked>> asts, location loc) {
+        auto value_asts = order_args(asts, { }, { }, loc);
+        auto count = value_asts.size();
 
         vector<prog::constant> values;
         vector<prog::type> types;
         auto common_type = VARIANT(prog::type, NEVER, monostate());
 
-        for (auto& value_ast : values_ast) {
+        for (auto& value_ast : value_asts) {
             auto [value, type] = compile_const(value_ast);
             common_type = common_supertype(common_type, type, loc);
             values.push_back(move(value));
             types.push_back(move(type));
         }
 
-        for (size_t index = 0; index < size; index++)
-            values[index] = convert_const(move(values[index]), types[index], common_type, values_ast[index].get().loc);
+        for (size_t index = 0; index < count; index++)
+            values[index] = convert_const(move(values[index]), types[index], common_type, value_asts[index].get().loc);
 
         auto value = VARIANT(prog::constant, ARRAY, into_ptr_vector(values));
-        auto type = VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(common_type), size }));
+        auto type = VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(common_type), count }));
         return { move(value), move(type) };
     }
 
-    pair<prog::constant, prog::type> compiler::compile_const_application(const ast::expr& receiver_ast, const args_ast_vector& args_ast_vec, location loc) {
+    pair<prog::constant, prog::type> compiler::compile_const_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, location loc) {
         auto receiver_type = compile_const(receiver_ast).second;
 
         switch (INDEX(receiver_type)) {
             case prog::type::STRUCT_CTOR: {
                 auto struct_index = GET(receiver_type, STRUCT_CTOR);
-                auto& struct_type = *prog.struct_types[struct_index];
-                auto size = struct_type.fields.size();
+                auto& st = *prog.struct_types[struct_index];
+                auto count = st.fields.size();
 
-                auto arg_with_name = [&] (location loc, string name) -> size_t {
-                    auto it = struct_type.field_names.find(name);
-                    if (it == struct_type.field_names.end())
-                        error(diags::invalid_struct_field(struct_type, name), loc);
-                    return it->second;
+                auto arg_with_name = [&] (string name, location loc) -> size_t {
+                    auto iter = st.field_names.find(name);
+                    if (iter == st.field_names.end())
+                        error(diags::invalid_struct_field(st, name), loc);
+                    return iter->second;
                 };
 
-                auto values_ast = order_args(args_ast_vec, { arg_with_name }, { size }, loc);
+                auto value_asts = order_args(arg_asts, { arg_with_name }, { count }, loc);
 
                 vector<prog::constant> values;
 
-                for (size_t index = 0; index < size; index++) {
-                    auto [value, type] = compile_const(values_ast[index]);
-                    auto& field_type = *struct_type.fields[index]->tp;
-                    value = convert_const(move(value), type, field_type, values_ast[index].get().loc);
+                for (size_t index = 0; index < count; index++) {
+                    auto [value, type] = compile_const(value_asts[index]);
+                    auto& field_type = *st.fields[index]->tp;
+                    value = convert_const(move(value), type, field_type, value_asts[index].get().loc);
                     values.push_back(move(value));
                 }
 
@@ -187,18 +180,18 @@ namespace sg {
 
             case prog::type::ENUM_CTOR: {
                 auto [enum_index, variant_index] = GET(receiver_type, ENUM_CTOR);
-                auto& enum_type = *prog.enum_types[enum_index];
-                auto& enum_variant = *enum_type.variants[variant_index];
-                auto size = enum_variant.tps.size();
+                auto& en = *prog.enum_types[enum_index];
+                auto& variant = *en.variants[variant_index];
+                auto count = variant.tps.size();
 
-                auto values_ast = order_args(args_ast_vec, { }, { size }, loc);
+                auto value_asts = order_args(arg_asts, { }, { count }, loc);
 
                 vector<prog::constant> values;
 
-                for (size_t index = 0; index < size; index++) {
-                    auto [value, type] = compile_const(values_ast[index]);
-                    auto& field_type = *enum_variant.tps[index];
-                    value = convert_const(move(value), type, field_type, values_ast[index].get().loc);
+                for (size_t index = 0; index < count; index++) {
+                    auto [value, type] = compile_const(value_asts[index]);
+                    auto& field_type = *variant.tps[index];
+                    value = convert_const(move(value), type, field_type, value_asts[index].get().loc);
                     values.push_back(move(value));
                 }
 
@@ -218,27 +211,27 @@ namespace sg {
         }
     }
 
-    pair<prog::constant, prog::type> compiler::compile_const_name(const string& name, location loc) {
-        auto& global_name = get_global_name(name, loc);
+    pair<prog::constant, prog::type> compiler::compile_const_name(string name, location loc) {
+        auto& gname = get_global_name(name, loc);
 
-        switch (global_name.kind) {
+        switch (gname.kind) {
             case global_name_kind::VAR:
                 error(diags::expression_not_constant(), loc);
 
             case global_name_kind::CONST: {
-                auto& global_var = consts[global_name.index];
-                return { prog::copy_const(*global_var.value), prog::copy_type(*global_var.tp) };
+                auto& var = consts[gname.index];
+                return { prog::copy_const(*var.value), prog::copy_type(*var.tp) };
             }
 
             case global_name_kind::FUNC: {
                 auto value = VARIANT(prog::constant, UNIT, monostate());
-                auto type = VARIANT(prog::type, KNOWN_FUNC, global_name.index);
+                auto type = VARIANT(prog::type, KNOWN_FUNC, gname.index);
                 return { move(value), move(type) };
             }
 
             case global_name_kind::STRUCT: {
                 auto value = VARIANT(prog::constant, UNIT, monostate());
-                auto type = VARIANT(prog::type, STRUCT_CTOR, global_name.index);
+                auto type = VARIANT(prog::type, STRUCT_CTOR, gname.index);
                 return { move(value), move(type) };
             }
 
@@ -249,37 +242,37 @@ namespace sg {
         UNREACHABLE;
     }
 
-    pair<prog::constant, prog::type> compiler::compile_const_variant_name(const string& name, const string& variant_name, location loc) {
-        auto& global_name = get_global_name(name, global_name_kind::ENUM, loc);
-        auto& enum_type = *prog.enum_types[global_name.index];
+    pair<prog::constant, prog::type> compiler::compile_const_variant_name(string name, string variant_name, location loc) {
+        auto enum_index = get_global_name(name, { global_name_kind::ENUM }, loc).index;
+        auto& en = *prog.enum_types[enum_index];
 
-        auto it = enum_type.variant_names.find(variant_name);
-        if (it == enum_type.variant_names.end())
-            error(diags::invalid_enum_variant(enum_type, name), loc);
-        auto variant_index = it->second;
+        auto iter = en.variant_names.find(variant_name);
+        if (iter == en.variant_names.end())
+            error(diags::invalid_enum_variant(en, name), loc);
+        auto variant_index = iter->second;
 
-        if (enum_type.variants[variant_index]->tps.empty()) {
-            auto value = VARIANT(prog::constant, ENUM, make_tuple(global_name.index, variant_index, vector<prog::ptr<prog::constant>>{ }));
-            auto type = VARIANT(prog::type, ENUM, global_name.index);
+        if (en.variants[variant_index]->tps.empty()) {
+            auto value = VARIANT(prog::constant, ENUM, make_tuple(enum_index, variant_index, vector<ptr<prog::constant>>()));
+            auto type = VARIANT(prog::type, ENUM, enum_index);
             return { move(value), move(type) };
         }
 
         auto value = VARIANT(prog::constant, UNIT, monostate());
-        auto type = VARIANT(prog::type, ENUM_CTOR, make_pair(global_name.index, variant_index));
+        auto type = VARIANT(prog::type, ENUM_CTOR, make_pair(enum_index, variant_index));
         return { move(value), move(type) };
     }
 
     pair<prog::constant, prog::type> compiler::compile_const_literal(const ast::literal_expr& ast) {
         switch (INDEX(ast)) {
             case ast::literal_expr::BOOL: {
-                prog::number_type ntype = { prog::number_type::BOOL };
+                auto ntype = prog::number_type { prog::number_type::BOOL };
                 auto value = VARIANT(prog::constant, NUMBER, make_pair(encode_number(GET(ast, BOOL)), copy_make_ptr(ntype)));
                 auto type = VARIANT(prog::type, NUMBER, copy_make_ptr(ntype));
                 return {move(value), move(type)};
             }
 
             case ast::literal_expr::CHAR: {
-                prog::number_type ntype = { prog::number_type::U8 };
+                auto ntype = prog::number_type { prog::number_type::U8 };
                 auto value = VARIANT(prog::constant, NUMBER, make_pair(encode_number(static_cast<uint8_t>(GET(ast, CHAR))), copy_make_ptr(ntype)));
                 auto type = VARIANT(prog::type, NUMBER, copy_make_ptr(ntype));
                 return {move(value), move(type)};
@@ -289,14 +282,17 @@ namespace sg {
                 auto str = GET(ast, STRING);
                 auto size = str.length();
 
-                prog::number_type char_ntype = { prog::number_type::U8 };
+                auto char_ntype = prog::number_type { prog::number_type::U8 };
                 auto char_type = VARIANT(prog::type, NUMBER, copy_make_ptr(char_ntype));
                 auto array_type = VARIANT(prog::type, ARRAY, make_ptr(prog::array_type { into_ptr(char_type), size }));
 
-                vector<prog::ptr<prog::constant>> char_values;
-                for (char ch : str)
-                    char_values.push_back(make_ptr(VARIANT(prog::constant, NUMBER, make_pair(encode_number(static_cast<uint8_t>(ch)), copy_make_ptr(char_ntype)))));
-                auto array_value = VARIANT(prog::constant, ARRAY, move(char_values));
+                vector<prog::constant> char_values;
+                for (char ch : str) {
+                    auto number = encode_number(static_cast<uint8_t>(ch));
+                    char_values.push_back(VARIANT(prog::constant, NUMBER, make_pair(number, copy_make_ptr(char_ntype))));
+                }
+
+                auto array_value = VARIANT(prog::constant, ARRAY, into_ptr_vector(char_values));
 
                 auto index = prog.global_vars.size();
                 prog.global_vars.push_back(make_ptr(prog::global_var { optional<string>(), make_ptr(copy_type(array_type)), into_ptr(array_value) }));
@@ -325,55 +321,55 @@ namespace sg {
 
     pair<prog::constant, prog::number_type> compiler::compile_int_token(const ast::int_token& ast) {
         #define RETURN_IF_OK(type, type_marker) { \
-            auto opt_val = try_make_number<type>(ast.value, ast.negative); \
-            prog::number_type ntype = { prog::number_type::type_marker }; \
-            if (opt_val) return { VARIANT(prog::constant, NUMBER, make_pair(encode_number(*opt_val), copy_make_ptr(ntype))), ntype }; \
+            auto value = try_make_number<type>(ast.value, ast.negative); \
+            auto ntype = prog::number_type { prog::number_type::type_marker }; \
+            if (value) return { VARIANT(prog::constant, NUMBER, make_pair(encode_number(*value), copy_make_ptr(ntype))), ntype }; \
         }
 
         #define RETURN_OR_ERROR(type, type_marker) { \
-            RETURN_IF_OK(type, type_marker) \
+            RETURN_IF_OK(type, type_marker); \
             error(diags::int_overflow(ast.value, ast.negative, is_signed<type>(), 8 * sizeof(type)), ast.loc); \
         }
 
         switch (ast.marker) {
             case ast::int_token::NONE:
             case ast::int_token::I: {
-                RETURN_IF_OK(int8_t, I8)
-                RETURN_IF_OK(int16_t, I16)
-                RETURN_IF_OK(int32_t, I32)
-                RETURN_OR_ERROR(int64_t, I64)
+                RETURN_IF_OK(int8_t, I8);
+                RETURN_IF_OK(int16_t, I16);
+                RETURN_IF_OK(int32_t, I32);
+                RETURN_OR_ERROR(int64_t, I64);
             }
 
             case ast::int_token::I8:
-                RETURN_OR_ERROR(int8_t, I8)
+                RETURN_OR_ERROR(int8_t, I8);
 
             case ast::int_token::I16:
-                RETURN_OR_ERROR(int16_t, I16)
+                RETURN_OR_ERROR(int16_t, I16);
 
             case ast::int_token::I32:
-                RETURN_OR_ERROR(int32_t, I32)
+                RETURN_OR_ERROR(int32_t, I32);
 
             case ast::int_token::I64:
-                RETURN_OR_ERROR(int64_t, I64)
+                RETURN_OR_ERROR(int64_t, I64);
 
             case ast::int_token::U: {
-                RETURN_IF_OK(uint8_t, U8)
-                RETURN_IF_OK(uint16_t, U16)
-                RETURN_IF_OK(uint32_t, U32)
-                RETURN_OR_ERROR(uint64_t, U64)
+                RETURN_IF_OK(uint8_t, U8);
+                RETURN_IF_OK(uint16_t, U16);
+                RETURN_IF_OK(uint32_t, U32);
+                RETURN_OR_ERROR(uint64_t, U64);
             }
 
             case ast::int_token::U8:
-                RETURN_OR_ERROR(uint8_t, U8)
+                RETURN_OR_ERROR(uint8_t, U8);
 
             case ast::int_token::U16:
-                RETURN_OR_ERROR(uint16_t, U16)
+                RETURN_OR_ERROR(uint16_t, U16);
 
             case ast::int_token::U32:
-                RETURN_OR_ERROR(uint32_t, U32)
+                RETURN_OR_ERROR(uint32_t, U32);
 
             case ast::int_token::U64:
-                RETURN_OR_ERROR(uint64_t, U64)
+                RETURN_OR_ERROR(uint64_t, U64);
         }
 
         UNREACHABLE;
@@ -389,18 +385,18 @@ namespace sg {
             case ast::float_token::NONE:
             case ast::float_token::F:
             case ast::float_token::F64: {
-                prog::number_type ntype = { prog::number_type::F64 };
+                auto ntype = prog::number_type { prog::number_type::F64 };
                 return { VARIANT(prog::constant, NUMBER, make_pair(encode_number(value), copy_make_ptr(ntype))), ntype };
             }
 
             case ast::float_token::F32: {
-                auto single = static_cast<float>(value);
+                auto reduced = static_cast<float>(value);
 
-                if (value != single)
+                if (value != reduced)
                     error(diags::single_float_overflow(value), ast.loc);
 
-                prog::number_type ntype = { prog::number_type::F32 };
-                return { VARIANT(prog::constant, NUMBER, make_pair(encode_number(single), copy_make_ptr(ntype))), ntype };
+                auto ntype = prog::number_type { prog::number_type::F32 };
+                return { VARIANT(prog::constant, NUMBER, make_pair(encode_number(reduced), copy_make_ptr(ntype))), ntype };
             }
         }
 
@@ -413,15 +409,15 @@ namespace sg {
                 return GET(ast, INT);
 
             case ast::const_int::NAME: {
-                auto& global_name = get_global_name(GET(ast, NAME), global_name_kind::CONST, ast.loc);
-                auto& value = *consts[global_name.index].value;
+                auto index = get_global_name(GET(ast, NAME), { global_name_kind::CONST }, ast.loc).index;
+                auto& value = *consts[index].value;
 
                 if (!INDEX_EQ(value, NUMBER))
                     error(diags::invalid_size_constant_type(), ast.loc);
 
-                auto& [number, ntype] = GET(value, NUMBER);
+                auto& [number, ntype_ptr] = GET(value, NUMBER);
 
-                switch (ntype->tp) {
+                switch (ntype_ptr->tp) {
                     case prog::number_type::U8:
                         return decode_number<uint8_t>(number);
 
@@ -444,13 +440,13 @@ namespace sg {
     }
 
     prog::constant compiler::convert_const(prog::constant value, const prog::type& type, const prog::type& new_type, location loc) {
-        vector<prog::constant> values;
+        vector<prog::constant> reg_values;
         prog::reg_index reg_counter = 0;
 
-        values.push_back(move(value));
+        reg_values.push_back(move(value));
 
         auto new_reg = [&] () -> prog::reg_index {
-            values.emplace_back();
+            reg_values.emplace_back();
             return ++reg_counter;
         };
 
@@ -461,57 +457,57 @@ namespace sg {
                 case prog::instr::ZERO_EXT:
                 case prog::instr::SIGNED_EXT:
                 case prog::instr::FLOAT_EXT: {
-                    auto& conv =
+                    auto& conversion_instr =
                         INDEX_EQ(instr, ZERO_EXT) ? *GET(instr, ZERO_EXT)
                         : INDEX_EQ(instr, SIGNED_EXT) ? *GET(instr, SIGNED_EXT)
                         : *GET(instr, FLOAT_EXT);
 
-                    auto& [number, ntype] = GET(values[conv.value], NUMBER);
+                    auto& [number, ntype_ptr] = GET(reg_values[conversion_instr.value], NUMBER);
 
-                    #define NUMERIC_CONV(from, type_from, to, type_to) { \
-                        if (ntype->tp == prog::number_type::from && conv.new_type->tp == prog::number_type::to) { \
+                    #define NUMERIC_CONVERSION(from, type_from, to, type_to) { \
+                        if (ntype_ptr->tp == prog::number_type::from && conversion_instr.new_type->tp == prog::number_type::to) { \
                             auto decoded = decode_number<type_from>(number); \
                             auto converted = static_cast<type_to>(decoded); \
                             auto encoded = encode_number(converted); \
-                            values[conv.result] = VARIANT(prog::constant, NUMBER, make_pair(encoded, copy_make_ptr(*conv.new_type))); \
+                            reg_values[conversion_instr.result] = VARIANT(prog::constant, NUMBER, make_pair(encoded, copy_make_ptr(*conversion_instr.new_type))); \
                             break; \
                         } \
                     }
 
-                    NUMERIC_CONV(BOOL, bool, I8, int8_t);
-                    NUMERIC_CONV(BOOL, bool, I16, int16_t);
-                    NUMERIC_CONV(BOOL, bool, I32, int32_t);
-                    NUMERIC_CONV(BOOL, bool, I64, int64_t);
-                    NUMERIC_CONV(BOOL, bool, U8, uint8_t);
-                    NUMERIC_CONV(BOOL, bool, U16, uint16_t);
-                    NUMERIC_CONV(BOOL, bool, U32, uint32_t);
-                    NUMERIC_CONV(BOOL, bool, U64, uint64_t);
+                    NUMERIC_CONVERSION(BOOL, bool, I8, int8_t);
+                    NUMERIC_CONVERSION(BOOL, bool, I16, int16_t);
+                    NUMERIC_CONVERSION(BOOL, bool, I32, int32_t);
+                    NUMERIC_CONVERSION(BOOL, bool, I64, int64_t);
+                    NUMERIC_CONVERSION(BOOL, bool, U8, uint8_t);
+                    NUMERIC_CONVERSION(BOOL, bool, U16, uint16_t);
+                    NUMERIC_CONVERSION(BOOL, bool, U32, uint32_t);
+                    NUMERIC_CONVERSION(BOOL, bool, U64, uint64_t);
 
-                    NUMERIC_CONV(I8, int8_t, I16, int16_t);
-                    NUMERIC_CONV(I8, int8_t, I32, int32_t);
-                    NUMERIC_CONV(I8, int8_t, I64, int64_t);
+                    NUMERIC_CONVERSION(I8, int8_t, I16, int16_t);
+                    NUMERIC_CONVERSION(I8, int8_t, I32, int32_t);
+                    NUMERIC_CONVERSION(I8, int8_t, I64, int64_t);
 
-                    NUMERIC_CONV(I16, int16_t, I32, int32_t);
-                    NUMERIC_CONV(I16, int16_t, I64, int64_t);
+                    NUMERIC_CONVERSION(I16, int16_t, I32, int32_t);
+                    NUMERIC_CONVERSION(I16, int16_t, I64, int64_t);
 
-                    NUMERIC_CONV(I32, int32_t, I64, int64_t);
+                    NUMERIC_CONVERSION(I32, int32_t, I64, int64_t);
 
-                    NUMERIC_CONV(U8, uint8_t, U16, uint16_t);
-                    NUMERIC_CONV(U8, uint8_t, U32, uint32_t);
-                    NUMERIC_CONV(U8, uint8_t, U64, uint64_t);
-                    NUMERIC_CONV(U8, uint8_t, I16, int16_t);
-                    NUMERIC_CONV(U8, uint8_t, I32, int32_t);
-                    NUMERIC_CONV(U8, uint8_t, I64, int64_t);
+                    NUMERIC_CONVERSION(U8, uint8_t, U16, uint16_t);
+                    NUMERIC_CONVERSION(U8, uint8_t, U32, uint32_t);
+                    NUMERIC_CONVERSION(U8, uint8_t, U64, uint64_t);
+                    NUMERIC_CONVERSION(U8, uint8_t, I16, int16_t);
+                    NUMERIC_CONVERSION(U8, uint8_t, I32, int32_t);
+                    NUMERIC_CONVERSION(U8, uint8_t, I64, int64_t);
 
-                    NUMERIC_CONV(U16, uint16_t, U32, uint32_t);
-                    NUMERIC_CONV(U16, uint16_t, U64, uint64_t);
-                    NUMERIC_CONV(U16, uint16_t, I32, int32_t);
-                    NUMERIC_CONV(U16, uint16_t, I64, int64_t);
+                    NUMERIC_CONVERSION(U16, uint16_t, U32, uint32_t);
+                    NUMERIC_CONVERSION(U16, uint16_t, U64, uint64_t);
+                    NUMERIC_CONVERSION(U16, uint16_t, I32, int32_t);
+                    NUMERIC_CONVERSION(U16, uint16_t, I64, int64_t);
 
-                    NUMERIC_CONV(U32, uint32_t, U64, uint64_t);
-                    NUMERIC_CONV(U32, uint16_t, I64, int64_t);
+                    NUMERIC_CONVERSION(U32, uint32_t, U64, uint64_t);
+                    NUMERIC_CONVERSION(U32, uint16_t, I64, int64_t);
 
-                    NUMERIC_CONV(F32, float, F64, double);
+                    NUMERIC_CONVERSION(F32, float, F64, double);
 
                     UNREACHABLE;
 
@@ -519,58 +515,58 @@ namespace sg {
                 } break;
 
                 case prog::instr::EXTRACT_COORD: {
-                    auto& extr = *GET(instr, EXTRACT_COORD);
-                    auto& tuple_value = GET(values[extr.value], TUPLE);
-                    values[extr.result] = copy_const(*tuple_value[extr.coord]);
+                    auto& extract_instr = *GET(instr, EXTRACT_COORD);
+                    auto values = as_cref_vector(GET(reg_values[extract_instr.value], TUPLE));
+                    reg_values[extract_instr.result] = copy_const(values[extract_instr.coord]);
                 } break;
 
                 case prog::instr::MAKE_TUPLE: {
-                    auto& make = *GET(instr, MAKE_TUPLE);
-                    vector<prog::constant> tuple_values;
-                    for (auto value : make.values)
-                        tuple_values.push_back(copy_const(values[value]));
-                    values[make.result] = VARIANT(prog::constant, TUPLE, into_ptr_vector(tuple_values));
+                    auto& make_instr = *GET(instr, MAKE_TUPLE);
+                    vector<prog::constant> values;
+                    for (auto value : make_instr.values)
+                        values.push_back(copy_const(reg_values[value]));
+                    reg_values[make_instr.result] = VARIANT(prog::constant, TUPLE, into_ptr_vector(values));
                 } break;
 
                 case prog::instr::TRANSFORM_ARRAY: {
-                    auto& transform = *GET(instr, TRANSFORM_ARRAY);
-                    auto& array_value = GET(values[transform.value], ARRAY);
+                    auto& transform_instr = *GET(instr, TRANSFORM_ARRAY);
+                    auto values = as_cref_vector(GET(reg_values[transform_instr.value], ARRAY));
 
                     vector<prog::constant> new_values;
-                    for (auto& extracted : array_value) {
-                        values[transform.extracted] = copy_const(*extracted);
-                        for (auto& instr : transform.block->instrs)
-                            do_instr(*instr);
-                        new_values.push_back(copy_const(values[transform.block_result]));
+                    for (const prog::constant& extracted : values) {
+                        reg_values[transform_instr.extracted] = copy_const(extracted);
+                        for (auto& instr_ptr : transform_instr.block->instrs)
+                            do_instr(*instr_ptr);
+                        new_values.push_back(copy_const(reg_values[transform_instr.block_result]));
                     }
 
-                    values[transform.result] = VARIANT(prog::constant, ARRAY, into_ptr_vector(new_values));
+                    reg_values[transform_instr.result] = VARIANT(prog::constant, ARRAY, into_ptr_vector(new_values));
                 } break;
 
                 case prog::instr::TRANSFORM_OPTIONAL: {
-                    auto& transform = *GET(instr, TRANSFORM_OPTIONAL);
-                    auto& optional_value = GET(values[transform.value], OPTIONAL);
+                    auto& transform_instr = *GET(instr, TRANSFORM_OPTIONAL);
+                    auto value = as_optional_cref(GET(reg_values[transform_instr.value], OPTIONAL));
 
                     optional<prog::constant> new_value;
-                    if (optional_value) {
-                        values[transform.extracted] = copy_const(**optional_value);
-                        for (auto& instr : transform.block->instrs)
-                            do_instr(*instr);
-                        new_value = { copy_const(values[transform.block_result]) };
+                    if (value) {
+                        reg_values[transform_instr.extracted] = copy_const(*value);
+                        for (auto& instr_ptr : transform_instr.block->instrs)
+                            do_instr(*instr_ptr);
+                        new_value = { copy_const(reg_values[transform_instr.block_result]) };
                     }
 
-                    values[transform.result] = VARIANT(prog::constant, OPTIONAL, into_optional_ptr(new_value));
+                    reg_values[transform_instr.result] = VARIANT(prog::constant, OPTIONAL, into_optional_ptr(new_value));
                 } break;
 
                 case prog::instr::GET_GLOBAL_FUNC_PTR: {
-                    auto& get_ptr = *GET(instr, GET_GLOBAL_FUNC_PTR);
-                    values[get_ptr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR, get_ptr.index);
+                    auto& get_ptr_instr = *GET(instr, GET_GLOBAL_FUNC_PTR);
+                    reg_values[get_ptr_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR, get_ptr_instr.index);
                 } break;
 
                 case prog::instr::ARRAY_PTR_INTO_SLICE: {
-                    auto& conv = *GET(instr, ARRAY_PTR_INTO_SLICE);
-                    auto& var = GET(values[conv.value], GLOBAL_VAR_PTR);
-                    values[conv.result] = VARIANT(prog::constant, GLOBAL_VAR_SLICE, var);
+                    auto& conversion_instr = *GET(instr, ARRAY_PTR_INTO_SLICE);
+                    auto index = GET(reg_values[conversion_instr.value], GLOBAL_VAR_PTR);
+                    reg_values[conversion_instr.result] = VARIANT(prog::constant, GLOBAL_VAR_SLICE, index);
                 } break;
 
                 default:
@@ -581,7 +577,7 @@ namespace sg {
         conversion_compiler conv_clr(*this, new_reg, do_instr);
         auto result = conv_clr.convert(0, type, new_type, loc);
 
-        return move(values[result]);
+        return move(reg_values[result]);
     }
 
     template<typename T>
