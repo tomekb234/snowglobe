@@ -953,47 +953,47 @@ type:
     }
 
     | "bool" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::BOOL }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::BOOL }));
     }
 
     | "i8" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I8 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::I8 }));
     }
 
     | "i16" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I16 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::I16 }));
     }
 
     | "i32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I32 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::I32 }));
     }
 
     | "i64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I64 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::I64 }));
     }
 
     | "u8" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U8 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::U8 }));
     }
 
     | "u16" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U16 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::U16 }));
     }
 
     | "u32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U32 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::U32 }));
     }
 
     | "u64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U64 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::U64 }));
     }
 
     | "f32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::F32 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::F32 }));
     }
 
     | "f64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::F64 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::F64 }));
     }
 
     | NAME {

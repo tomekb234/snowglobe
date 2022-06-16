@@ -23,18 +23,21 @@ namespace sg::prog {
             case constant::UNIT:
                 return VARIANT(constant, UNIT, monostate{ });
 
-            case constant::PRIMITIVE:
-                return VARIANT(constant, PRIMITIVE, GET(value, PRIMITIVE));
+            case constant::NUMBER: {
+                auto& pr = GET(value, NUMBER);
+                return VARIANT(constant, NUMBER, make_pair(pr.first, make_ptr(number_type { pr.second->tp })));
+            } break;
 
             case constant::STRUCT: {
-                auto vec = copy_ptr_vector<constant>(GET(value, STRUCT), copy_const);
-                return VARIANT(constant, STRUCT, move(vec));
+                auto& pr = GET(value, STRUCT);
+                auto vec = copy_ptr_vector<constant>(pr.second, copy_const);
+                return VARIANT(constant, STRUCT, make_pair(pr.first, move(vec)));
             }
 
             case constant::ENUM: {
-                auto& pr = GET(value, ENUM);
-                auto vec = copy_ptr_vector<constant>(pr.second, copy_const);
-                return VARIANT(constant, ENUM, make_pair(pr.first, move(vec)));
+                auto& tup = GET(value, ENUM);
+                auto vec = copy_ptr_vector<constant>(get<2>(tup), copy_const);
+                return VARIANT(constant, ENUM, make_tuple(get<0>(tup), get<1>(tup), move(vec)));
             }
 
             case constant::TUPLE: {
@@ -78,8 +81,8 @@ namespace sg::prog {
             case type::UNIT:
                 return VARIANT(type, UNIT, monostate());
 
-            case type::PRIMITIVE:
-                return VARIANT(type, PRIMITIVE, make_ptr(primitive_type { GET(tp, PRIMITIVE)->tp }));
+            case type::NUMBER:
+                return VARIANT(type, NUMBER, make_ptr(number_type { GET(tp, NUMBER)->tp }));
 
             case type::STRUCT:
                 return VARIANT(type, STRUCT, GET(tp, STRUCT));
@@ -163,8 +166,8 @@ namespace sg::prog {
             case type::NEVER:
                 return true;
 
-            case type::PRIMITIVE:
-                return GET(type_a, PRIMITIVE)->tp == GET(type_b, PRIMITIVE)->tp;
+            case type::NUMBER:
+                return GET(type_a, NUMBER)->tp == GET(type_b, NUMBER)->tp;
 
             case type::STRUCT:
                 return GET(type_a, STRUCT) == GET(type_b, STRUCT);
@@ -280,51 +283,51 @@ namespace sg::prog {
                 stream << "()";
                 break;
 
-            case type::PRIMITIVE: {
-                auto& ptype = *GET(tp, PRIMITIVE);
+            case type::NUMBER: {
+                auto& ntype = *GET(tp, NUMBER);
 
-                switch (ptype.tp) {
-                    case primitive_type::BOOL:
+                switch (ntype.tp) {
+                    case number_type::BOOL:
                         stream << "bool";
                         break;
 
-                    case primitive_type::I8:
+                    case number_type::I8:
                         stream << "i8";
                         break;
 
-                    case primitive_type::I16:
+                    case number_type::I16:
                         stream << "i16";
                         break;
 
-                    case primitive_type::I32:
+                    case number_type::I32:
                         stream << "i32";
                         break;
 
-                    case primitive_type::I64:
+                    case number_type::I64:
                         stream << "i64";
                         break;
 
-                    case primitive_type::U8:
+                    case number_type::U8:
                         stream << "u8";
                         break;
 
-                    case primitive_type::U16:
+                    case number_type::U16:
                         stream << "u16";
                         break;
 
-                    case primitive_type::U32:
+                    case number_type::U32:
                         stream << "u32";
                         break;
 
-                    case primitive_type::U64:
+                    case number_type::U64:
                         stream << "u64";
                         break;
 
-                    case primitive_type::F32:
+                    case number_type::F32:
                         stream << "f32";
                         break;
 
-                    case primitive_type::F64:
+                    case number_type::F64:
                         stream << "f64";
                         break;
                 }

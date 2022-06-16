@@ -11,13 +11,13 @@ namespace sg {
 
     const prog::type_local function_compiler::NEVER_TYPE = { make_ptr(VARIANT(prog::type, NEVER, monostate())), false };
     const prog::type_local function_compiler::UNIT_TYPE = { make_ptr(VARIANT(prog::type, UNIT, monostate())), false };
-    const prog::type_local function_compiler::BOOL_TYPE = { make_ptr(VARIANT(prog::type, PRIMITIVE, make_ptr(prog::primitive_type { prog::primitive_type::BOOL }))), false };
+    const prog::type_local function_compiler::BOOL_TYPE = { make_ptr(VARIANT(prog::type, NUMBER, make_ptr(prog::number_type { prog::number_type::BOOL }))), false };
 
     void function_compiler::compile(const ast::func_def& ast) {
         push_frame();
 
         for (auto& param : func.params) {
-            auto var = add_var(param->name, make_ptr(copy_type_local(*param->tp)));
+            auto var = add_var(param->name, copy_type_local(*param->tp));
             auto instr = prog::write_var_instr { var, reg_counter++ };
             add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(instr)));
             init_var(var);
@@ -35,7 +35,7 @@ namespace sg {
             add_return_instr(unit_reg());
         }
 
-        func.vars = move(var_types);
+        func.vars = into_ptr_vector(var_types);
         func.instrs = make_ptr(pop_frame());
     }
 
@@ -71,7 +71,7 @@ namespace sg {
         return block;
     }
 
-    prog::var_index function_compiler::add_var(string name, prog::ptr<prog::type_local> type) {
+    prog::var_index function_compiler::add_var(string name, prog::type_local&& type) {
         auto index = var_types.size();
 
         var_types.push_back(move(type));
@@ -88,16 +88,16 @@ namespace sg {
         return { var_names[name].back() };
     }
 
-    void function_compiler::init_var(prog::var_index index) {
-        auto& state = var_states[index];
+    void function_compiler::init_var(prog::var_index var) {
+        auto& state = var_states[var];
         state.initialized = true;
         state.uninitialized = false;
         state.moved_out = false;
         state.loop_level = 0;
     }
 
-    void function_compiler::move_out_var(prog::var_index index) {
-        auto& state = var_states[index];
+    void function_compiler::move_out_var(prog::var_index var) {
+        auto& state = var_states[var];
         state.initialized = false;
         state.uninitialized = false;
         state.moved_out = true;

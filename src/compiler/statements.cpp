@@ -41,7 +41,7 @@ namespace sg {
                 switch (INDEX(lvalue)) { // TODO add more assignment options, move to separate method
                     case lvalue::VAR: {
                         auto var_index = GET(lvalue, VAR);
-                        auto& var_type = *var_types[var_index];
+                        auto& var_type = var_types[var_index];
                         result = conv_clr.convert(assignment_ast, result, type, var_type);
                         auto instr = prog::write_var_instr { var_index, result };
                         add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(instr)));
@@ -122,7 +122,7 @@ namespace sg {
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
             auto [value, type] = compile_expr(expr_ast, true);
-            cond = conv_clr.convert(ast, value, type, BOOL_TYPE);
+            cond = conv_clr.convert(expr_ast, value, type, BOOL_TYPE);
         } else
             clr.error(diags::not_implemented(), cond_ast); // TODO
 

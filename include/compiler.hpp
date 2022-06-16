@@ -113,8 +113,8 @@ namespace sg {
         pair<prog::constant, prog::type> compile_const_name(const ast::node& ast, const string& name);
         pair<prog::constant, prog::type> compile_const_variant_name(const ast::node& ast, const string& name, const string& variant_name);
         pair<prog::constant, prog::type> compile_const_literal(const ast::literal_expr& ast);
-        pair<prog::constant, prog::primitive_type> compile_int_token(const ast::int_token& ast);
-        pair<prog::constant, prog::primitive_type> compile_float_token(const ast::float_token& ast);
+        pair<prog::constant, prog::number_type> compile_int_token(const ast::int_token& ast);
+        pair<prog::constant, prog::number_type> compile_float_token(const ast::float_token& ast);
         size_t compile_const_size(const ast::const_int& ast);
         prog::constant convert_const(const ast::node& ast, prog::constant value, const prog::type& type, const prog::type& new_type);
 
@@ -123,8 +123,8 @@ namespace sg {
         prog::type compile_type(const ast::type& ast, bool allow_uncompiled = false);
         prog::type_local compile_type_local(const ast::type_local& ast, bool allow_uncompiled = false);
         prog::type compile_user_type(const ast::type& ast, bool allow_uncompiled = false);
-        prog::primitive_type compile_primitive_type(const ast::primitive_type& ast);
-        vector<prog::ptr<prog::type>> compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled = false);
+        prog::number_type compile_number_type(const ast::number_type& ast);
+        vector<prog::type> compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled = false);
         prog::array_type compile_array_type(const ast::array_type& ast, bool allow_uncompiled = false);
         prog::ptr_type compile_ptr_type(const ast::ptr_type& ast);
         prog::type_pointed compile_type_pointed(const ast::type_pointed& ast);
@@ -192,7 +192,7 @@ namespace sg {
         conversion_compiler conv_clr;
         vector<frame> frames;
         prog::reg_index reg_counter = 0;
-        vector<prog::ptr<prog::type_local>> var_types;
+        vector<prog::type_local> var_types;
         vector<var_state> var_states;
         unordered_map<string, vector<prog::var_index>> var_names;
         bool returned = false;
@@ -218,10 +218,10 @@ namespace sg {
 
         // Variabes
 
-        prog::var_index add_var(string name, prog::ptr<prog::type_local> type);
+        prog::var_index add_var(string name, prog::type_local&& type);
         optional<prog::var_index> get_var(string name);
-        void init_var(prog::var_index index);
-        void move_out_var(prog::var_index indedx);
+        void init_var(prog::var_index var);
+        void move_out_var(prog::var_index var);
         vector<var_state> backup_var_states();
         void restore_var_states(const vector<var_state>& states);
         void merge_var_states(const vector<var_state>& states);

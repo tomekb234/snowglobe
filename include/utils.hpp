@@ -34,6 +34,11 @@ namespace sg::utils {
     }
 
     template<typename T>
+    unique_ptr<T> copy_make_ptr(T value) {
+        return make_unique<T>(value);
+    }
+
+    template<typename T>
     unique_ptr<T> into_ptr(T& value) {
         return make_unique<T>(move(value));
     }

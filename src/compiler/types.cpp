@@ -14,9 +14,9 @@ namespace sg {
             case ast::type::NEVER:
                 return VARIANT(prog::type, NEVER, monostate());
 
-            case ast::type::PRIMITIVE: {
-                auto type = compile_primitive_type(*GET(ast, PRIMITIVE));
-                return VARIANT(prog::type, PRIMITIVE, into_ptr(type));
+            case ast::type::NUMBER: {
+                auto type = compile_number_type(*GET(ast, NUMBER));
+                return VARIANT(prog::type, NUMBER, into_ptr(type));
             }
 
             case ast::type::USER_TYPE:
@@ -24,7 +24,7 @@ namespace sg {
 
             case ast::type::TUPLE: {
                 auto types = compile_tuple_type(GET(ast, TUPLE), allow_uncompiled);
-                return VARIANT(prog::type, TUPLE, move(types));
+                return VARIANT(prog::type, TUPLE, into_ptr_vector(types));
             }
 
             case ast::type::ARRAY: {
@@ -102,49 +102,49 @@ namespace sg {
         return { into_ptr(type), confined };
     }
 
-    prog::primitive_type compiler::compile_primitive_type(const ast::primitive_type& ast) {
+    prog::number_type compiler::compile_number_type(const ast::number_type& ast) {
         switch (ast.tp) {
-            case ast::primitive_type::BOOL:
-                return { prog::primitive_type::BOOL };
+            case ast::number_type::BOOL:
+                return { prog::number_type::BOOL };
 
-            case ast::primitive_type::I8:
-                return { prog::primitive_type::I8 };
+            case ast::number_type::I8:
+                return { prog::number_type::I8 };
 
-            case ast::primitive_type::I16:
-                return { prog::primitive_type::I16 };
+            case ast::number_type::I16:
+                return { prog::number_type::I16 };
 
-            case ast::primitive_type::I32:
-                return { prog::primitive_type::I32 };
+            case ast::number_type::I32:
+                return { prog::number_type::I32 };
 
-            case ast::primitive_type::I64:
-                return { prog::primitive_type::I64 };
+            case ast::number_type::I64:
+                return { prog::number_type::I64 };
 
-            case ast::primitive_type::U8:
-                return { prog::primitive_type::U8 };
+            case ast::number_type::U8:
+                return { prog::number_type::U8 };
 
-            case ast::primitive_type::U16:
-                return { prog::primitive_type::U16 };
+            case ast::number_type::U16:
+                return { prog::number_type::U16 };
 
-            case ast::primitive_type::U32:
-                return { prog::primitive_type::U32 };
+            case ast::number_type::U32:
+                return { prog::number_type::U32 };
 
-            case ast::primitive_type::U64:
-                return { prog::primitive_type::U64 };
+            case ast::number_type::U64:
+                return { prog::number_type::U64 };
 
-            case ast::primitive_type::F32:
-                return { prog::primitive_type::F32 };
+            case ast::number_type::F32:
+                return { prog::number_type::F32 };
 
-            case ast::primitive_type::F64:
-                return { prog::primitive_type::F64 };
+            case ast::number_type::F64:
+                return { prog::number_type::F64 };
         }
 
         UNREACHABLE;
     }
 
-    vector<prog::ptr<prog::type>> compiler::compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled) {
-        vector<prog::ptr<prog::type>> types;
+    vector<prog::type> compiler::compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled) {
+        vector<prog::type> types;
         for (auto& type_ast : ast)
-            types.push_back(make_ptr(compile_type(*type_ast, allow_uncompiled)));
+            types.push_back(compile_type(*type_ast, allow_uncompiled));
         return types;
     }
 
@@ -238,7 +238,7 @@ namespace sg {
         switch (INDEX(type)) {
             case prog::type::NEVER:
             case prog::type::UNIT:
-            case prog::type::PRIMITIVE:
+            case prog::type::NUMBER:
                 return true;
 
             case prog::type::STRUCT:
@@ -286,7 +286,7 @@ namespace sg {
     bool compiler::type_trivially_copyable(const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::NEVER:
-            case prog::type::PRIMITIVE:
+            case prog::type::NUMBER:
             case prog::type::UNIT:
                 return true;
 

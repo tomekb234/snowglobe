@@ -40,26 +40,26 @@ namespace sg {
             case prog::type::NEVER:
                 return { value };
 
-            case prog::type::PRIMITIVE: {
-                if (!INDEX_EQ(new_type, PRIMITIVE))
+            case prog::type::NUMBER: {
+                if (!INDEX_EQ(new_type, NUMBER))
                     break;
 
-                auto& ptype = *GET(type, PRIMITIVE);
-                auto& new_ptype = *GET(new_type, PRIMITIVE);
+                auto& ntype = *GET(type, NUMBER);
+                auto& new_ntype = *GET(new_type, NUMBER);
 
-                switch (ptype.tp) {
-                    case prog::primitive_type::BOOL: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::I8:
-                            case prog::primitive_type::I16:
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64:
-                            case prog::primitive_type::U8:
-                            case prog::primitive_type::U16:
-                            case prog::primitive_type::U32:
-                            case prog::primitive_type::U64: {
+                switch (ntype.tp) {
+                    case prog::number_type::BOOL: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::I8:
+                            case prog::number_type::I16:
+                            case prog::number_type::I32:
+                            case prog::number_type::I64:
+                            case prog::number_type::U8:
+                            case prog::number_type::U16:
+                            case prog::number_type::U32:
+                            case prog::number_type::U64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -69,13 +69,13 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::I8: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::I16:
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::I8: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::I16:
+                            case prog::number_type::I32:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -85,12 +85,12 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::I16: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::I16: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::I32:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -100,11 +100,11 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::I32: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::I32: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -114,16 +114,16 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::U8: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::U16:
-                            case prog::primitive_type::U32:
-                            case prog::primitive_type::U64:
-                            case prog::primitive_type::I16:
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::U8: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::U16:
+                            case prog::number_type::U32:
+                            case prog::number_type::U64:
+                            case prog::number_type::I16:
+                            case prog::number_type::I32:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -133,14 +133,14 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::U16: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::U32:
-                            case prog::primitive_type::U64:
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::U16: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::U32:
+                            case prog::number_type::U64:
+                            case prog::number_type::I32:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -150,12 +150,12 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::U32: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::U64:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::U32: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::U64:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -165,11 +165,11 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::F32: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::F64: {
+                    case prog::number_type::F32: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::F64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, FLOAT_EXT, into_ptr(instr)));
                                 return { result };
                             }

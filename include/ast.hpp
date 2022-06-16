@@ -64,7 +64,7 @@ namespace sg::ast {
     struct ptr_extract_expr;
     struct lambda_expr;
     struct type;
-    struct primitive_type;
+    struct number_type;
     struct array_type;
     struct ptr_type;
     struct inner_ptr_type;
@@ -522,7 +522,7 @@ namespace sg::ast {
     struct type : node {
         enum {
             NEVER,
-            PRIMITIVE,
+            NUMBER,
             USER_TYPE,
             TUPLE,
             ARRAY,
@@ -536,7 +536,7 @@ namespace sg::ast {
 
         variant<
             monostate, // NEVER
-            ptr<primitive_type>, // PRIMITIVE
+            ptr<number_type>, // NUMBER
             string, // USER_TYPE
             vector<ptr<type>>, // TUPLE
             ptr<array_type>, // ARRAY
@@ -549,7 +549,7 @@ namespace sg::ast {
         > value;
     };
 
-    struct primitive_type : node {
+    struct number_type : node {
         enum {
             BOOL,
             I8,

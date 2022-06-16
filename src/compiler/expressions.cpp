@@ -34,7 +34,7 @@ namespace sg {
                 if (!var_decl_ast.tp && !implicit_type)
                     clr.error(diags::variable_without_type(), var_decl_ast);
                 auto type = var_decl_ast.tp ? clr.compile_type_local(**var_decl_ast.tp) : copy_type_local(*implicit_type);
-                auto var = add_var(var_decl_ast.name, into_ptr(type));
+                auto var = add_var(var_decl_ast.name, move(type));
                 return VARIANT(lvalue, VAR, var);
             }
 
@@ -75,7 +75,7 @@ namespace sg {
                     auto instr = prog::read_var_instr { *local_var, result };
                     add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(instr)));
 
-                    auto& var_type = *var_types[*local_var];
+                    auto& var_type = var_types[*local_var];
 
                     if (!confined && !var_type.confined) {
                         if (clr.type_copyable(*var_type.tp))
@@ -119,7 +119,7 @@ namespace sg {
                         auto& value = clr.consts[global_name.index];
 
                         auto result = new_reg();
-                        auto instr = prog::make_const_instr { make_ptr(copy_const(*value.value)), make_ptr(copy_type(*value.tp)), result };
+                        auto instr = prog::make_const_instr { make_ptr(copy_const(*value.value)), result };
                         add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
 
                         auto type = prog::type_local { make_ptr(copy_type(*value.tp)), confined };
@@ -173,7 +173,7 @@ namespace sg {
                 auto [value, value_type] = clr.compile_const_literal(literal_ast);
 
                 auto result = new_reg();
-                auto instr = prog::make_const_instr { into_ptr(value), make_ptr(copy_type(value_type)), result };
+                auto instr = prog::make_const_instr { into_ptr(value), result };
                 add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
 
                 auto type = prog::type_local { into_ptr(value_type), false };
@@ -428,19 +428,19 @@ namespace sg {
             }
 
             case ast::unary_operation_expr::MINUS: {
-                if (!INDEX_EQ(*type.tp, PRIMITIVE))
+                if (!INDEX_EQ(*type.tp, NUMBER))
                     clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast);
-                switch (GET(*type.tp, PRIMITIVE)->tp) {
-                    case prog::primitive_type::I8:
-                    case prog::primitive_type::I16:
-                    case prog::primitive_type::I32:
-                    case prog::primitive_type::I64: {
+                switch (GET(*type.tp, NUMBER)->tp) {
+                    case prog::number_type::I8:
+                    case prog::number_type::I16:
+                    case prog::number_type::I32:
+                    case prog::number_type::I64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         add_instr(VARIANT(prog::instr, INT_NEG, into_ptr(instr)));
                     } break;
 
-                    case prog::primitive_type::F32:
-                    case prog::primitive_type::F64: {
+                    case prog::number_type::F32:
+                    case prog::number_type::F64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         add_instr(VARIANT(prog::instr, FLOAT_NEG, into_ptr(instr)));
                     } break;
@@ -452,17 +452,17 @@ namespace sg {
             }
 
             case ast::unary_operation_expr::BIT_NEG: {
-                if (!INDEX_EQ(*type.tp, PRIMITIVE))
+                if (!INDEX_EQ(*type.tp, NUMBER))
                     clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast);
-                switch (GET(*type.tp, PRIMITIVE)->tp) {
-                    case prog::primitive_type::I8:
-                    case prog::primitive_type::I16:
-                    case prog::primitive_type::I32:
-                    case prog::primitive_type::I64:
-                    case prog::primitive_type::U8:
-                    case prog::primitive_type::U16:
-                    case prog::primitive_type::U32:
-                    case prog::primitive_type::U64: {
+                switch (GET(*type.tp, NUMBER)->tp) {
+                    case prog::number_type::I8:
+                    case prog::number_type::I16:
+                    case prog::number_type::I32:
+                    case prog::number_type::I64:
+                    case prog::number_type::U8:
+                    case prog::number_type::U16:
+                    case prog::number_type::U32:
+                    case prog::number_type::U64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         add_instr(VARIANT(prog::instr, BIT_NEG, into_ptr(instr)));
                         return { result, move(type) };
@@ -479,9 +479,9 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_binary_operation(const ast::binary_operation_expr& ast) {
         #define INVALID_BINARY_OP { clr.error(diags::invalid_binary_operation(clr.prog, ast.operation, copy_type(*left_type.tp), copy_type(*right_type.tp)), ast); }
-        #define UINT(tp) ((tp) == prog::primitive_type::U8 || (tp) == prog::primitive_type::U16 || (tp) == prog::primitive_type::U32 || (tp) == prog::primitive_type::U64)
-        #define SINT(tp) ((tp) == prog::primitive_type::I8 || (tp) == prog::primitive_type::I16 || (tp) == prog::primitive_type::I32 || (tp) == prog::primitive_type::I64)
-        #define FLOAT(tp) ((tp) == prog::primitive_type::F32 || (tp) == prog::primitive_type::F64)
+        #define UINT(tp) ((tp) == prog::number_type::U8 || (tp) == prog::number_type::U16 || (tp) == prog::number_type::U32 || (tp) == prog::number_type::U64)
+        #define SINT(tp) ((tp) == prog::number_type::I8 || (tp) == prog::number_type::I16 || (tp) == prog::number_type::I32 || (tp) == prog::number_type::I64)
+        #define FLOAT(tp) ((tp) == prog::number_type::F32 || (tp) == prog::number_type::F64)
 
         switch (ast.operation) {
             case ast::binary_operation_expr::AND:
@@ -526,19 +526,19 @@ namespace sg {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
                 auto[right_value, right_type] = compile_expr(*ast.right, true);
                 auto common_type = clr.common_supertype(ast, *left_type.tp, *right_type.tp);
-                if (!INDEX_EQ(common_type, PRIMITIVE))
+                if (!INDEX_EQ(common_type, NUMBER))
                     INVALID_BINARY_OP
                 left_value = conv_clr.convert(*ast.left, left_value, *left_type.tp, common_type);
                 right_value = conv_clr.convert(*ast.right, right_value, *right_type.tp, common_type);
                 auto result = new_reg();
 
                 prog::numeric_binary_operation_instr::kind_t kind;
-                auto& primitive_type = GET(common_type, PRIMITIVE)->tp;
-                if (UINT(primitive_type))
+                auto& ntype = GET(common_type, NUMBER)->tp;
+                if (UINT(ntype))
                     kind = prog::numeric_binary_operation_instr::UNSIGNED;
-                else if (SINT(primitive_type))
+                else if (SINT(ntype))
                     kind = prog::numeric_binary_operation_instr::SIGNED;
-                else if (FLOAT(primitive_type))
+                else if (FLOAT(ntype))
                     kind = prog::numeric_binary_operation_instr::FLOAT;
                 else
                     INVALID_BINARY_OP;
@@ -587,19 +587,19 @@ namespace sg {
                     } break;
 
                     case ast::binary_operation_expr::BIT_AND: {
-                        if (FLOAT(primitive_type))
+                        if (FLOAT(ntype))
                             INVALID_BINARY_OP;
                         add_instr(VARIANT(prog::instr, BIT_AND, move(numeric_binary_operation)));
                     } break;
 
                     case ast::binary_operation_expr::BIT_OR: {
-                        if (FLOAT(primitive_type))
+                        if (FLOAT(ntype))
                             INVALID_BINARY_OP;
                         add_instr(VARIANT(prog::instr, BIT_OR, move(numeric_binary_operation)));
                     } break;
 
                     case ast::binary_operation_expr::BIT_XOR: {
-                        if (FLOAT(primitive_type))
+                        if (FLOAT(ntype))
                             INVALID_BINARY_OP;
                         add_instr(VARIANT(prog::instr, BIT_XOR, move(numeric_binary_operation)));
                     } break;
@@ -618,15 +618,15 @@ namespace sg {
             case ast::binary_operation_expr::BIT_RSH: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
                 auto[right_value, right_type] = compile_expr(*ast.right, true);
-                if (!INDEX_EQ(*left_type.tp, PRIMITIVE) || !INDEX_EQ(*right_type.tp, PRIMITIVE) || !UINT(GET(*right_type.tp, PRIMITIVE)->tp))
+                if (!INDEX_EQ(*left_type.tp, NUMBER) || !INDEX_EQ(*right_type.tp, NUMBER) || !UINT(GET(*right_type.tp, NUMBER)->tp))
                     INVALID_BINARY_OP;
                 auto result = new_reg();
 
                 prog::numeric_binary_operation_instr::kind_t kind;
-                auto& left_primitive_type = GET(*left_type.tp, PRIMITIVE)->tp;
-                if (UINT(left_primitive_type))
+                auto& left_ntype = GET(*left_type.tp, NUMBER)->tp;
+                if (UINT(left_ntype))
                     kind = prog::numeric_binary_operation_instr::UNSIGNED;
-                else if (SINT(left_primitive_type))
+                else if (SINT(left_ntype))
                     kind = prog::numeric_binary_operation_instr::SIGNED;
                 else
                     INVALID_BINARY_OP;

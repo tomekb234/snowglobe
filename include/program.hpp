@@ -7,6 +7,7 @@
 #include <variant>
 #include <string>
 #include <utility>
+#include <tuple>
 #include <ostream>
 #include <unordered_map>
 
@@ -17,6 +18,7 @@ namespace sg::prog {
     using std::monostate;
     using std::string;
     using std::pair;
+    using std::tuple;
     using std::ostream;
     using std::unordered_map;
 
@@ -33,7 +35,7 @@ namespace sg::prog {
     struct enum_variant;
     struct constant;
     struct type;
-    struct primitive_type;
+    struct number_type;
     struct array_type;
     struct ptr_type;
     struct inner_ptr_type;
@@ -67,7 +69,7 @@ namespace sg::prog {
     struct extract_coord_instr;
     struct extract_field_instr;
     struct test_optional_instr;
-    struct primitive_conversion_instr;
+    struct numeric_conversion_instr;
     struct transform_instr;
     struct branch_instr;
 
@@ -134,7 +136,7 @@ namespace sg::prog {
     struct constant {
         enum {
             UNIT,
-            PRIMITIVE,
+            NUMBER,
             STRUCT,
             ENUM,
             TUPLE,
@@ -148,9 +150,9 @@ namespace sg::prog {
 
         variant<
             monostate, // UNIT
-            unsigned long long, // PRIMITIVE
-            vector<ptr<constant>>, // STRUCT
-            pair<variant_index, vector<ptr<constant>>>, // ENUM
+            pair<unsigned long long, ptr<number_type>>, // NUMBER
+            pair<global_index, vector<ptr<constant>>>, // STRUCT
+            tuple<global_index, variant_index, vector<ptr<constant>>>, // ENUM
             vector<ptr<constant>>, // TUPLE
             vector<ptr<constant>>, // ARRAY
             pair<ptr<constant>, size_t>, // SIZED_ARRAY
@@ -165,7 +167,7 @@ namespace sg::prog {
         enum {
             NEVER,
             UNIT,
-            PRIMITIVE,
+            NUMBER,
             STRUCT,
             ENUM,
             TUPLE,
@@ -184,7 +186,7 @@ namespace sg::prog {
         variant<
             monostate, // NEVER
             monostate, // UNIT
-            ptr<primitive_type>, // PRIMITIVE
+            ptr<number_type>, // NUMBER
             global_index, // STRUCT
             global_index, // ENUM
             vector<ptr<type>>, // TUPLE
@@ -201,7 +203,7 @@ namespace sg::prog {
         > value;
     };
 
-    struct primitive_type {
+    struct number_type {
         enum type_t {
             BOOL,
             I8,
@@ -380,9 +382,9 @@ namespace sg::prog {
             ptr<numeric_binary_operation_instr>, // GT
             ptr<numeric_binary_operation_instr>, // GTEQ
 
-            ptr<primitive_conversion_instr>, // ZERO_EXT
-            ptr<primitive_conversion_instr>, // SIGNED_EXT
-            ptr<primitive_conversion_instr>, // FLOAT_EXT
+            ptr<numeric_conversion_instr>, // ZERO_EXT
+            ptr<numeric_conversion_instr>, // SIGNED_EXT
+            ptr<numeric_conversion_instr>, // FLOAT_EXT
             ptr<transform_instr>, // TRANSFORM_ARRAY
             ptr<transform_instr>, // TRANSFORM_OPTIONAL
             ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
@@ -439,14 +441,13 @@ namespace sg::prog {
     };
 
     struct func_ptr_call_instr {
-        reg_index ptr;
+        reg_index func_ptr;
         vector<reg_index> args;
         reg_index result;
     };
 
     struct make_const_instr {
         ptr<constant> value;
-        ptr<type> tp;
         reg_index result;
     };
 
@@ -466,13 +467,13 @@ namespace sg::prog {
     };
 
     struct make_struct_instr {
-        global_index st;
+        global_index index;
         vector<reg_index> args;
         reg_index result;
     };
 
     struct make_enum_variant_instr {
-        global_index en;
+        global_index index;
         variant_index variant;
         vector<reg_index> args;
         reg_index result;
@@ -530,24 +531,24 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct primitive_conversion_instr {
+    struct numeric_conversion_instr {
         reg_index value;
-        ptr<primitive_type> tp;
+        ptr<number_type> new_type;
         reg_index result;
     };
 
     struct transform_instr {
         reg_index value;
         reg_index extracted;
-        ptr<instr_block> instrs;
-        reg_index inner_result;
+        ptr<instr_block> block;
+        reg_index block_result;
         reg_index result;
     };
 
     struct branch_instr {
         reg_index cond;
-        ptr<instr_block> true_instrs;
-        ptr<instr_block> false_instrs;
+        ptr<instr_block> true_block;
+        ptr<instr_block> false_block;
     };
 
     constant copy_const(const constant& con);
