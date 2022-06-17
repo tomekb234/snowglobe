@@ -204,8 +204,8 @@ namespace sg {
 
                 for (size_t index = 0; index < size; index++) {
                     auto extracted = new_reg();
-                    auto instr = prog::extract_coord_instr { value, index, extracted };
-                    add_instr(VARIANT(prog::instr, EXTRACT_COORD, into_ptr(instr)));
+                    auto instr = prog::extract_field_instr { value, index, extracted };
+                    add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
 
                     auto result = try_convert(extracted, tuple[index], new_tuple[index], confined);
 

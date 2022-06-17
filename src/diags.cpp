@@ -1,4 +1,5 @@
 #include "diags.hpp"
+#include "program.hpp"
 #include <ostream>
 
 namespace sg::diags {
@@ -132,15 +133,15 @@ namespace sg::diags {
         stream << "Missing argument with index " << index << endl;
     }
 
-    void invalid_struct_field::write(ostream& stream) const {
+    void unknown_struct_field::write(ostream& stream) const {
         stream << "The struct '" << st.name << "' does not have a field named '" << name << "'" << endl;
     }
 
-    void invalid_enum_variant::write(ostream& stream) const {
+    void unknown_enum_variant::write(ostream& stream) const {
         stream << "The enum '" << en.name << "' does not have a variant named '" << name << "'" << endl;
     }
 
-    void invalid_function_parameter::write(ostream& stream) const {
+    void unknown_function_parameter::write(ostream& stream) const {
         stream << "The function '" << func.name << "' has no parameter named '" << name << "'" << endl;
     }
 
@@ -238,39 +239,59 @@ namespace sg::diags {
         stream << "' is not copyable" << endl;
     }
 
-    void expected_array_type::write(ostream& stream) const {
-        stream << "Expression with invalid type '";
+    void invalid_type::write(ostream& stream) const {
+        stream << "Expected type '";
+        prog::print_type(stream, prog, expected);
+        stream << "' instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
-        stream << "Expected an array type";
+    }
+
+    void expected_tuple_type::write(ostream& stream) const {
+        stream << "Expected a tuple type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_array_type::write(ostream& stream) const {
+        stream << "Expected an array type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
     }
 
     void expected_integer_type::write(ostream& stream) const {
-        stream << "Expression with invalid type '";
+        stream << "Expected an integer type instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
-        stream << "Expected an integer type";
+    }
+
+    void invalid_tuple_size::write(ostream& stream) const {
+        stream << "Expected tuple type with size " << expected << " instead of " << size << endl;
+    }
+
+    void invalid_array_size::write(ostream& stream) const {
+        stream << "Expected array type with size " << expected << " instead of " << size << endl;
     }
 
     void invalid_size_constant_type::write(ostream& stream) const {
-        stream << "Size constant without unsigned integer type" << endl;
+        stream << "A size constant must have an unsigned integer type" << endl;
     }
 
     void restrictive_pointer_type::write(ostream& stream) const {
-        stream << "Restrictive pointer type" << endl;
+        stream << "Restrictive pointer type for confined value" << endl;
         stream << "Use '&' instead" << endl;
     }
 
     void global_function_copyable::write(ostream& stream) const {
-        stream << "Global function marked as copyable" << endl;
+        stream << "A global function cannot be marked as copyable" << endl;
     }
 
     void variable_without_type::write(ostream& stream) const {
-        stream << "Variable declared without type" << endl;
+        stream << "Type annotation required" << endl;
     }
 
     void variable_not_usable::write(ostream& stream) const {
-        stream << "Variable '" << name << "' is ";
+        stream << "The variable '" << name << "' was ";
         if (initialized)
             stream << "potentially ";
         if (uninitialized)
@@ -283,19 +304,23 @@ namespace sg::diags {
     }
 
     void variable_moved_inside_loop::write(ostream& stream) const {
-        stream << "Variable '" << name << "' moved out multiple times inside a loop" << endl;
+        stream << "Cannot move out the variable '" << name << "' inside a loop" << endl;
     }
 
     void global_variable_moved::write(ostream& stream) const {
-        stream << "Cannot move out global variable '" << name << "'" << endl;
+        stream << "Cannot move out the global variable '" << name << "'" << endl;
+    }
+
+    void invalid_variable_name::write(ostream& stream) const {
+        stream << "The name '" << name << "' cannot be used as a variable" << endl;
     }
 
     void break_outside_loop::write(ostream& stream) const {
-        stream << "Break outside loop" << endl;
+        stream << "Cannot use break statement outside a loop" << endl;
     }
 
     void continue_outside_loop::write(ostream& stream) const {
-        stream << "Continue outside loop" << endl;
+        stream << "Cannot use continue statement outside a loop" << endl;
     }
 
     void missing_return::write(ostream& stream) const {

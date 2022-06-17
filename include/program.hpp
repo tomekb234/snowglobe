@@ -66,9 +66,12 @@ namespace sg::prog {
     struct binary_operation_instr;
     struct numeric_binary_operation_instr;
     struct make_inner_ptr_instr;
-    struct extract_coord_instr;
-    struct extract_field_instr;
     struct test_optional_instr;
+    struct test_variant_instr;
+    struct extract_item_instr;
+    struct extract_field_instr;
+    struct extract_optional_value_instr;
+    struct extract_variant_field_instr;
     struct numeric_conversion_instr;
     struct transform_instr;
     struct branch_instr;
@@ -285,8 +288,11 @@ namespace sg::prog {
             GET_GLOBAL_FUNC_PTR,
 
             TEST_OPTIONAL,
-            EXTRACT_COORD,
+            TEST_VARIANT,
+            EXTRACT_ITEM,
             EXTRACT_FIELD,
+            EXTRACT_OPTIONAL_VALUE,
+            EXTRACT_VARIANT_FIELD,
             EXTRACT_INNER_PTR,
             EXTRACT_OUTER_PTR,
             EXTRACT_PTR,
@@ -332,7 +338,8 @@ namespace sg::prog {
             BRANCH,
             LOOP,
             CONTINUE_LOOP,
-            BREAK_LOOP
+            BREAK_LOOP,
+            ABORT
         };
 
         variant<
@@ -358,8 +365,11 @@ namespace sg::prog {
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
-            ptr<extract_coord_instr>, // EXTRACT_COORD
+            ptr<test_variant_instr>, // TEST_ENUM_VARIANT
+            ptr<extract_item_instr>, // EXTRACT_ITEM
             ptr<extract_field_instr>, // EXTRACT_FIELD
+            ptr<extract_optional_value_instr>, // EXTRACT_OPTIONAL_VALUE
+            ptr<extract_variant_field_instr>, // EXTRACT_VARIANT_FIELD
             ptr<ptr_conversion_instr>, // EXTRACT_INNER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_PTR
@@ -405,7 +415,8 @@ namespace sg::prog {
             ptr<branch_instr>, // BRANCH
             ptr<instr_block>, // LOOP
             monostate, // CONTINUE_LOOP
-            monostate // BREAK_LOOP
+            monostate, // BREAK_LOOP
+            monostate // ABORT
         > value;
     };
 
@@ -471,13 +482,13 @@ namespace sg::prog {
     };
 
     struct make_struct_instr {
-        global_index index;
+        global_index st;
         vector<reg_index> args;
         reg_index result;
     };
 
     struct make_enum_variant_instr {
-        global_index index;
+        global_index en;
         variant_index variant;
         vector<reg_index> args;
         reg_index result;
@@ -518,9 +529,20 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct extract_coord_instr {
+    struct test_optional_instr {
         reg_index value;
-        size_t coord;
+        reg_index result;
+    };
+
+    struct test_variant_instr {
+        reg_index value;
+        variant_index variant;
+        reg_index result;
+    };
+
+    struct extract_item_instr {
+        reg_index value;
+        size_t item;
         reg_index result;
     };
 
@@ -530,8 +552,15 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct test_optional_instr {
+    struct extract_optional_value_instr {
         reg_index value;
+        reg_index result;
+    };
+
+    struct extract_variant_field_instr {
+        reg_index value;
+        variant_index variant;
+        field_index field;
         reg_index result;
     };
 
@@ -545,7 +574,7 @@ namespace sg::prog {
         reg_index value;
         reg_index extracted;
         ptr<instr_block> block;
-        reg_index block_result;
+        reg_index transformed;
         reg_index result;
     };
 

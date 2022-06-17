@@ -4,22 +4,25 @@
 #include "ast.hpp"
 #include "program.hpp"
 #include "diagcol.hpp"
-#include <optional>
-#include <unordered_map>
 #include <utility>
+#include <optional>
 #include <tuple>
+#include <variant>
 #include <memory>
+#include <vector>
 #include <functional>
+#include <unordered_map>
 
 namespace sg {
-    using std::unordered_map;
+    using std::move;
     using std::pair;
     using std::tuple;
-    using std::move;
-    using std::make_unique;
-    using std::vector;
     using std::variant;
+    using std::make_unique;
+    using std::monostate;
+    using std::vector;
     using std::function;
+    using std::unordered_map;
 
     template<typename T>
     using ptr = std::unique_ptr<T>;
@@ -167,6 +170,7 @@ namespace sg {
 
         struct lvalue {
             enum {
+                IGNORED,
                 VAR,
                 GLOBAL_VAR,
                 TUPLE,
@@ -176,6 +180,7 @@ namespace sg {
             };
 
             variant<
+                monostate, // IGNORE
                 prog::var_index, // VAR
                 prog::global_index, // GLOBAL_VAR
                 vector<ptr<lvalue>>, // TUPLE

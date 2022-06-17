@@ -10,6 +10,9 @@ namespace sg {
     prog::global_var compiler::compile_global_var(const ast::var_def& ast) {
         auto name = ast.name;
 
+        if (name == ast::IGNORED_PLACEHOLDER)
+            error(diags::invalid_variable_name(name), ast.name_loc);
+
         if (global_names.count(name))
             error(diags::global_name_used(name), ast.name_loc);
 

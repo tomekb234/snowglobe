@@ -177,7 +177,7 @@ namespace sg {
         return gname;
     }
 
-    vector<cref<const ast::expr>> compiler::order_args(
+    vector<cref<ast::expr>> compiler::order_args(
             vector<cref<ast::expr_marked>> asts,
             optional<function<size_t(string, location)>> arg_with_name,
             optional<size_t> expected_count,
@@ -210,9 +210,9 @@ namespace sg {
                     value_ast_ptr = GET(arg_ast, EXPR_WITH_NAME).second.get();
                 } break;
 
-                case ast::expr_marked::EXPR_WITH_COORD: {
-                    index = GET(arg_ast, EXPR_WITH_COORD).first;
-                    value_ast_ptr = GET(arg_ast, EXPR_WITH_COORD).second.get();
+                case ast::expr_marked::EXPR_WITH_INDEX: {
+                    index = GET(arg_ast, EXPR_WITH_INDEX).first;
+                    value_ast_ptr = GET(arg_ast, EXPR_WITH_INDEX).second.get();
                 } break;
             }
 
@@ -230,7 +230,7 @@ namespace sg {
                 error(diags::missing_argument(index), loc);
         }
 
-        vector<cref<const ast::expr>> value_asts;
+        vector<cref<ast::expr>> value_asts;
 
         for (auto value_ast_ptr : value_ast_ptrs)
             value_asts.push_back(*value_ast_ptr);

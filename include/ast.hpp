@@ -375,7 +375,7 @@ namespace sg::ast {
         enum {
             EXPR,
             EXPR_WITH_NAME,
-            EXPR_WITH_COORD
+            EXPR_WITH_INDEX
         };
 
         variant<
@@ -482,9 +482,9 @@ namespace sg::ast {
 
     struct extract_expr : node {
         enum {
-            FIELD,
-            COORD,
-            INDEX
+            NAME,
+            INDEX,
+            ITEM
         };
 
         variant<
@@ -497,10 +497,10 @@ namespace sg::ast {
     struct ptr_extract_expr : node {
         enum {
             OWNER,
-            FIELD,
-            COORD,
+            NAME,
             INDEX,
-            RANGE
+            ITEM,
+            ITEM_RANGE
         };
 
         variant<
@@ -602,6 +602,8 @@ namespace sg::ast {
         ptr<type> tp;
         bool confined;
     };
+
+    const string IGNORED_PLACEHOLDER = "_";
 }
 
 #endif

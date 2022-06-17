@@ -35,7 +35,7 @@ namespace sg {
                 auto& assignment_ast = *GET(ast, ASSIGNMENT);
                 auto [result, type] = compile_expr(*assignment_ast.value, false);
                 auto lval = compile_left_expr(*assignment_ast.lvalue, type);
-                compile_assignment(lval, result, type, ast.loc);
+                compile_assignment(lval, result, type, assignment_ast.value->loc);
             } break;
 
             case ast::stmt::COMPOUND_ASSIGNMENT:
@@ -221,26 +221,132 @@ namespace sg {
     }
 
     void function_compiler::compile_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
-        switch (INDEX(lval)) { // TODO add more assignment options
+        switch (INDEX(lval)) {
+            case lvalue::IGNORED:
+                break;
+
             case lvalue::VAR: {
                 auto var_index = GET(lval, VAR);
                 auto& var_type = var_types[var_index];
+
                 value = conv_clr.convert(value, type, var_type, loc);
+
                 auto instr = prog::write_var_instr { var_index, value };
                 add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(instr)));
+
                 init_var(var_index);
             } break;
 
             case lvalue::GLOBAL_VAR: {
                 auto var_index = GET(lval, GLOBAL_VAR);
                 auto& var = *clr.prog.global_vars[var_index];
+
                 value = conv_clr.convert(value, type, *var.tp, loc);
+
                 auto instr = prog::write_global_var_instr { var_index, value };
                 add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, into_ptr(instr)));
             } break;
 
-            default:
-                clr.error(diags::not_implemented(), loc);
+            case lvalue::TUPLE: {
+                auto lvals = as_cref_vector(GET(lval, TUPLE));
+                auto count = lvals.size();
+
+                if (!INDEX_EQ(*type.tp, TUPLE))
+                    clr.error(diags::expected_tuple_type(clr.prog, copy_type(*type.tp)), loc);
+
+                auto field_types = as_cref_vector(GET(*type.tp, TUPLE));
+                auto confined = type.confined;
+
+                if (field_types.size() != count)
+                    clr.error(diags::invalid_tuple_size(field_types.size(), count), loc);
+
+                for (size_t index = 0; index < count; index++) {
+                    auto extracted = new_reg();
+                    auto instr = prog::extract_field_instr { value, index, extracted };
+                    add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
+
+                    auto field_type = prog::type_local { make_ptr(copy_type(field_types[index])), confined };
+                    compile_assignment(lvals[index], extracted, field_type, loc);
+                }
+            } break;
+
+            case lvalue::ARRAY: {
+                auto lvals = as_cref_vector(GET(lval, ARRAY));
+                auto count = lvals.size();
+
+                if (!INDEX_EQ(*type.tp, ARRAY))
+                    clr.error(diags::expected_array_type(clr.prog, copy_type(*type.tp)), loc);
+
+                auto& array_type = *GET(*type.tp, ARRAY);
+                auto item_type = prog::type_local { make_ptr(copy_type(*array_type.tp)), type.confined };
+
+                if (array_type.size != count)
+                    clr.error(diags::invalid_array_size(array_type.size, count), loc);
+
+                for (size_t index = 0; index < count; index++) {
+                    auto extracted = new_reg();
+                    auto instr = prog::extract_item_instr { value, index, extracted };
+                    add_instr(VARIANT(prog::instr, EXTRACT_ITEM, into_ptr(instr)));
+
+                    compile_assignment(lvals[index], extracted, item_type, loc);
+                }
+            } break;
+
+            case lvalue::STRUCT: {
+                auto& [struct_index, lval_ptrs] = GET(lval, STRUCT);
+                auto lvals = as_cref_vector(lval_ptrs);
+
+                if (!INDEX_EQ(*type.tp, STRUCT) || GET(*type.tp, STRUCT) != struct_index)
+                    clr.error(diags::invalid_type(clr.prog, copy_type(*type.tp), VARIANT(prog::type, STRUCT, struct_index)), loc);
+
+                auto& st = *clr.prog.struct_types[struct_index];
+                auto count = st.fields.size();
+                auto confined = type.confined;
+
+                for (size_t index = 0; index < count; index++) {
+                    auto extracted = new_reg();
+                    auto instr = prog::extract_field_instr { value, index, extracted };
+                    add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
+
+                    auto field_type = prog::type_local { make_ptr(copy_type(*st.fields[index]->tp)), confined };
+                    compile_assignment(lvals[index], extracted, field_type, loc);
+                }
+            } break;
+
+            case lvalue::ENUM_VARIANT: {
+                auto& [enum_index, variant_index, lval_ptrs] = GET(lval, ENUM_VARIANT);
+                auto variant_index_copy = variant_index;
+                auto lvals = as_cref_vector(lval_ptrs);
+
+                if (!INDEX_EQ(*type.tp, ENUM) || GET(*type.tp, ENUM) != enum_index)
+                    clr.error(diags::invalid_type(clr.prog, copy_type(*type.tp), VARIANT(prog::type, ENUM, enum_index)), loc);
+
+                auto& en = *clr.prog.enum_types[enum_index];
+                auto& variant = *en.variants[variant_index];
+                auto count = variant.tps.size();
+                auto confined = type.confined;
+
+                auto test_result = new_reg();
+                auto test_instr = prog::test_variant_instr { value, variant_index, test_result };
+                add_instr(VARIANT(prog::instr, TEST_VARIANT, into_ptr(test_instr)));
+
+                auto true_branch = [&] () {
+                    for (size_t index = 0; index < count; index++) {
+                        auto extracted = new_reg();
+                        auto instr = prog::extract_variant_field_instr { value, variant_index_copy, index, extracted };
+                        add_instr(VARIANT(prog::instr, EXTRACT_VARIANT_FIELD, into_ptr(instr)));
+
+                        auto field_type = prog::type_local { make_ptr(copy_type(*variant.tps[index])), confined };
+                        compile_assignment(lvals[index], extracted, field_type, loc);
+                    }
+                };
+
+                auto false_branch = [&] () {
+                    add_instr(VARIANT(prog::instr, ABORT, monostate())); // TODO error message
+                };
+
+                add_branch_instr(test_result, true_branch, false_branch);
+            } break;
         }
     }
 }

@@ -112,7 +112,7 @@ namespace sg {
 
                 auto iter = en.variant_names.find(variant_name);
                 if (iter == en.variant_names.end())
-                    clr.error(diags::invalid_enum_variant(en, name), ast.loc);
+                    clr.error(diags::unknown_enum_variant(en, name), ast.loc);
                 auto variant_index = iter->second;
                 auto& variant = *en.variants[variant_index];
 
@@ -271,7 +271,7 @@ namespace sg {
                 auto arg_with_name = [&] (string name, location loc) -> size_t {
                     auto iter = st.field_names.find(name);
                     if (iter == st.field_names.end())
-                        clr.error(diags::invalid_struct_field(st, name), loc);
+                        clr.error(diags::unknown_struct_field(st, name), loc);
                     return iter->second;
                 };
 
@@ -609,7 +609,7 @@ namespace sg {
         #undef INVALID_BINARY_OP
     }
 
-    function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<const prog::type_local>> implicit_type) {
+    function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {
         switch (INDEX(ast)) {
             case ast::expr::TUPLE:
                 return compile_left_tuple(as_cref_vector(GET(ast, TUPLE)), implicit_type, ast.loc);
@@ -624,6 +624,10 @@ namespace sg {
 
             case ast::expr::NAME: {
                 auto name = GET(ast, NAME);
+
+                if (name == ast::IGNORED_PLACEHOLDER)
+                    return VARIANT(lvalue, IGNORED, monostate());
+
                 auto var = get_var(name);
                 if (var)
                     return VARIANT(lvalue, VAR, *var);
@@ -638,7 +642,7 @@ namespace sg {
 
                 auto iter = en.variant_names.find(variant_name);
                 if (iter == en.variant_names.end())
-                    clr.error(diags::invalid_enum_variant(en, variant_name), ast.loc);
+                    clr.error(diags::unknown_enum_variant(en, variant_name), ast.loc);
 
                 auto variant_index = iter->second;
 
@@ -652,8 +656,14 @@ namespace sg {
                 auto& var_decl_ast = *GET(ast, VAR_DECL);
                 if (!var_decl_ast.tp && !implicit_type)
                     clr.error(diags::variable_without_type(), var_decl_ast.loc);
+
+                auto name = var_decl_ast.name;
+                if (name == ast::IGNORED_PLACEHOLDER)
+                    clr.error(diags::invalid_variable_name(name), var_decl_ast.loc);
+
                 auto type = var_decl_ast.tp ? clr.compile_type_local(**var_decl_ast.tp, false) : copy_type_local(*implicit_type);
-                auto var = add_var(var_decl_ast.name, move(type));
+
+                auto var = add_var(name, move(type));
                 return VARIANT(lvalue, VAR, var);
             }
 
@@ -666,26 +676,123 @@ namespace sg {
         }
     }
 
-    function_compiler::lvalue function_compiler::compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<const prog::type_local>> implicit_type, location loc) {
-        clr.error(diags::not_implemented(), loc); // TODO
-        (void)asts;
-        (void)implicit_type;
+    function_compiler::lvalue function_compiler::compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc) {
+        auto value_asts = clr.order_args(asts, { }, { }, loc);
+        auto count = value_asts.size();
+
+        if (count == 0)
+            clr.error(diags::expression_not_assignable(), loc);
+
+        if (count == 1)
+            return compile_left_expr(value_asts[0], implicit_type);
+
+        vector<prog::type_local> implicit_types;
+        if (implicit_type && INDEX_EQ(*implicit_type->get().tp, TUPLE)) {
+            auto confined = implicit_type->get().confined;
+            for (auto& type_ptr : GET(*implicit_type->get().tp, TUPLE))
+                implicit_types.push_back({ make_ptr(copy_type(*type_ptr)), confined });
+        }
+
+        vector<lvalue> lvals;
+        for (size_t index = 0; index < count; index++) {
+            auto& value_ast = value_asts[index];
+            if (index < implicit_types.size())
+                lvals.push_back(compile_left_expr(value_ast, { implicit_types[index] }));
+            else
+                lvals.push_back(compile_left_expr(value_ast, { }));
+        }
+
+        return VARIANT(lvalue, TUPLE, into_ptr_vector(lvals));
     }
 
-    function_compiler::lvalue function_compiler::compile_left_array(vector<cref<ast::expr_marked>> asts, optional<cref<const prog::type_local>> implicit_type, location loc) {
-        clr.error(diags::not_implemented(), loc); // TODO
-        (void)asts;
-        (void)implicit_type;
+    function_compiler::lvalue function_compiler::compile_left_array(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc) {
+        auto value_asts = clr.order_args(asts, { }, { }, loc);
+
+        vector<lvalue> lvals;
+        for (auto& value_ast : value_asts) {
+            if (implicit_type && INDEX_EQ(*implicit_type->get().tp, ARRAY)) {
+                auto& type = *GET(*implicit_type->get().tp, ARRAY)->tp;
+                auto confined = implicit_type->get().confined;
+                auto type_local = prog::type_local { make_ptr(copy_type(type)), confined };
+                lvals.push_back(compile_left_expr(value_ast, { type_local }));
+            } else
+                lvals.push_back(compile_left_expr(value_ast, { }));
+        }
+
+        return VARIANT(lvalue, ARRAY, into_ptr_vector(lvals));
     }
 
-    function_compiler::lvalue function_compiler::compile_left_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, optional<cref<const prog::type_local>> implicit_type, location loc) {
-        clr.error(diags::not_implemented(), loc); // TODO
-        (void)receiver_ast;
-        (void)arg_asts;
-        (void)implicit_type;
+    function_compiler::lvalue function_compiler::compile_left_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, optional<cref<prog::type_local>> implicit_type, location loc) {
+        switch (INDEX(receiver_ast)) {
+            case ast::expr::NAME: {
+                auto name = GET(receiver_ast, NAME);
+                auto struct_index = clr.get_global_name(name, { global_name_kind::STRUCT }, receiver_ast.loc).index;
+                auto& st = *clr.prog.struct_types[struct_index];
+                auto count = st.fields.size();
+
+                auto arg_with_name = [&] (string name, location loc) -> size_t {
+                    auto iter = st.field_names.find(name);
+                    if (iter == st.field_names.end())
+                        clr.error(diags::unknown_struct_field(st, name), loc);
+                    return iter->second;
+                };
+
+                auto value_asts = clr.order_args(arg_asts, arg_with_name, { count }, loc);
+                vector<lvalue> lvals;
+
+                for (size_t index = 0; index < count; index++) {
+                    auto& value_ast = value_asts[index].get();
+                    if (implicit_type && INDEX_EQ(*implicit_type->get().tp, STRUCT) && GET(*implicit_type->get().tp, STRUCT) == struct_index) {
+                        auto& type = *st.fields[index]->tp;
+                        auto confined = implicit_type->get().confined;
+                        auto type_local = prog::type_local { make_ptr(copy_type(type)), confined };
+                        lvals.push_back(compile_left_expr(value_ast, { type_local }));
+                    } else
+                        lvals.push_back(compile_left_expr(value_ast, { }));
+                }
+
+                return VARIANT(lvalue, STRUCT, make_pair(struct_index, into_ptr_vector(lvals)));
+            }
+
+            case ast::expr::VARIANT_NAME: {
+                auto [name, variant_name] = GET(receiver_ast, VARIANT_NAME);
+                auto enum_index = clr.get_global_name(name, { global_name_kind::ENUM }, receiver_ast.loc).index;
+                auto& en = *clr.prog.enum_types[enum_index];
+
+                auto iter = en.variant_names.find(variant_name);
+                if (iter == en.variant_names.end())
+                    clr.error(diags::unknown_enum_variant(en, variant_name), loc);
+
+                auto variant_index = iter->second;
+                auto& variant = *en.variants[variant_index];
+                auto count = variant.tps.size();
+
+                if (count == 0)
+                    clr.error(diags::invalid_expression(), loc);
+
+                auto value_asts = clr.order_args(arg_asts, { }, { count }, loc);
+                vector<lvalue> lvals;
+
+                for (size_t index = 0; index < count; index++) {
+                    auto& value_ast = value_asts[index].get();
+                    if (implicit_type && INDEX_EQ(*implicit_type->get().tp, ENUM) && GET(*implicit_type->get().tp, ENUM) == enum_index) {
+                        auto& type = *variant.tps[index];
+                        auto confined = implicit_type->get().confined;
+                        auto type_local = prog::type_local { make_ptr(copy_type(type)), confined };
+                        lvals.push_back(compile_left_expr(value_ast, { type_local }));
+                    } else
+                        lvals.push_back(compile_left_expr(value_ast, { }));
+                }
+
+                return VARIANT(lvalue, ENUM_VARIANT, make_tuple(enum_index, variant_index, into_ptr_vector(lvals)));
+            }
+
+            default:
+                clr.error(diags::expression_not_assignable(), receiver_ast.loc);
+        }
     }
 
-    tuple<vector<cref<const ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_args(
+    tuple<vector<cref<ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_args(
             vector<cref<ast::expr_marked>> asts,
             optional<function<size_t(string, location)>> arg_with_name,
             optional<size_t> expected_count,
@@ -720,14 +827,14 @@ namespace sg {
     vector<prog::reg_index> function_compiler::compile_call_args(
             vector<cref<ast::expr_marked>> asts,
             const prog::func_type& ftype,
-            optional<cref<const prog::global_func>> func,
+            optional<cref<prog::global_func>> func,
             location loc) {
         auto size = ftype.param_tps.size();
 
         auto arg_with_name = [&] (string name, location loc) -> size_t {
             auto iter = func->get().param_names.find(name);
             if (iter == func->get().param_names.end())
-                clr.error(diags::invalid_function_parameter(*func, name), loc);
+                clr.error(diags::unknown_function_parameter(*func, name), loc);
             return iter->second;
         };
 

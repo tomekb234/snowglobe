@@ -345,11 +345,11 @@ namespace sg::prog {
                 stream << '(';
 
                 auto first = true;
-                for (auto& coord : tuple) {
+                for (auto& field : tuple) {
                     if (!first)
                         stream << ", ";
                     first = false;
-                    print_type(stream, prog, coord);
+                    print_type(stream, prog, field);
                 }
 
                 stream << ')';

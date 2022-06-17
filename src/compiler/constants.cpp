@@ -158,7 +158,7 @@ namespace sg {
                 auto arg_with_name = [&] (string name, location loc) -> size_t {
                     auto iter = st.field_names.find(name);
                     if (iter == st.field_names.end())
-                        error(diags::invalid_struct_field(st, name), loc);
+                        error(diags::unknown_struct_field(st, name), loc);
                     return iter->second;
                 };
 
@@ -248,7 +248,7 @@ namespace sg {
 
         auto iter = en.variant_names.find(variant_name);
         if (iter == en.variant_names.end())
-            error(diags::invalid_enum_variant(en, name), loc);
+            error(diags::unknown_enum_variant(en, name), loc);
         auto variant_index = iter->second;
 
         if (en.variants[variant_index]->tps.empty()) {
@@ -514,10 +514,10 @@ namespace sg {
                     #undef NUMERIC_CONV
                 } break;
 
-                case prog::instr::EXTRACT_COORD: {
-                    auto& extract_instr = *GET(instr, EXTRACT_COORD);
+                case prog::instr::EXTRACT_FIELD: {
+                    auto& extract_instr = *GET(instr, EXTRACT_FIELD);
                     auto values = as_cref_vector(GET(reg_values[extract_instr.value], TUPLE));
-                    reg_values[extract_instr.result] = copy_const(values[extract_instr.coord]);
+                    reg_values[extract_instr.result] = copy_const(values[extract_instr.field]);
                 } break;
 
                 case prog::instr::MAKE_TUPLE: {
@@ -537,7 +537,7 @@ namespace sg {
                         reg_values[transform_instr.extracted] = copy_const(extracted);
                         for (auto& instr_ptr : transform_instr.block->instrs)
                             do_instr(*instr_ptr);
-                        new_values.push_back(copy_const(reg_values[transform_instr.block_result]));
+                        new_values.push_back(copy_const(reg_values[transform_instr.transformed]));
                     }
 
                     reg_values[transform_instr.result] = VARIANT(prog::constant, ARRAY, into_ptr_vector(new_values));
@@ -552,7 +552,7 @@ namespace sg {
                         reg_values[transform_instr.extracted] = copy_const(*value);
                         for (auto& instr_ptr : transform_instr.block->instrs)
                             do_instr(*instr_ptr);
-                        new_value = { copy_const(reg_values[transform_instr.block_result]) };
+                        new_value = { copy_const(reg_values[transform_instr.transformed]) };
                     }
 
                     reg_values[transform_instr.result] = VARIANT(prog::constant, OPTIONAL, into_optional_ptr(new_value));

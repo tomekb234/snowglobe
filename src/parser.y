@@ -882,15 +882,15 @@ expr:
     }
 
     | expr[inner] "." NAME {
-        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, FIELD, @$, make_pair(into_ptr($inner), move($NAME)))));
+        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, NAME, @$, make_pair(into_ptr($inner), move($NAME)))));
     }
 
     | expr[inner] "." INT {
-        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, COORD, @$, make_pair(into_ptr($inner), $INT.value))));
+        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, INDEX, @$, make_pair(into_ptr($inner), $INT.value))));
     }
 
     | expr[left] "[" expr[right] "]" {
-        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, INDEX, @$, make_pair(into_ptr($left), into_ptr($right)))));
+        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, ITEM, @$, make_pair(into_ptr($left), into_ptr($right)))));
     }
 
     | "^" expr[inner] %prec UNARY_CARET {
@@ -898,19 +898,19 @@ expr:
     }
 
     | expr[inner] "->" NAME {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, FIELD, @$, make_pair(into_ptr($inner), move($NAME)))));
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, NAME, @$, make_pair(into_ptr($inner), move($NAME)))));
     }
 
     | expr[inner] "->" INT {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, COORD, @$, make_pair(into_ptr($inner), $INT.value))));
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, INDEX, @$, make_pair(into_ptr($inner), $INT.value))));
     }
 
     | expr[left] "[" "ref" expr[right] "]" {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, INDEX, @$, make_pair(into_ptr($left), into_ptr($right)))));
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, ITEM, @$, make_pair(into_ptr($left), into_ptr($right)))));
     }
 
     | expr[arr] "[" "ref" optional_expr[lrange] ".." optional_expr[rrange] "]" {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, RANGE, @$, make_pair(into_ptr($arr), make_pair(into_optional_ptr($lrange), into_optional_ptr($rrange))))));
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, ITEM_RANGE, @$, make_pair(into_ptr($arr), make_pair(into_optional_ptr($lrange), into_optional_ptr($rrange))))));
     }
 
     | "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
@@ -935,7 +935,7 @@ expr_marked:
     }
 
     | INT ":" expr {
-        $$ = expr_marked { AST_VARIANT(expr_marked, EXPR_WITH_COORD, @$, make_pair($INT.value, into_ptr($expr))) };
+        $$ = expr_marked { AST_VARIANT(expr_marked, EXPR_WITH_INDEX, @$, make_pair($INT.value, into_ptr($expr))) };
     }
 
 expr_marked_seq:
