@@ -97,7 +97,7 @@ namespace sg::prog {
     };
 
     struct global_func {
-        string name;
+        optional<string> name;
         vector<ptr<func_param>> params;
         unordered_map<string, param_index> param_names;
         ptr<type> return_tp;
@@ -106,7 +106,7 @@ namespace sg::prog {
     };
 
     struct func_param {
-        string name;
+        optional<string> name;
         ptr<type_local> tp;
     };
 
@@ -148,7 +148,8 @@ namespace sg::prog {
             OPTIONAL,
             GLOBAL_VAR_PTR,
             GLOBAL_VAR_SLICE,
-            GLOBAL_FUNC_PTR
+            GLOBAL_FUNC_PTR,
+            GLOBAL_FUNC_PTR_WRAPPED
         };
 
         variant<
@@ -162,7 +163,8 @@ namespace sg::prog {
             optional<ptr<constant>>, // OPTIONAL
             global_index, // GLOBAL_VAR_PTR
             global_index, // GLOBAL_VAR_SLICE
-            global_index // GLOBAL_FUNC_PTR
+            global_index, // GLOBAL_FUNC_PTR
+            global_index // GLOBAL_FUNC_PTR_WRAPPED
         > value;
     };
 
@@ -286,6 +288,7 @@ namespace sg::prog {
             MAKE_EMPTY_WEAK_PTR,
             GET_GLOBAL_VAR_PTR,
             GET_GLOBAL_FUNC_PTR,
+            GET_GLOBAL_FUNC_PTR_WRAPPED,
 
             TEST_OPTIONAL,
             TEST_VARIANT,
@@ -363,6 +366,7 @@ namespace sg::prog {
             reg_index, // MAKE_EMPTY_WEAK_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
+            ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR_WRAPPED
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
             ptr<test_variant_instr>, // TEST_ENUM_VARIANT
@@ -587,6 +591,7 @@ namespace sg::prog {
     extern const type_local NEVER_TYPE;
     extern const type_local UNIT_TYPE;
     extern const type_local BOOL_TYPE;
+    extern const type_local UNIT_PTR_TYPE;
 
     constant copy_const(const constant& con);
     type copy_type(const type& tp);

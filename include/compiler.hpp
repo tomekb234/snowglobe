@@ -49,8 +49,9 @@ namespace sg {
 
         prog::program& prog;
         diagnostic_collector& diags;
-        unordered_map<string, global_name> global_names;
         vector<prog::global_var> consts;
+        unordered_map<string, global_name> global_names;
+        unordered_map<prog::global_index, prog::global_index> func_wrappers;
 
         friend class conversion_compiler;
         friend class function_compiler;
@@ -81,6 +82,7 @@ namespace sg {
         const global_name& get_global_name(string name, location loc);
         const global_name& get_global_name(string name, vector<global_name_kind> expected_kinds, location loc);
         const global_name& get_global_type(string name, bool allow_uncompiled, location loc);
+        prog::global_index get_global_func_wrapper(prog::global_index func_index);
 
         vector<cref<ast::expr>> order_args(
                 vector<cref<ast::expr_marked>> asts,
@@ -94,9 +96,12 @@ namespace sg {
         prog::global_func declare_global_func(const ast::func_def& ast);
         prog::struct_type declare_struct_type(const ast::struct_def& ast);
         prog::enum_type declare_enum_type(const ast::enum_def& ast);
+
         void compile_global_func(const ast::func_def& ast, prog::global_func& func);
         void compile_struct_type(const ast::struct_def& ast, prog::struct_type& st);
         void compile_enum_type(const ast::enum_def& ast, prog::enum_type& en);
+
+        prog::global_func make_global_func_wrapper(prog::global_index func_index);
 
         // Constants
 
@@ -107,9 +112,12 @@ namespace sg {
         pair<prog::constant, prog::type> compile_const_name(string name, location loc);
         pair<prog::constant, prog::type> compile_const_variant_name(string name, string variant_name, location loc);
         pair<prog::constant, prog::type> compile_const_literal(const ast::literal_expr& ast);
+
         pair<prog::constant, prog::number_type> compile_int_token(const ast::int_token& ast);
         pair<prog::constant, prog::number_type> compile_float_token(const ast::float_token& ast);
+
         size_t compile_const_size(const ast::const_int& ast);
+
         prog::constant convert_const(prog::constant value, const prog::type& type, const prog::type& new_type, location loc);
 
         // Types

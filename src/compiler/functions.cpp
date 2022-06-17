@@ -11,10 +11,14 @@ namespace sg {
         push_frame();
 
         for (const prog::func_param& param : as_cref_vector(func.params)) {
-            auto var_index = add_var(param.name, copy_type_local(*param.tp));
-            auto instr = prog::write_var_instr { var_index, reg_counter++ };
-            add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(instr)));
-            vars[var_index].state = VAR_INITIALIZED;
+            if (param.name) {
+                auto var_index = add_var(*param.name, copy_type_local(*param.tp));
+                auto instr = prog::write_var_instr { var_index, reg_counter++ };
+                add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(instr)));
+                vars[var_index].state = VAR_INITIALIZED;
+            }
+
+            reg_counter++;
         }
 
         compile_stmt_block(*ast.body->block, false);

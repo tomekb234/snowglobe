@@ -142,7 +142,10 @@ namespace sg::diags {
     }
 
     void unknown_function_parameter::write(ostream& stream) const {
-        stream << "The function '" << func.name << "' has no parameter named '" << name << "'" << endl;
+        stream << "The function ";
+        if (func.name)
+            stream << "'" << *func.name << "' ";
+        stream << "has no parameter named '" << name << "'" << endl;
     }
 
     void expected_enum_name::write(ostream& stream) const {
@@ -318,10 +321,11 @@ namespace sg::diags {
     }
 
     void variable_not_deletable::write(ostream& stream) const {
+        stream << "The value of ";
         if (name)
-            stream << "The value of variable '" << *name << "' ";
+            stream << "the variable '" << *name << "' ";
         else
-            stream << "The value of an internal variable ";
+            stream << "an internal variable ";
         stream << "cannot be deleted because it is either initialized";
         if (uninitialized && moved_out)
             stream << ", uninitialized or moved out";
