@@ -160,10 +160,6 @@ namespace sg::diags {
         stream << "The number '" << (negative ? "-" : "") << value << "' does not fit in " << (signed_type ? "signed" : "unsigned") << " " << bits << "-bit integer type" << endl;
     }
 
-    void single_float_overflow::write(ostream& stream) const {
-        stream << "The number '" << value << "' does not fit in single-precision floating-point type" << endl;
-    }
-
     void invalid_unary_operation::write(ostream& stream) const {
         stream << "The unary operator '";
 

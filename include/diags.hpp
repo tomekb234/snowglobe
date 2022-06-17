@@ -104,7 +104,6 @@ namespace sg::diags {
     DIAG0(expected_enum_name, error);
     DIAG0(expected_enum_variant, error);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
-    DIAG1(single_float_overflow, error, double, value);
     DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
     DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
 
