@@ -16,7 +16,7 @@ namespace sg {
         }
 
         if (cleanup)
-            add_cleanup_instrs(frames.back(), ast.end_loc);
+            add_frame_delete_instrs(frames.back(), ast.end_loc);
     }
 
     void function_compiler::compile_stmt(const ast::stmt& ast) {
@@ -45,11 +45,12 @@ namespace sg {
                 clr.error(diags::not_implemented(), ast.loc); // TODO
 
             case ast::stmt::IF:
-                compile_if_stmt(*GET(ast, IF), 0);
+                compile_if_stmt_branches(*GET(ast, IF), 0);
                 break;
 
             case ast::stmt::MATCH:
-                clr.error(diags::not_implemented(), ast.loc); // TODO
+                compile_match_stmt(*GET(ast, MATCH));
+                break;
 
             case ast::stmt::WHILE:
                 compile_while_stmt(*GET(ast, WHILE));
@@ -64,7 +65,7 @@ namespace sg {
         }
     }
 
-    void function_compiler::compile_if_stmt(const ast::if_stmt& ast, size_t branch_index) {
+    void function_compiler::compile_if_stmt_branches(const ast::if_stmt& ast, size_t branch_index) {
         auto& branch_ast = *ast.branches[branch_index];
         auto& cond_ast = *branch_ast.cond;
         auto& block_ast = *branch_ast.block;
@@ -74,7 +75,7 @@ namespace sg {
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
             auto [value, type] = compile_expr(expr_ast, true);
-            cond = conv_clr.convert(value, type, BOOL_TYPE, expr_ast.loc);
+            cond = conv_clr.convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
         } else
             clr.error(diags::not_implemented(), cond_ast.loc); // TODO
 
@@ -84,12 +85,82 @@ namespace sg {
 
         auto false_branch = [&] () {
             if (branch_index < ast.branches.size() - 1)
-                compile_if_stmt(ast, branch_index + 1);
+                compile_if_stmt_branches(ast, branch_index + 1);
             else if (ast.else_branch)
                 compile_stmt_block(**ast.else_branch, true);
         };
 
         add_branch_instr(cond, true_branch, false_branch);
+    }
+
+    void function_compiler::compile_match_stmt(const ast::match_stmt& ast) {
+        if (INDEX_EQ(*ast.value, EXPR)) {
+            auto [value, type] = compile_expr(*GET(*ast.value, EXPR), false);
+
+            if (!INDEX_EQ(*type.tp, ENUM))
+                clr.error(diags::expected_enum_type(clr.prog, copy_type(*type.tp)), ast.value->loc);
+
+            compile_match_stmt_branches(ast, value, type, 0);
+        } else if (INDEX_EQ(*ast.value, NAME_LOCALLY))
+            clr.error(diags::not_implemented(), ast.value->loc); // TODO
+    }
+
+    void function_compiler::compile_match_stmt_branches(const ast::match_stmt& ast, prog::reg_index value, const prog::type_local& type, size_t branch_index) {
+        auto& branch_ast = *ast.branches[branch_index];
+        auto& lval_ast = *branch_ast.lvalue;
+        auto& block_ast = *branch_ast.block;
+
+        push_frame();
+        auto& fr = frames.back();
+
+        auto lval = compile_left_expr(lval_ast, { type });
+
+        if (!INDEX_EQ(lval, ENUM_VARIANT))
+            clr.error(diags::expected_enum_variant(), lval_ast.loc);
+
+        auto& [enum_index, variant_index, lval_ptrs] = GET(lval, ENUM_VARIANT);
+        auto variant_index_copy = variant_index;
+        auto lvals = as_cref_vector(lval_ptrs);
+
+        if (enum_index != GET(*type.tp, ENUM))
+            clr.error(diags::invalid_type(clr.prog, copy_type(*type.tp), VARIANT(prog::type, ENUM, enum_index)), ast.value->loc);
+
+        auto& en = *clr.prog.enum_types[enum_index];
+        auto& variant = *en.variants[variant_index];
+        auto count = variant.tps.size();
+        auto confined = type.confined;
+
+        auto test_result = new_reg();
+        auto test_instr = prog::test_variant_instr { value, variant_index, test_result };
+        add_instr(VARIANT(prog::instr, TEST_VARIANT, into_ptr(test_instr)));
+
+        auto true_branch = [&] () {
+            for (size_t index = 0; index < count; index++) {
+                auto extracted = new_reg();
+                auto instr = prog::extract_variant_field_instr { value, variant_index_copy, index, extracted };
+                add_instr(VARIANT(prog::instr, EXTRACT_VARIANT_FIELD, into_ptr(instr)));
+
+                auto field_type = prog::type_local { make_ptr(copy_type(*variant.tps[index])), confined };
+                compile_assignment(lvals[index], extracted, field_type, ast.value->loc);
+            }
+
+            compile_stmt_block(block_ast, true);
+            add_frame_delete_instrs(fr, block_ast.end_loc);
+        };
+
+        auto false_branch = [&] () {
+            if (branch_index < ast.branches.size() - 1)
+                compile_match_stmt_branches(ast, value, type, branch_index + 1);
+            else {
+                add_delete_instrs(value, type);
+                if (ast.else_branch)
+                    compile_stmt_block(**ast.else_branch, true);
+            }
+        };
+
+        add_branch_instr(test_result, true_branch, false_branch);
+
+        pop_frame();
     }
 
     void function_compiler::compile_while_stmt(const ast::while_stmt& ast) {
@@ -99,7 +170,7 @@ namespace sg {
             if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
                 auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
                 auto [value, type] = compile_expr(expr_ast, true);
-                return conv_clr.convert(value, type, BOOL_TYPE, expr_ast.loc);
+                return conv_clr.convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
             } else
                 clr.error(diags::not_implemented(), cond_ast.loc); // TODO
         };
@@ -163,7 +234,7 @@ namespace sg {
             auto var = add_var(copy_type_local(type_local));
             auto write_instr = prog::write_var_instr { var, incr ? begin_value : end_value };
             add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
-            init_var(var);
+            var_states[var] = VAR_INITIALIZED;
 
             auto value = new_reg();
 
@@ -194,7 +265,7 @@ namespace sg {
 
                 auto lval = compile_left_expr(*range_ast.lvalue, { type_local });
 
-                compile_assignment(lval, value, type_local, range_ast.lvalue->loc);
+                compile_assignment(lval, value, type_local, range_ast.begin->loc);
 
                 compile_stmt_block(*range_ast.block, true);
 
@@ -223,27 +294,38 @@ namespace sg {
     void function_compiler::compile_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
         switch (INDEX(lval)) {
             case lvalue::IGNORED:
+                add_delete_instrs(value, type);
                 break;
 
             case lvalue::VAR: {
-                auto var_index = GET(lval, VAR);
-                auto& var_type = var_types[var_index];
+                auto var = GET(lval, VAR);
+                auto& var_type = var_types[var];
+
+                add_var_delete_instrs(var, loc);
 
                 value = conv_clr.convert(value, type, var_type, loc);
 
-                auto instr = prog::write_var_instr { var_index, value };
-                add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(instr)));
+                auto write_instr = prog::write_var_instr { var, value };
+                add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
 
-                init_var(var_index);
+                var_states[var] = VAR_INITIALIZED;
+                var_loop_levels[var] = 0;
             } break;
 
             case lvalue::GLOBAL_VAR: {
-                auto var_index = GET(lval, GLOBAL_VAR);
-                auto& var = *clr.prog.global_vars[var_index];
+                auto var = GET(lval, GLOBAL_VAR);
+                auto& var_type = *clr.prog.global_vars[var]->tp;
 
-                value = conv_clr.convert(value, type, *var.tp, loc);
+                if (!clr.type_trivially_copyable(var_type)) {
+                    auto old_value = new_reg();
+                    auto read_instr = prog::read_global_var_instr { var, old_value };
+                    add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(read_instr)));
+                    add_delete_instrs(old_value, var_type);
+                }
 
-                auto instr = prog::write_global_var_instr { var_index, value };
+                value = conv_clr.convert(value, type, var_type, loc);
+
+                auto instr = prog::write_global_var_instr { var, value };
                 add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, into_ptr(instr)));
             } break;
 

@@ -41,9 +41,9 @@ namespace sg {
         vector<prog::func_param> params;
         unordered_map<string, prog::param_index> param_names;
 
-        for (auto& param_ast_ptr : ast.params) {
-            param_names[param_ast_ptr->name] = params.size();
-            params.push_back(prog::func_param { param_ast_ptr->name, make_ptr(compile_type_local(*param_ast_ptr->tp, true)) });
+        for (const ast::func_param& param_ast : as_cref_vector(ast.params)) {
+            param_names[param_ast.name] = params.size();
+            params.push_back(prog::func_param { param_ast.name, make_ptr(compile_type_local(*param_ast.tp, true)) });
         }
 
         prog::type return_type;
@@ -81,17 +81,17 @@ namespace sg {
         vector<prog::struct_field> fields;
         unordered_map<string, size_t> field_names;
 
-        for (auto& field_ast_ptr : ast.fields) {
-            if (field_names.count(field_ast_ptr->name))
-                error(diags::field_name_used(field_ast_ptr->name), field_ast_ptr->loc);
+        for (const ast::struct_field& field_ast : as_cref_vector(ast.fields)) {
+            if (field_names.count(field_ast.name))
+                error(diags::field_name_used(field_ast.name), field_ast.loc);
 
-            auto type = compile_type(*field_ast_ptr->tp, false);
+            auto type = compile_type(*field_ast.tp, false);
             if (st.copyable && !type_copyable(type))
-                error(diags::type_not_copyable(prog, copy_type(type)), field_ast_ptr->tp->loc);
+                error(diags::type_not_copyable(prog, copy_type(type)), field_ast.tp->loc);
             if (!type_trivially_copyable(type))
                 st.trivially_copyable = false;
 
-            auto field = prog::struct_field { field_ast_ptr->name, into_ptr(type) };
+            auto field = prog::struct_field { field_ast.name, into_ptr(type) };
             field_names[field.name] = fields.size();
             fields.push_back(move(field));
         }
@@ -104,21 +104,21 @@ namespace sg {
         vector<prog::enum_variant> variants;
         unordered_map<string, size_t> variant_names;
 
-        for (auto& variant_ast_ptr : ast.variants) {
-            if (variant_names.count(variant_ast_ptr->name))
-                error(diags::variant_name_used(variant_ast_ptr->name), variant_ast_ptr->loc);
+        for (const ast::enum_variant& variant_ast : as_cref_vector(ast.variants)) {
+            if (variant_names.count(variant_ast.name))
+                error(diags::variant_name_used(variant_ast.name), variant_ast.loc);
 
             vector<prog::type> types;
-            for (auto& type_ast_ptr : variant_ast_ptr->tps) {
-                auto type = compile_type(*type_ast_ptr, false);
+            for (const ast::type& type_ast : as_cref_vector(variant_ast.tps)) {
+                auto type = compile_type(type_ast, false);
                 if (en.copyable && !type_copyable(type))
-                    error(diags::type_not_copyable(prog, copy_type(type)), type_ast_ptr->loc);
+                    error(diags::type_not_copyable(prog, copy_type(type)), type_ast.loc);
                 if (!type_trivially_copyable(type))
                     en.trivially_copyable = false;
                 types.push_back(move(type));
             }
 
-            auto variant = prog::enum_variant { variant_ast_ptr->name, into_ptr_vector(types) };
+            auto variant = prog::enum_variant { variant_ast.name, into_ptr_vector(types) };
             variant_names[variant.name] = variants.size();
             variants.push_back(move(variant));
         }

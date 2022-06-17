@@ -27,9 +27,10 @@ namespace sg {
 
                 if (var) {
                     auto& state = var_states[*var];
+                    auto& loop_level = var_loop_levels[*var];
 
-                    if (!(state.initialized && !state.uninitialized && !state.moved_out))
-                        clr.error(diags::variable_not_usable(name, state.initialized, state.uninitialized, state.moved_out), ast.loc);
+                    if (state != VAR_INITIALIZED)
+                        clr.error(diags::variable_not_usable(name, state & VAR_INITIALIZED, state & VAR_UNINITIALIZED, state & VAR_MOVED_OUT), ast.loc);
 
                     auto result = new_reg();
                     auto instr = prog::read_var_instr { *var, result };
@@ -40,8 +41,8 @@ namespace sg {
                     if (!confined && !var_type.confined) {
                         if (clr.type_copyable(*var_type.tp))
                             add_copy_instrs(result, *var_type.tp);
-                        else if (state.loop_level == 0)
-                            move_out_var(*var);
+                        else if (loop_level == 0)
+                            state = VAR_MOVED_OUT;
                         else
                             clr.error(diags::variable_moved_inside_loop(name), ast.loc);
                     }
@@ -105,7 +106,7 @@ namespace sg {
                 auto& [name, variant_name] = GET(ast, VARIANT_NAME);
 
                 if (get_var(name))
-                    clr.error(diags::expected_variant_name(), ast.loc);
+                    clr.error(diags::expected_enum_name(), ast.loc);
 
                 auto enum_index = clr.get_global_name(name, { global_name_kind::ENUM }, ast.loc).index;
                 auto& en = *clr.prog.enum_types[enum_index];
@@ -174,12 +175,12 @@ namespace sg {
 
             case ast::expr::BREAK: {
                 add_break_instr(ast.loc);
-                return { unit_reg(), copy_type_local(NEVER_TYPE) };
+                return { unit_reg(), copy_type_local(prog::NEVER_TYPE) };
             }
 
             case ast::expr::CONTINUE: {
                 add_continue_instr(ast.loc);
-                return { unit_reg(), copy_type_local(NEVER_TYPE) };
+                return { unit_reg(), copy_type_local(prog::NEVER_TYPE) };
             }
 
             case ast::expr::REFERENCE:
@@ -209,14 +210,14 @@ namespace sg {
             tie(result, type) = compile_expr(*ast, false);
         else {
             result = unit_reg();
-            type = copy_type_local(UNIT_TYPE);
+            type = copy_type_local(prog::UNIT_TYPE);
         }
 
         result = conv_clr.convert(result, type, *func.return_tp, loc);
 
         add_return_instr(result, loc);
 
-        return { result, copy_type_local(NEVER_TYPE) };
+        return { result, copy_type_local(prog::NEVER_TYPE) };
     }
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_tuple(vector<cref<ast::expr_marked>> asts, bool confined, location loc) {
@@ -224,7 +225,7 @@ namespace sg {
         auto count = values.size();
 
         if (count == 0)
-            return { unit_reg(), copy_type_local(UNIT_TYPE) };
+            return { unit_reg(), copy_type_local(prog::UNIT_TYPE) };
 
         if (count == 1) {
             auto result = values[0];
@@ -381,10 +382,10 @@ namespace sg {
 
         switch (ast.operation) {
             case ast::unary_operation_expr::NOT: {
-                value = conv_clr.convert(value, type, BOOL_TYPE, ast.value->loc);
+                value = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
                 auto instr = prog::unary_operation_instr { value, result };
                 add_instr(VARIANT(prog::instr, BOOL_NOT, into_ptr(instr)));
-                return { result, copy_type_local(BOOL_TYPE) };
+                return { result, copy_type_local(prog::BOOL_TYPE) };
             }
 
             case ast::unary_operation_expr::MINUS: {
@@ -447,7 +448,7 @@ namespace sg {
             case ast::binary_operation_expr::AND:
             case ast::binary_operation_expr::OR: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
-                auto left_value_converted = conv_clr.convert(left_value, left_type, BOOL_TYPE, ast.left->loc);
+                auto left_value_converted = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
                 auto result = new_reg();
 
                 auto return_left_branch = [&](){
@@ -456,7 +457,7 @@ namespace sg {
 
                 auto eval_right_branch = [&](){
                     auto[right_value, right_type] = compile_expr(*ast.right, true);
-                    right_value = conv_clr.convert(right_value, right_type, BOOL_TYPE, ast.right->loc);
+                    right_value = conv_clr.convert(right_value, right_type, prog::BOOL_TYPE, ast.right->loc);
                     add_instr(VARIANT(prog::instr, COPY_REG, make_ptr(prog::copy_reg_instr{ right_value, result })));
                 };
 
@@ -464,7 +465,7 @@ namespace sg {
                     add_branch_instr(left_value, eval_right_branch, return_left_branch);
                 else
                     add_branch_instr(left_value, return_left_branch, eval_right_branch);
-                return { result, copy_type_local(BOOL_TYPE) };
+                return { result, copy_type_local(prog::BOOL_TYPE) };
             } break;
 
             case ast::binary_operation_expr::EQ:
@@ -569,7 +570,7 @@ namespace sg {
                 }
 
                 if (bool_result_type)
-                    return { result, copy_type_local(BOOL_TYPE) };
+                    return { result, copy_type_local(prog::BOOL_TYPE) };
                 else
                     return { result, prog::type_local{ into_ptr(common_type), false } };
             }
@@ -631,6 +632,7 @@ namespace sg {
                 auto var = get_var(name);
                 if (var)
                     return VARIANT(lvalue, VAR, *var);
+
                 auto index = clr.get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
                 return VARIANT(lvalue, GLOBAL_VAR, index);
             }

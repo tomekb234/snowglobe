@@ -4,6 +4,10 @@
 namespace sg::prog {
     using namespace sg::utils;
 
+    const type_local NEVER_TYPE = { make_ptr(VARIANT(type, NEVER, monostate())), false };
+    const type_local UNIT_TYPE = { make_ptr(VARIANT(type, UNIT, monostate())), false };
+    const type_local BOOL_TYPE = { make_ptr(VARIANT(type, NUMBER, make_ptr(number_type { number_type::BOOL }))), false };
+
     static array_type copy_array_type(const array_type& tp);
     static ptr_type copy_ptr_type(const ptr_type& tp);
     static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& tp);

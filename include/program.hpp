@@ -584,6 +584,10 @@ namespace sg::prog {
         ptr<instr_block> false_block;
     };
 
+    extern const type_local NEVER_TYPE;
+    extern const type_local UNIT_TYPE;
+    extern const type_local BOOL_TYPE;
+
     constant copy_const(const constant& con);
     type copy_type(const type& tp);
     type_local copy_type_local(const type_local& tp);

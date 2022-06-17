@@ -101,7 +101,8 @@ namespace sg::diags {
     DIAG2(unknown_struct_field, error, const prog::struct_type&, st, string, name);
     DIAG2(unknown_enum_variant, error, const prog::enum_type&, en, string, name);
     DIAG2(unknown_function_parameter, error, const prog::global_func&, func, string, name);
-    DIAG0(expected_variant_name, error);
+    DIAG0(expected_enum_name, error);
+    DIAG0(expected_enum_variant, error);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
     DIAG1(single_float_overflow, error, double, value);
     DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
@@ -116,9 +117,10 @@ namespace sg::diags {
     DIAG3(no_common_supertype, error, const prog::program&, prog, prog::type, type_a, prog::type, type_b);
     DIAG2(type_not_copyable, error, const prog::program&, prog, prog::type, type);
     DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, prog::type, expected);
+    DIAG2(expected_integer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_tuple_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_array_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_integer_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_enum_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(invalid_tuple_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);
     DIAG0(invalid_size_constant_type, error);
@@ -129,6 +131,7 @@ namespace sg::diags {
     DIAG0(global_function_copyable, error);
     DIAG0(variable_without_type, error);
     DIAG4(variable_not_usable, error, string, name, bool, initialized, bool, uninitialized, bool, moved_out);
+    DIAG3(variable_not_deletable, error, optional<string>, name, bool, uninitialized, bool, moved_out);
     DIAG1(variable_moved_inside_loop, error, string, name);
     DIAG1(global_variable_moved, error, string, name);
     DIAG1(invalid_variable_name, error, string, name);

@@ -392,8 +392,8 @@ enum_variant:
         $$ = { { @$ }, move($NAME), { } };
     }
 
-    | NAME "(" type_seq ")" {
-        $$ = { { @$ }, move($NAME), into_ptr_vector($type_seq) };
+    | NAME "(" type_seq_nempty ")" {
+        $$ = { { @$ }, move($NAME), into_ptr_vector($type_seq_nempty) };
     }
 
 enum_variant_seq:
@@ -1145,7 +1145,7 @@ type_local_seq_nempty:
 #include "diags.hpp"
 
 void yy::parser::report_syntax_error(const yy::parser::context& context) const {
-    const size_t MAX_TOKENS = 5;
+    const size_t MAX_TOKENS = 10;
     symbol_kind_type expected[MAX_TOKENS];
 
     // Get expected token list

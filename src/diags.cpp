@@ -34,7 +34,7 @@ namespace sg::diags {
         if (unexpected)
             stream << "Unexpected token: " << *unexpected << endl;
         if (!expected.empty()) {
-            stream << "Expected tokens:";
+            stream << "Example expected tokens:";
             for (auto exp : expected)
                 stream << " " << exp;
             stream << endl;
@@ -145,8 +145,12 @@ namespace sg::diags {
         stream << "The function '" << func.name << "' has no parameter named '" << name << "'" << endl;
     }
 
-    void expected_variant_name::write(ostream& stream) const {
-        stream << "Expected variant name" << endl;
+    void expected_enum_name::write(ostream& stream) const {
+        stream << "Expected enum name" << endl;
+    };
+
+    void expected_enum_variant::write(ostream& stream) const {
+        stream << "Expected enum variant" << endl;
     };
 
     void int_overflow::write(ostream& stream) const {
@@ -247,6 +251,12 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_integer_type::write(ostream& stream) const {
+        stream << "Expected an integer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void expected_tuple_type::write(ostream& stream) const {
         stream << "Expected a tuple type instead of '";
         prog::print_type(stream, prog, type);
@@ -259,8 +269,8 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
-    void expected_integer_type::write(ostream& stream) const {
-        stream << "Expected an integer type instead of '";
+    void expected_enum_type::write(ostream& stream) const {
+        stream << "Expected an enum type instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
     }
@@ -300,6 +310,21 @@ namespace sg::diags {
             stream << "or ";
         if (moved_out)
             stream << "moved out";
+        stream << endl;
+    }
+
+    void variable_not_deletable::write(ostream& stream) const {
+        if (name)
+            stream << "The value of variable '" << *name << "' ";
+        else
+            stream << "The value of an internal variable ";
+        stream << "cannot be deleted because it is either initialized";
+        if (uninitialized && moved_out)
+            stream << ", uninitialized or moved out";
+        else if (uninitialized)
+            stream << " or uninitialized ";
+        else if (moved_out)
+            stream << " or moved out";
         stream << endl;
     }
 

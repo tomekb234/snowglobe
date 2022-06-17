@@ -154,12 +154,7 @@ namespace sg {
     };
 
     class function_compiler {
-        struct var_state {
-            bool initialized = false;
-            bool uninitialized = true;
-            bool moved_out = false;
-            size_t loop_level = 0;
-        };
+        typedef unsigned char var_state;
 
         struct frame {
             vector<prog::instr> instrs;
@@ -190,9 +185,9 @@ namespace sg {
             > value;
         };
 
-        static const prog::type_local NEVER_TYPE;
-        static const prog::type_local UNIT_TYPE;
-        static const prog::type_local BOOL_TYPE;
+        static constexpr var_state VAR_INITIALIZED = 1 << 0;
+        static constexpr var_state VAR_UNINITIALIZED = 1 << 1;
+        static constexpr var_state VAR_MOVED_OUT = 1 << 2;
 
         compiler& clr;
         prog::global_func& func;
@@ -201,7 +196,9 @@ namespace sg {
         prog::reg_index reg_counter = 0;
         vector<prog::type_local> var_types;
         vector<var_state> var_states;
-        unordered_map<string, vector<prog::var_index>> var_names;
+        vector<size_t> var_loop_levels;
+        vector<optional<string>> var_names;
+        unordered_map<string, vector<prog::var_index>> var_names_map;
         bool returned = false;
 
         prog::reg_index new_reg();
@@ -230,8 +227,6 @@ namespace sg {
         prog::var_index add_var(prog::type_local&& type);
         prog::var_index add_var(string name, prog::type_local&& type);
         optional<prog::var_index> get_var(string name);
-        void init_var(prog::var_index var);
-        void move_out_var(prog::var_index var);
         vector<var_state> backup_var_states();
         void restore_var_states(const vector<var_state>& states);
         void merge_var_states(const vector<var_state>& states);
@@ -239,8 +234,10 @@ namespace sg {
         // Instructions
 
         void add_copy_instrs(prog::reg_index value, const prog::type& type);
+        void add_delete_instrs(prog::reg_index value, const prog::type& type);
         void add_delete_instrs(prog::reg_index value, const prog::type_local& type);
-        void add_cleanup_instrs(const frame& fr, location loc);
+        void add_var_delete_instrs(prog::var_index var, location loc);
+        void add_frame_delete_instrs(const frame& fr, location loc);
         void add_return_instr(prog::reg_index value, location loc);
         void add_break_instr(location loc);
         void add_continue_instr(location loc);
@@ -251,7 +248,9 @@ namespace sg {
 
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup);
         void compile_stmt(const ast::stmt& ast);
-        void compile_if_stmt(const ast::if_stmt& ast, size_t branch_index);
+        void compile_if_stmt_branches(const ast::if_stmt& ast, size_t branch_index);
+        void compile_match_stmt(const ast::match_stmt& ast);
+        void compile_match_stmt_branches(const ast::match_stmt& ast, prog::reg_index value, const prog::type_local& type, size_t branch_index);
         void compile_while_stmt(const ast::while_stmt& ast);
         void compile_for_stmt(const ast::for_stmt& ast);
         void compile_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
