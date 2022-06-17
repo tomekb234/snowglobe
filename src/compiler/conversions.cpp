@@ -23,14 +23,14 @@ namespace sg {
     }
 
     prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc) {
-        if (type.confined != new_type.confined && !clr.type_trivially_copyable(*type.tp))
+        if (type.confined != new_type.confined && !clr.type_trivial(*type.tp))
             clr.error(diags::confinement_mismatch(type.confined), loc);
 
         return convert(value, *type.tp, *new_type.tp, new_type.confined, loc);
     }
 
     prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc) {
-        if (type.confined && !clr.type_trivially_copyable(*type.tp))
+        if (type.confined && !clr.type_trivial(*type.tp))
             clr.error(diags::confinement_mismatch(type.confined), loc);
 
         return convert(value, *type.tp, new_type, false, loc);

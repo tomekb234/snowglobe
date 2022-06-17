@@ -118,7 +118,7 @@ namespace sg::prog {
     struct struct_type {
         string name;
         bool copyable;
-        bool trivially_copyable;
+        bool trivial;
         unordered_map<string, field_index> field_names;
         vector<ptr<struct_field>> fields;
     };
@@ -131,7 +131,7 @@ namespace sg::prog {
     struct enum_type {
         string name;
         bool copyable;
-        bool trivially_copyable;
+        bool trivial;
         unordered_map<string, variant_index> variant_names;
         vector<ptr<enum_variant>> variants;
     };

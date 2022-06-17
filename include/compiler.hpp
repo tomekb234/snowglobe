@@ -127,7 +127,7 @@ namespace sg {
         prog::func_with_ptr_type compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled);
 
         bool type_copyable(const prog::type& type);
-        bool type_trivially_copyable(const prog::type& type);
+        bool type_trivial(const prog::type& type);
 
         prog::type common_supertype(const prog::type& type_a, const prog::type& type_b, location loc);
     };
@@ -155,6 +155,15 @@ namespace sg {
 
     class function_compiler {
         typedef unsigned char var_state;
+        typedef size_t frame_index;
+
+        struct variable {
+            optional<string> name;
+            prog::type_local type;
+            var_state state;
+            size_t outside_loop;
+            size_t outside_confinement;
+        };
 
         struct frame {
             vector<prog::instr> instrs;
@@ -192,13 +201,10 @@ namespace sg {
         compiler& clr;
         prog::global_func& func;
         conversion_compiler conv_clr;
-        vector<frame> frames;
         prog::reg_index reg_counter = 0;
-        vector<prog::type_local> var_types;
-        vector<var_state> var_states;
-        vector<size_t> var_loop_levels;
-        vector<optional<string>> var_names;
-        unordered_map<string, vector<prog::var_index>> var_names_map;
+        vector<variable> vars;
+        vector<frame> frames;
+        unordered_map<string, vector<prog::var_index>> var_names;
         bool returned = false;
 
         prog::reg_index new_reg();
@@ -219,10 +225,12 @@ namespace sg {
 
         void push_frame();
         void push_loop_frame();
+        void push_confining_frame();
         prog::instr_block pop_frame();
         prog::instr_block pop_loop_frame();
+        prog::instr_block pop_confining_frame();
 
-        // Variabes
+        // Variables
 
         prog::var_index add_var(prog::type_local&& type);
         prog::var_index add_var(string name, prog::type_local&& type);
@@ -233,11 +241,12 @@ namespace sg {
 
         // Instructions
 
+        void add_block_instrs(prog::instr_block&& block);
         void add_copy_instrs(prog::reg_index value, const prog::type& type);
         void add_delete_instrs(prog::reg_index value, const prog::type& type);
         void add_delete_instrs(prog::reg_index value, const prog::type_local& type);
-        void add_var_delete_instrs(prog::var_index var, location loc);
-        void add_frame_delete_instrs(const frame& fr, location loc);
+        void add_var_delete_instrs(prog::var_index index, location loc);
+        void add_frame_delete_instrs(frame_index index, location loc);
         void add_return_instr(prog::reg_index value, location loc);
         void add_break_instr(location loc);
         void add_continue_instr(location loc);
@@ -248,6 +257,7 @@ namespace sg {
 
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup);
         void compile_stmt(const ast::stmt& ast);
+        void compile_locally_block_stmt(const ast::locally_block_stmt& ast);
         void compile_if_stmt_branches(const ast::if_stmt& ast, size_t branch_index);
         void compile_match_stmt(const ast::match_stmt& ast);
         void compile_match_stmt_branches(const ast::match_stmt& ast, prog::reg_index value, const prog::type_local& type, size_t branch_index);
@@ -259,6 +269,7 @@ namespace sg {
 
         pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_return(optional<cref<ast::expr>> ast, location loc);
+        pair<prog::reg_index, prog::type_local> compile_confinement(string var_name, location loc);
         pair<prog::reg_index, prog::type_local> compile_tuple(vector<cref<ast::expr_marked>> asts, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_array(vector<cref<ast::expr_marked>> asts, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, bool confined, location loc);

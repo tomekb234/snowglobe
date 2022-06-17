@@ -194,8 +194,8 @@ namespace sg {
 
     prog::func_type compiler::compile_func_type(const ast::func_type& ast, bool allow_uncompiled) {
         vector<prog::type_local> param_types;
-        for (auto& type_ast_ptr : ast.param_tps)
-            param_types.push_back(compile_type_local(*type_ast_ptr, allow_uncompiled));
+        for (const ast::type_local& type_ast : as_cref_vector(ast.param_tps))
+            param_types.push_back(compile_type_local(type_ast, allow_uncompiled));
 
         auto return_type = compile_type(*ast.return_tp, allow_uncompiled);
         return { into_ptr_vector(param_types), into_ptr(return_type) };
@@ -246,8 +246,8 @@ namespace sg {
                 return prog.enum_types[GET(type, ENUM)]->copyable;
 
             case prog::type::TUPLE: {
-                for (auto& type_ptr : GET(type, TUPLE))
-                    if (!type_copyable(*type_ptr))
+                for (const prog::type& type : as_cref_vector(GET(type, TUPLE)))
+                    if (!type_copyable(type))
                         return false;
                 return true;
             }
@@ -281,7 +281,7 @@ namespace sg {
         UNREACHABLE;
     }
 
-    bool compiler::type_trivially_copyable(const prog::type& type) {
+    bool compiler::type_trivial(const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::NEVER:
             case prog::type::NUMBER:
@@ -289,23 +289,23 @@ namespace sg {
                 return true;
 
             case prog::type::STRUCT:
-                return prog.struct_types[GET(type, STRUCT)]->trivially_copyable;
+                return prog.struct_types[GET(type, STRUCT)]->trivial;
 
             case prog::type::ENUM:
-                return prog.struct_types[GET(type, ENUM)]->trivially_copyable;
+                return prog.struct_types[GET(type, ENUM)]->trivial;
 
             case prog::type::TUPLE: {
-                for (auto& type_ptr : GET(type, TUPLE))
-                    if (!type_trivially_copyable(*type_ptr))
+                for (const prog::type& type : as_cref_vector(GET(type, TUPLE)))
+                    if (!type_trivial(type))
                         return false;
                 return true;
             }
 
             case prog::type::ARRAY:
-                return type_trivially_copyable(*GET(type, ARRAY)->tp);
+                return type_trivial(*GET(type, ARRAY)->tp);
 
             case prog::type::OPTIONAL:
-                return type_trivially_copyable(*GET(type, OPTIONAL));
+                return type_trivial(*GET(type, OPTIONAL));
 
             case prog::type::PTR:
                 return GET(type, PTR)->kind == prog::ptr_type::GLOBAL;

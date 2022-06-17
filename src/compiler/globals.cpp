@@ -88,8 +88,8 @@ namespace sg {
             auto type = compile_type(*field_ast.tp, false);
             if (st.copyable && !type_copyable(type))
                 error(diags::type_not_copyable(prog, copy_type(type)), field_ast.tp->loc);
-            if (!type_trivially_copyable(type))
-                st.trivially_copyable = false;
+            if (!type_trivial(type))
+                st.trivial = false;
 
             auto field = prog::struct_field { field_ast.name, into_ptr(type) };
             field_names[field.name] = fields.size();
@@ -113,8 +113,8 @@ namespace sg {
                 auto type = compile_type(type_ast, false);
                 if (en.copyable && !type_copyable(type))
                     error(diags::type_not_copyable(prog, copy_type(type)), type_ast.loc);
-                if (!type_trivially_copyable(type))
-                    en.trivially_copyable = false;
+                if (!type_trivial(type))
+                    en.trivial = false;
                 types.push_back(move(type));
             }
 

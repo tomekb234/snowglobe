@@ -463,13 +463,13 @@ namespace sg::prog {
         stream << '(';
 
         auto first = true;
-        for (auto& param_ptr : func.param_tps) {
+        for (const prog::type_local& tp : as_cref_vector(func.param_tps)) {
             if (!first)
                 stream << ", ";
             first = false;
-            if (!param_ptr->confined)
+            if (!tp.confined)
                 stream << "!";
-            print_type(stream, prog, *param_ptr->tp);
+            print_type(stream, prog, *tp.tp);
         }
 
         stream << ") -> ";

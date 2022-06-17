@@ -159,7 +159,7 @@ namespace sg {
     const compiler::global_name& compiler::get_global_name(string name, location loc) {
         auto iter = global_names.find(name);
         if (iter == global_names.end())
-            error(diags::global_name_not_found(name), loc);
+            error(diags::name_not_found(name), loc);
         return iter->second;
     }
 
