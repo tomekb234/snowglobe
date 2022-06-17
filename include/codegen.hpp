@@ -26,7 +26,7 @@ namespace sg {
         code_generator(const prog::program& prog, diagnostic_collector& diags, string name) : prog(prog), diags(diags), ctx(), mod(name, ctx) {}
 
         bool generate();
-        void write(ostream& stream);
+        string get_code();
 
         private:
 

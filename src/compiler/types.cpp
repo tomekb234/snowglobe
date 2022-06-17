@@ -7,24 +7,22 @@
 namespace sg {
     using namespace sg::utils;
 
-    using std::monostate;
-
     prog::type compiler::compile_type(const ast::type& ast, bool allow_uncompiled) {
         switch (INDEX(ast)) {
             case ast::type::NEVER:
                 return VARIANT(prog::type, NEVER, monostate());
 
-            case ast::type::PRIMITIVE: {
-                auto type = compile_primitive_type(*GET(ast, PRIMITIVE));
-                return VARIANT(prog::type, PRIMITIVE, into_ptr(type));
+            case ast::type::NUMBER: {
+                auto type = compile_number_type(*GET(ast, NUMBER));
+                return VARIANT(prog::type, NUMBER, into_ptr(type));
             }
 
             case ast::type::USER_TYPE:
                 return compile_user_type(ast, allow_uncompiled);
 
             case ast::type::TUPLE: {
-                auto types = compile_tuple_type(GET(ast, TUPLE), allow_uncompiled);
-                return VARIANT(prog::type, TUPLE, move(types));
+                auto types = compile_tuple_type(as_cref_vector(GET(ast, TUPLE)), allow_uncompiled);
+                return VARIANT(prog::type, TUPLE, into_ptr_vector(types));
             }
 
             case ast::type::ARRAY: {
@@ -68,17 +66,17 @@ namespace sg {
 
     prog::type compiler::compile_user_type(const ast::type& ast, bool allow_uncompiled) {
         auto name = GET(ast, USER_TYPE);
-        auto& global_name = get_global_name(ast, name, allow_uncompiled);
+        auto& gname = get_global_type(name, allow_uncompiled, ast.loc);
 
-        switch (global_name.kind) {
-            case global_name_kind::ENUM:
-                return VARIANT(prog::type, ENUM, global_name.index);
-
+        switch (gname.kind) {
             case global_name_kind::STRUCT:
-                return VARIANT(prog::type, STRUCT, global_name.index);
+                return VARIANT(prog::type, STRUCT, gname.index);
+
+            case global_name_kind::ENUM:
+                return VARIANT(prog::type, ENUM, gname.index);
 
             default:
-                error(diags::invalid_kind(name, global_name.kind, { }), ast);
+                UNREACHABLE;
         }
     }
 
@@ -91,7 +89,7 @@ namespace sg {
                 case prog::ptr_type::SHARED:
                 case prog::ptr_type::WEAK:
                 case prog::ptr_type::UNIQUE:
-                    warning(diags::restrictive_pointer_type(), ast);
+                    warning(diags::restrictive_pointer_type(), ast.loc);
                     break;
 
                 default:
@@ -102,49 +100,49 @@ namespace sg {
         return { into_ptr(type), confined };
     }
 
-    prog::primitive_type compiler::compile_primitive_type(const ast::primitive_type& ast) {
+    prog::number_type compiler::compile_number_type(const ast::number_type& ast) {
         switch (ast.tp) {
-            case ast::primitive_type::BOOL:
-                return { prog::primitive_type::BOOL };
+            case ast::number_type::BOOL:
+                return { prog::number_type::BOOL };
 
-            case ast::primitive_type::I8:
-                return { prog::primitive_type::I8 };
+            case ast::number_type::I8:
+                return { prog::number_type::I8 };
 
-            case ast::primitive_type::I16:
-                return { prog::primitive_type::I16 };
+            case ast::number_type::I16:
+                return { prog::number_type::I16 };
 
-            case ast::primitive_type::I32:
-                return { prog::primitive_type::I32 };
+            case ast::number_type::I32:
+                return { prog::number_type::I32 };
 
-            case ast::primitive_type::I64:
-                return { prog::primitive_type::I64 };
+            case ast::number_type::I64:
+                return { prog::number_type::I64 };
 
-            case ast::primitive_type::U8:
-                return { prog::primitive_type::U8 };
+            case ast::number_type::U8:
+                return { prog::number_type::U8 };
 
-            case ast::primitive_type::U16:
-                return { prog::primitive_type::U16 };
+            case ast::number_type::U16:
+                return { prog::number_type::U16 };
 
-            case ast::primitive_type::U32:
-                return { prog::primitive_type::U32 };
+            case ast::number_type::U32:
+                return { prog::number_type::U32 };
 
-            case ast::primitive_type::U64:
-                return { prog::primitive_type::U64 };
+            case ast::number_type::U64:
+                return { prog::number_type::U64 };
 
-            case ast::primitive_type::F32:
-                return { prog::primitive_type::F32 };
+            case ast::number_type::F32:
+                return { prog::number_type::F32 };
 
-            case ast::primitive_type::F64:
-                return { prog::primitive_type::F64 };
+            case ast::number_type::F64:
+                return { prog::number_type::F64 };
         }
 
         UNREACHABLE;
     }
 
-    vector<prog::ptr<prog::type>> compiler::compile_tuple_type(const vector<ast::ptr<ast::type>>& ast, bool allow_uncompiled) {
-        vector<prog::ptr<prog::type>> types;
-        for (auto& type_ast : ast)
-            types.push_back(make_ptr(compile_type(*type_ast, allow_uncompiled)));
+    vector<prog::type> compiler::compile_tuple_type(vector<cref<ast::type>> asts, bool allow_uncompiled) {
+        vector<prog::type> types;
+        for (const ast::type& type_ast : asts)
+            types.push_back(compile_type(type_ast, allow_uncompiled));
         return types;
     }
 
@@ -189,22 +187,22 @@ namespace sg {
     }
 
     prog::inner_ptr_type compiler::compile_inner_ptr_type(const ast::inner_ptr_type& ast) {
-        auto base = compile_ptr_type(ast);
+        auto ptr_type = compile_ptr_type(ast);
         auto owner_type = compile_type_pointed(*ast.owner_tp);
-        return { { base.kind, move(base.target_tp) }, into_ptr(owner_type) };
+        return { { ptr_type.kind, move(ptr_type.target_tp) }, into_ptr(owner_type) };
     }
 
     prog::func_type compiler::compile_func_type(const ast::func_type& ast, bool allow_uncompiled) {
-        vector<prog::ptr<prog::type_local>> param_types;
-        for (auto& type_ast : ast.param_tps)
-            param_types.push_back(make_ptr(compile_type_local(*type_ast, allow_uncompiled)));
+        vector<prog::type_local> param_types;
+        for (auto& type_ast_ptr : ast.param_tps)
+            param_types.push_back(compile_type_local(*type_ast_ptr, allow_uncompiled));
 
         auto return_type = compile_type(*ast.return_tp, allow_uncompiled);
-        return { move(param_types), into_ptr(return_type) };
+        return { into_ptr_vector(param_types), into_ptr(return_type) };
     }
 
     prog::func_with_ptr_type compiler::compile_func_with_ptr_type(const ast::func_with_ptr_type& ast, bool allow_uncompiled) {
-        auto base = compile_func_type(ast, allow_uncompiled);
+        auto func_type = compile_func_type(ast, allow_uncompiled);
 
         prog::func_with_ptr_type::kind_t kind;
 
@@ -231,14 +229,14 @@ namespace sg {
         }
 
         auto type = compile_type_pointed(*ast.target_tp);
-        return { { move(base.param_tps), move(base.return_tp) }, { kind, into_ptr(type) } };
+        return { { move(func_type.param_tps), move(func_type.return_tp) }, { kind, into_ptr(type) } };
     }
 
     bool compiler::type_copyable(const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::NEVER:
             case prog::type::UNIT:
-            case prog::type::PRIMITIVE:
+            case prog::type::NUMBER:
                 return true;
 
             case prog::type::STRUCT:
@@ -286,7 +284,7 @@ namespace sg {
     bool compiler::type_trivially_copyable(const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::NEVER:
-            case prog::type::PRIMITIVE:
+            case prog::type::NUMBER:
             case prog::type::UNIT:
                 return true;
 
@@ -333,7 +331,7 @@ namespace sg {
         UNREACHABLE;
     }
 
-    prog::type compiler::common_supertype(const ast::node& ast, const prog::type& type_a, const prog::type& type_b) {
+    prog::type compiler::common_supertype(const prog::type& type_a, const prog::type& type_b, location loc) {
         auto new_reg = [] () -> prog::reg_index { return 0; };
         auto add_instr = [] (prog::instr&&) { };
         conversion_compiler conv_clr(*this, new_reg, add_instr);
@@ -344,6 +342,6 @@ namespace sg {
         if (conv_clr.try_convert(0, type_b, type_a, false))
             return prog::copy_type(type_a);
 
-        error(diags::no_common_supertype(prog, copy_type(type_a), copy_type(type_b)), ast);
+        error(diags::no_common_supertype(prog, copy_type(type_a), copy_type(type_b)), loc);
     }
 }

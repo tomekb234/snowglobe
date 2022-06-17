@@ -7,6 +7,7 @@
 #include <variant>
 #include <string>
 #include <utility>
+#include <tuple>
 #include <ostream>
 #include <unordered_map>
 
@@ -17,6 +18,7 @@ namespace sg::prog {
     using std::monostate;
     using std::string;
     using std::pair;
+    using std::tuple;
     using std::ostream;
     using std::unordered_map;
 
@@ -33,7 +35,7 @@ namespace sg::prog {
     struct enum_variant;
     struct constant;
     struct type;
-    struct primitive_type;
+    struct number_type;
     struct array_type;
     struct ptr_type;
     struct inner_ptr_type;
@@ -48,7 +50,7 @@ namespace sg::prog {
     struct read_global_var_instr;
     struct write_var_instr;
     struct write_global_var_instr;
-    struct reg_copy_instr;
+    struct copy_reg_instr;
     struct return_instr;
     struct func_call_instr;
     struct func_ptr_call_instr;
@@ -58,15 +60,19 @@ namespace sg::prog {
     struct make_optional_instr;
     struct make_struct_instr;
     struct make_enum_variant_instr;
-    struct make_global_ptr_instr;
+    struct get_global_ptr_instr;
     struct ptr_conversion_instr;
     struct unary_operation_instr;
     struct binary_operation_instr;
     struct numeric_binary_operation_instr;
     struct make_inner_ptr_instr;
-    struct extract_field_instr;
     struct test_optional_instr;
-    struct primitive_conversion_instr;
+    struct test_variant_instr;
+    struct extract_item_instr;
+    struct extract_field_instr;
+    struct extract_optional_value_instr;
+    struct extract_variant_field_instr;
+    struct numeric_conversion_instr;
     struct transform_instr;
     struct branch_instr;
 
@@ -133,35 +139,29 @@ namespace sg::prog {
     struct constant {
         enum {
             UNIT,
-            BOOL,
-            INT,
-            FLOAT32,
-            FLOAT64,
+            NUMBER,
             STRUCT,
             ENUM,
             TUPLE,
             ARRAY,
             SIZED_ARRAY,
-            SOME,
-            NONE,
+            OPTIONAL,
             GLOBAL_VAR_PTR,
+            GLOBAL_VAR_SLICE,
             GLOBAL_FUNC_PTR
         };
 
         variant<
             monostate, // UNIT
-            bool, // BOOL
-            unsigned long long, // INT
-            float, // FLOAT32
-            double, // FLOAT64
-            vector<ptr<constant>>, // STRUCT
-            pair<variant_index, vector<ptr<constant>>>, // ENUM
+            pair<unsigned long long, ptr<number_type>>, // NUMBER
+            pair<global_index, vector<ptr<constant>>>, // STRUCT
+            tuple<global_index, variant_index, vector<ptr<constant>>>, // ENUM
             vector<ptr<constant>>, // TUPLE
             vector<ptr<constant>>, // ARRAY
             pair<ptr<constant>, size_t>, // SIZED_ARRAY
-            ptr<constant>, // SOME
-            monostate, // NONE
+            optional<ptr<constant>>, // OPTIONAL
             global_index, // GLOBAL_VAR_PTR
+            global_index, // GLOBAL_VAR_SLICE
             global_index // GLOBAL_FUNC_PTR
         > value;
     };
@@ -170,7 +170,7 @@ namespace sg::prog {
         enum {
             NEVER,
             UNIT,
-            PRIMITIVE,
+            NUMBER,
             STRUCT,
             ENUM,
             TUPLE,
@@ -189,7 +189,7 @@ namespace sg::prog {
         variant<
             monostate, // NEVER
             monostate, // UNIT
-            ptr<primitive_type>, // PRIMITIVE
+            ptr<number_type>, // NUMBER
             global_index, // STRUCT
             global_index, // ENUM
             vector<ptr<type>>, // TUPLE
@@ -206,7 +206,7 @@ namespace sg::prog {
         > value;
     };
 
-    struct primitive_type {
+    struct number_type {
         enum type_t {
             BOOL,
             I8,
@@ -270,7 +270,7 @@ namespace sg::prog {
             READ_GLOBAL_VAR,
             WRITE_VAR,
             WRITE_GLOBAL_VAR,
-            REG_COPY,
+            COPY_REG,
             RETURN,
             FUNC_CALL,
             FUNC_PTR_CALL,
@@ -282,15 +282,17 @@ namespace sg::prog {
             MAKE_OPTIONAL,
             MAKE_STRUCT,
             MAKE_ENUM_VARIANT,
-            MAKE_GLOBAL_FUNC_PTR,
-            MAKE_SLICE,
             MAKE_INNER_PTR,
-            MAKE_SHARED_PTR,
             MAKE_EMPTY_WEAK_PTR,
-            MAKE_FAKE_SHARED_PTR,
+            GET_GLOBAL_VAR_PTR,
+            GET_GLOBAL_FUNC_PTR,
 
-            EXTRACT_FIELD,
             TEST_OPTIONAL,
+            TEST_VARIANT,
+            EXTRACT_ITEM,
+            EXTRACT_FIELD,
+            EXTRACT_OPTIONAL_VALUE,
+            EXTRACT_VARIANT_FIELD,
             EXTRACT_INNER_PTR,
             EXTRACT_OUTER_PTR,
             EXTRACT_PTR,
@@ -300,6 +302,8 @@ namespace sg::prog {
             INT_NEG,
             FLOAT_NEG,
             BIT_NEG,
+            INCR,
+            DECR,
             ADD,
             SUB,
             MUL,
@@ -320,13 +324,22 @@ namespace sg::prog {
             FLOAT_EXT,
             TRANSFORM_ARRAY,
             TRANSFORM_OPTIONAL,
-            ADD_WEAK_REF,
-            FORGET_REF_COUNTER,
+            ARRAY_PTR_INTO_SLICE,
+            INTO_SHARED_PTR,
+            INTO_FAKE_SHARED_PTR,
+            FORGET_REF_COUNT,
+
+            DELETE,
+            INCR_REF_COUNT,
+            INCR_WEAK_REF_COUNT,
+            DECR_REF_COUNT,
+            DECR_WEAK_REF_COUNT,
 
             BRANCH,
             LOOP,
             CONTINUE_LOOP,
-            BREAK_LOOP
+            BREAK_LOOP,
+            ABORT
         };
 
         variant<
@@ -334,7 +347,7 @@ namespace sg::prog {
             ptr<read_global_var_instr>, // READ_GLOBAL_VAR
             ptr<write_var_instr>, // WRITE_VAR
             ptr<write_global_var_instr>, // WRITE_GLOBAL_VAR
-            ptr<reg_copy_instr>, // REG_COPY
+            ptr<copy_reg_instr>, // COPY_REG
             ptr<return_instr>, // RETURN
             ptr<func_call_instr>, // FUNC_CALL
             ptr<func_ptr_call_instr>, // FUNC_PTR_CALL
@@ -346,15 +359,17 @@ namespace sg::prog {
             ptr<make_optional_instr>, // MAKE_OPTIONAL
             ptr<make_struct_instr>, // MAKE_STRUCT
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
-            ptr<make_global_ptr_instr>, // MAKE_GLOBAL_FUNC_PTR
-            ptr<ptr_conversion_instr>, // MAKE_SLICE
             ptr<make_inner_ptr_instr>, // MAKE_INNER_PTR
-            ptr<ptr_conversion_instr>, // MAKE_SHARED_PTR
-            ptr<ptr_conversion_instr>, // MAKE_EMPTY_WEAK_PTR
-            ptr<ptr_conversion_instr>, // MAKE_FAKE_SHARED_PTR
+            reg_index, // MAKE_EMPTY_WEAK_PTR
+            ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
+            ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
 
-            ptr<extract_field_instr>, // EXTRACT_FIELD
             ptr<test_optional_instr>, // TEST_OPTIONAL
+            ptr<test_variant_instr>, // TEST_ENUM_VARIANT
+            ptr<extract_item_instr>, // EXTRACT_ITEM
+            ptr<extract_field_instr>, // EXTRACT_FIELD
+            ptr<extract_optional_value_instr>, // EXTRACT_OPTIONAL_VALUE
+            ptr<extract_variant_field_instr>, // EXTRACT_VARIANT_FIELD
             ptr<ptr_conversion_instr>, // EXTRACT_INNER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_PTR
@@ -364,6 +379,8 @@ namespace sg::prog {
             ptr<unary_operation_instr>, // INT_NEG
             ptr<unary_operation_instr>, // FLOAT_NEG
             ptr<unary_operation_instr>, // BIT_NEG
+            ptr<unary_operation_instr>, // INCR
+            ptr<unary_operation_instr>, // DECR
             ptr<numeric_binary_operation_instr>, // ADD
             ptr<numeric_binary_operation_instr>, // SUB
             ptr<numeric_binary_operation_instr>, // MUL
@@ -379,18 +396,27 @@ namespace sg::prog {
             ptr<numeric_binary_operation_instr>, // GT
             ptr<numeric_binary_operation_instr>, // GTEQ
 
-            ptr<primitive_conversion_instr>, // ZERO_EXT
-            ptr<primitive_conversion_instr>, // SIGNED_EXT
-            ptr<primitive_conversion_instr>, // FLOAT_EXT
+            ptr<numeric_conversion_instr>, // ZERO_EXT
+            ptr<numeric_conversion_instr>, // SIGNED_EXT
+            ptr<numeric_conversion_instr>, // FLOAT_EXT
             ptr<transform_instr>, // TRANSFORM_ARRAY
             ptr<transform_instr>, // TRANSFORM_OPTIONAL
-            ptr<ptr_conversion_instr>, // ADD_WEAK_REF
-            ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
+            ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
+            ptr<ptr_conversion_instr>, // INTO_SHARED_PTR
+            ptr<ptr_conversion_instr>, // INTO_FAKE_SHARED_PTR
+            ptr<ptr_conversion_instr>, // FORGET_REF_COUNT
+
+            reg_index, // DELETE
+            reg_index, // INCR_REF_COUNT
+            reg_index, // INCR_WEAK_REF_COUNT
+            reg_index, // DECR_REF_COUNT
+            reg_index, // DECR_WEAK_REF_COUNT
 
             ptr<branch_instr>, // BRANCH
             ptr<instr_block>, // LOOP
             monostate, // CONTINUE_LOOP
-            monostate // BREAK_LOOP
+            monostate, // BREAK_LOOP
+            monostate // ABORT
         > value;
     };
 
@@ -414,8 +440,8 @@ namespace sg::prog {
         reg_index value;
     };
 
-    struct reg_copy_instr {
-        reg_index source;
+    struct copy_reg_instr {
+        reg_index value;
         reg_index result;
     };
 
@@ -430,7 +456,7 @@ namespace sg::prog {
     };
 
     struct func_ptr_call_instr {
-        reg_index ptr;
+        reg_index func_ptr;
         vector<reg_index> args;
         reg_index result;
     };
@@ -468,8 +494,8 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct make_global_ptr_instr {
-        global_index var;
+    struct get_global_ptr_instr {
+        global_index index;
         reg_index result;
     };
 
@@ -503,36 +529,64 @@ namespace sg::prog {
         reg_index result;
     };
 
+    struct test_optional_instr {
+        reg_index value;
+        reg_index result;
+    };
+
+    struct test_variant_instr {
+        reg_index value;
+        variant_index variant;
+        reg_index result;
+    };
+
+    struct extract_item_instr {
+        reg_index value;
+        size_t item;
+        reg_index result;
+    };
+
     struct extract_field_instr {
         reg_index value;
         field_index field;
         reg_index result;
     };
 
-    struct test_optional_instr {
+    struct extract_optional_value_instr {
         reg_index value;
         reg_index result;
     };
 
-    struct primitive_conversion_instr {
+    struct extract_variant_field_instr {
         reg_index value;
-        ptr<primitive_type> tp;
+        variant_index variant;
+        field_index field;
+        reg_index result;
+    };
+
+    struct numeric_conversion_instr {
+        reg_index value;
+        ptr<number_type> new_type;
         reg_index result;
     };
 
     struct transform_instr {
         reg_index value;
         reg_index extracted;
-        ptr<instr_block> instrs;
-        reg_index inner_result;
+        ptr<instr_block> block;
+        reg_index transformed;
         reg_index result;
     };
 
     struct branch_instr {
         reg_index cond;
-        ptr<instr_block> true_instrs;
-        ptr<instr_block> false_instrs;
+        ptr<instr_block> true_block;
+        ptr<instr_block> false_block;
     };
+
+    extern const type_local NEVER_TYPE;
+    extern const type_local UNIT_TYPE;
+    extern const type_local BOOL_TYPE;
 
     constant copy_const(const constant& con);
     type copy_type(const type& tp);

@@ -40,7 +40,7 @@ int main(int argc, const char** argv) {
             sg::code_generator codegen(prog, diags, "test_module");
 
             if (codegen.generate())
-                codegen.write(std::cout);
+                std::cout << codegen.get_code();
             else
                 ok = false;
         } else
@@ -48,9 +48,7 @@ int main(int argc, const char** argv) {
     } else
         ok = false;
 
-    file.clear();
-    file.seekg(0);
-    diags.report_all(cerr, true, file);
+    diags.report_all(cerr, true, { { file_name, file } });
 
     return ok ? 0 : 1;
 }

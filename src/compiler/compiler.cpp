@@ -3,154 +3,152 @@
 #include "program.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
-#include <queue>
 
 namespace sg {
     using namespace sg::utils;
 
-    using std::queue;
-
     bool compiler::compile(const ast::program& ast) {
         prog = { };
         auto ok = true;
+        auto global_def_asts = as_cref_vector(ast.global_defs);
 
         // Phase 1: Prepare struct and enum declarations
 
-        queue<optional<prog::global_index>> struct_type_indices;
-        queue<optional<prog::global_index>> enum_type_indices;
+        queue<optional<prog::global_index>> struct_indices;
+        queue<optional<prog::global_index>> enum_indices;
 
-        for (auto& global_def : ast.global_defs) {
+        for (const ast::global_def& def_ast : global_def_asts) {
             try {
-                switch (INDEX(*global_def)) {
+                switch (INDEX(def_ast)) {
                     case ast::global_def::STRUCT_DEF: {
-                        struct_type_indices.push({ });
-                        auto& struct_type_ast = *GET(*global_def, STRUCT_DEF);
-                        auto struct_type = declare_struct_type(struct_type_ast);
-                        auto name = struct_type.name;
+                        struct_indices.push({ });
+                        auto& struct_ast = *GET(def_ast, STRUCT_DEF);
+                        auto st = declare_struct_type(struct_ast);
+                        auto name = st.name;
                         auto index = prog.struct_types.size();
-                        prog.struct_types.push_back(into_ptr(struct_type));
+                        prog.struct_types.push_back(into_ptr(st));
                         global_names[name] = { global_name_kind::STRUCT, index, false };
-                        struct_type_indices.back() = { index };
+                        struct_indices.back() = { index };
                     } break;
 
                     case ast::global_def::ENUM_DEF: {
-                        enum_type_indices.push({ });
-                        auto& enum_type_ast = *GET(*global_def, ENUM_DEF);
-                        auto enum_type = declare_enum_type(enum_type_ast);
-                        auto name = enum_type.name;
+                        enum_indices.push({ });
+                        auto& enum_ast = *GET(def_ast, ENUM_DEF);
+                        auto en = declare_enum_type(enum_ast);
+                        auto name = en.name;
                         auto index = prog.enum_types.size();
-                        prog.enum_types.push_back(into_ptr(enum_type));
+                        prog.enum_types.push_back(into_ptr(en));
                         global_names[name] = { global_name_kind::ENUM, index, false };
-                        enum_type_indices.back() = { index };
+                        enum_indices.back() = { index };
                     } break;
 
                     default:
                         break;
                 }
-            } catch (compiler_error) {
+            } catch (compilation_error) {
                 ok = false;
             }
         }
 
         // Phase 2: Compile struct and enum definitions. Compile constants. Prepare global function declarations
 
-        queue<optional<prog::global_index>> global_func_indices;
+        queue<optional<prog::global_index>> func_indices;
 
-        for (auto& global_def : ast.global_defs) {
+        for (const ast::global_def& def_ast : global_def_asts) {
             try {
-                switch (INDEX(*global_def)) {
+                switch (INDEX(def_ast)) {
                     case ast::global_def::STRUCT_DEF: {
-                        auto& struct_type_ast = *GET(*global_def, STRUCT_DEF);
-                        auto index = struct_type_indices.front();
+                        auto& struct_ast = *GET(def_ast, STRUCT_DEF);
+                        auto index = struct_indices.front();
                         if (!index)
                             break;
-                        struct_type_indices.pop();
-                        auto& struct_type = *prog.struct_types[*index];
-                        compile_struct_type(struct_type_ast, struct_type);
-                        global_names[struct_type.name].compiled = true;
+                        struct_indices.pop();
+                        auto& st = *prog.struct_types[*index];
+                        compile_struct_type(struct_ast, st);
+                        global_names[st.name].compiled = true;
                     } break;
 
                     case ast::global_def::ENUM_DEF: {
-                        auto& enum_type_ast = *GET(*global_def, ENUM_DEF);
-                        auto index = enum_type_indices.front();
+                        auto& enum_ast = *GET(def_ast, ENUM_DEF);
+                        auto index = enum_indices.front();
                         if (!index)
                             break;
-                        enum_type_indices.pop();
-                        auto& enum_type = *prog.enum_types[*index];
-                        compile_enum_type(enum_type_ast, enum_type);
-                        global_names[enum_type.name].compiled = true;
+                        enum_indices.pop();
+                        auto& en = *prog.enum_types[*index];
+                        compile_enum_type(enum_ast, en);
+                        global_names[en.name].compiled = true;
                     } break;
 
                     case ast::global_def::CONST_DEF: {
-                        auto& global_const_ast = *GET(*global_def, CONST_DEF);
-                        auto global_const = compile_global_var(global_const_ast);
-                        auto name = *global_const.name;
+                        auto& var_ast = *GET(def_ast, CONST_DEF);
+                        auto var = compile_global_var(var_ast);
+                        auto name = *var.name;
                         auto index = consts.size();
-                        consts.push_back(move(global_const));
+                        consts.push_back(move(var));
                         global_names[name] = { global_name_kind::CONST, index, true };
                     } break;
 
                     case ast::global_def::FUNC_DEF: {
-                        global_func_indices.push({ });
-                        auto& global_func_ast = *GET(*global_def, FUNC_DEF);
-                        auto global_func = declare_global_func(global_func_ast);
-                        auto name = global_func.name;
+                        func_indices.push({ });
+                        auto& func_ast = *GET(def_ast, FUNC_DEF);
+                        auto func = declare_global_func(func_ast);
+                        auto name = func.name;
                         auto index = prog.global_funcs.size();
-                        prog.global_funcs.push_back(into_ptr(global_func));
+                        prog.global_funcs.push_back(into_ptr(func));
                         global_names[name] = { global_name_kind::FUNC, index, false };
-                        global_func_indices.back() = { index };
+                        func_indices.back() = { index };
                     } break;
 
                     default:
                         break;
                 }
-            } catch (compiler_error) {
+            } catch (compilation_error) {
                 ok = false;
             }
         }
 
         // Phase 3: Compile global variable definitions
 
-        for (auto& global_def : ast.global_defs) {
+        for (const ast::global_def& def_ast : global_def_asts) {
             try {
-                switch (INDEX(*global_def)) {
+                switch (INDEX(def_ast)) {
                     case ast::global_def::VAR_DEF: {
-                        auto& global_var_ast = *GET(*global_def, VAR_DEF);
-                        auto global_var = compile_global_var(global_var_ast);
-                        auto name = *global_var.name;
+                        auto& var_ast = *GET(def_ast, VAR_DEF);
+                        auto var = compile_global_var(var_ast);
+                        auto name = *var.name;
                         auto index = prog.global_vars.size();
-                        prog.global_vars.push_back(into_ptr(global_var));
+                        prog.global_vars.push_back(into_ptr(var));
                         global_names[name] = { global_name_kind::VAR, index, true };
                     } break;
 
                     default:
                         break;
                 }
-            } catch (compiler_error) {
+            } catch (compilation_error) {
                 ok = false;
             }
         }
 
         // Phase 4: Compile global function definitions
 
-        for (auto& global_def : ast.global_defs) {
+        for (const ast::global_def& def_ast : global_def_asts) {
             try {
-                switch (INDEX(*global_def)) {
+                switch (INDEX(def_ast)) {
                     case ast::global_def::FUNC_DEF: {
-                        auto& global_func_ast = *GET(*global_def, FUNC_DEF);
-                        auto index = global_func_indices.front();
+                        auto& func_ast = *GET(def_ast, FUNC_DEF);
+                        auto index = func_indices.front();
                         if (!index)
                             break;
-                        global_func_indices.pop();
-                        auto& global_func = *prog.global_funcs[*index];
-                        compile_global_func(global_func_ast, global_func);
-                        global_names[global_func.name].compiled = true;
+                        func_indices.pop();
+                        auto& func = *prog.global_funcs[*index];
+                        compile_global_func(func_ast, func);
+                        global_names[func.name].compiled = true;
                     } break;
 
                     default:
                         break;
                 }
-            } catch (compiler_error) {
+            } catch (compilation_error) {
                 ok = false;
             }
         }
@@ -158,87 +156,85 @@ namespace sg {
         return ok;
     }
 
-    compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, bool allow_uncompiled_types) {
-        if (!global_names.count(name))
-            error(diags::name_not_declared(name), ast);
-
-        auto& global_name = global_names[name];
-
-        auto type = global_name.kind == global_name_kind::STRUCT || global_name.kind == global_name_kind::ENUM;
-
-        if (type && !allow_uncompiled_types && !global_name.compiled)
-            error(diags::name_not_compiled(name), ast);
-
-        return global_name;
+    const compiler::global_name& compiler::get_global_name(string name, location loc) {
+        auto iter = global_names.find(name);
+        if (iter == global_names.end())
+            error(diags::global_name_not_found(name), loc);
+        return iter->second;
     }
 
-    compiler::global_name& compiler::get_global_name(const ast::node& ast, const string& name, global_name_kind expected_kind, bool allow_uncompiled_types) {
-        auto& global_name = get_global_name(ast, name, allow_uncompiled_types);
-
-        if (global_name.kind != expected_kind)
-            error(diags::invalid_kind(name, global_name.kind, { expected_kind }), ast);
-
-        return global_name;
+    const compiler::global_name& compiler::get_global_name(string name, vector<global_name_kind> expected_kinds, location loc) {
+        auto& gname = get_global_name(name, loc);
+        if (find(expected_kinds.begin(), expected_kinds.end(), gname.kind) == expected_kinds.end())
+            error(diags::invalid_kind(name, gname.kind, expected_kinds), loc);
+        return gname;
     }
 
-    vector<ref<const ast::expr>> compiler::order_args(
-            const ast::node& ast,
-            const args_ast_vector& args_ast,
-            optional<arg_with_name_function> arg_with_name,
-            optional<size_t> expected_count) {
-        auto size = args_ast.size();
+    const compiler::global_name& compiler::get_global_type(string name, bool allow_uncompiled, location loc) {
+        auto& gname = get_global_name(name, { global_name_kind::STRUCT, global_name_kind::ENUM }, loc);
+        if (!gname.compiled && !allow_uncompiled)
+            error(diags::type_not_compiled(name), loc);
+        return gname;
+    }
 
-        if (expected_count && size != *expected_count)
-            error(diags::invalid_argument_count(size, *expected_count), ast);
+    vector<cref<ast::expr>> compiler::order_args(
+            vector<cref<ast::expr_marked>> asts,
+            optional<function<size_t(string, location)>> arg_with_name,
+            optional<size_t> expected_count,
+            location loc) {
+        auto count = asts.size();
 
-        vector<bool> used(size, false);
-        vector<size_t> indices(size);
-        vector<const ast::expr*> value_ptrs(size);
+        if (expected_count && count != *expected_count)
+            error(diags::invalid_argument_count(count, *expected_count), loc);
 
-        for (auto& arg_ast : args_ast) {
+        vector<bool> used(count, false);
+        vector<const ast::expr*> value_ast_ptrs(count);
+
+        for (const ast::expr_marked& arg_ast : asts) {
             size_t index = 0;
-            const ast::expr* value_ast;
+            const ast::expr* value_ast_ptr;
 
-            switch (INDEX(*arg_ast)) {
+            switch (INDEX(arg_ast)) {
                 case ast::expr_marked::EXPR: {
-                    while (index < size && used[index])
+                    while (index < count && used[index])
                         index++;
-                    value_ast = GET(*arg_ast, EXPR).get();
+                    value_ast_ptr = GET(arg_ast, EXPR).get();
                 } break;
 
                 case ast::expr_marked::EXPR_WITH_NAME: {
-                    auto name = GET(*arg_ast, EXPR_WITH_NAME).first;
+                    auto name = GET(arg_ast, EXPR_WITH_NAME).first;
                     if (arg_with_name)
-                        index = (*arg_with_name)(*arg_ast, name);
+                        index = (*arg_with_name)(name, arg_ast.loc);
                     else
-                        error(diags::invalid_argument_marker(), *arg_ast);
+                        error(diags::invalid_argument_marker(), arg_ast.loc);
+                    value_ast_ptr = GET(arg_ast, EXPR_WITH_NAME).second.get();
                 } break;
 
-                case ast::expr_marked::EXPR_WITH_COORD: {
-                    index = GET(*arg_ast, EXPR_WITH_COORD).first;
-                    value_ast = GET(*arg_ast, EXPR_WITH_COORD).second.get();
+                case ast::expr_marked::EXPR_WITH_INDEX: {
+                    index = GET(arg_ast, EXPR_WITH_INDEX).first;
+                    value_ast_ptr = GET(arg_ast, EXPR_WITH_INDEX).second.get();
                 } break;
             }
 
-            if (index >= size)
-                error(diags::invalid_argument_index(index, size), *arg_ast);
+            if (index >= count)
+                error(diags::invalid_argument_index(index, count), arg_ast.loc);
             if (used[index])
-                error(diags::reused_argument_index(index), *arg_ast);
+                error(diags::reused_argument_index(index), arg_ast.loc);
 
-            value_ptrs[index] = value_ast;
+            value_ast_ptrs[index] = value_ast_ptr;
             used[index] = true;
         }
 
-        for (size_t index = 0; index < size; index++) {
+        for (size_t index = 0; index < count; index++) {
             if (!used[index])
-                error(diags::missing_argument(index), ast);
+                error(diags::missing_argument(index), loc);
         }
 
-        vector<ref<const ast::expr>> values;
+        vector<cref<ast::expr>> value_asts;
 
-        for (auto ptr : value_ptrs)
-            values.push_back(*ptr);
+        for (auto value_ast_ptr : value_ast_ptrs)
+            value_asts.push_back(*value_ast_ptr);
 
-        return values;
+        return value_asts;
     }
 }

@@ -9,27 +9,31 @@ namespace sg {
 
     static bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined);
 
-    prog::reg_index conversion_compiler::convert(const ast::node& ast, prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined) {
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined, location loc) {
         auto result = try_convert(value, type, new_type, confined);
 
         if (!result)
-            clr.error(diags::not_convertible(clr.prog, copy_type(type), copy_type(new_type)), ast);
+            clr.error(diags::not_convertible(clr.prog, copy_type(type), copy_type(new_type)), loc);
 
         return *result;
     }
 
-    prog::reg_index conversion_compiler::convert(const ast::node& ast, prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type) {
-        if (type.confined != new_type.confined && !clr.type_trivially_copyable(*type.tp))
-            clr.error(diags::confinement_mismatch(type.confined), ast);
-
-        return convert(ast, value, *type.tp, *new_type.tp, new_type.confined);
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc) {
+        return convert(value, type, new_type, false, loc);
     }
 
-    prog::reg_index conversion_compiler::convert(const ast::node& ast, prog::reg_index value, const prog::type_local& type, const prog::type& new_type) {
-        if (type.confined && !clr.type_trivially_copyable(*type.tp))
-            clr.error(diags::confinement_mismatch(type.confined), ast);
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc) {
+        if (type.confined != new_type.confined && !clr.type_trivially_copyable(*type.tp))
+            clr.error(diags::confinement_mismatch(type.confined), loc);
 
-        return convert(ast, value, *type.tp, new_type, false);
+        return convert(value, *type.tp, *new_type.tp, new_type.confined, loc);
+    }
+
+    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc) {
+        if (type.confined && !clr.type_trivially_copyable(*type.tp))
+            clr.error(diags::confinement_mismatch(type.confined), loc);
+
+        return convert(value, *type.tp, new_type, false, loc);
     }
 
     optional<prog::reg_index> conversion_compiler::try_convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined) {
@@ -40,26 +44,26 @@ namespace sg {
             case prog::type::NEVER:
                 return { value };
 
-            case prog::type::PRIMITIVE: {
-                if (!INDEX_EQ(new_type, PRIMITIVE))
+            case prog::type::NUMBER: {
+                if (!INDEX_EQ(new_type, NUMBER))
                     break;
 
-                auto& ptype = *GET(type, PRIMITIVE);
-                auto& new_ptype = *GET(new_type, PRIMITIVE);
+                auto& ntype = *GET(type, NUMBER);
+                auto& new_ntype = *GET(new_type, NUMBER);
 
-                switch (ptype.tp) {
-                    case prog::primitive_type::BOOL: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::I8:
-                            case prog::primitive_type::I16:
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64:
-                            case prog::primitive_type::U8:
-                            case prog::primitive_type::U16:
-                            case prog::primitive_type::U32:
-                            case prog::primitive_type::U64: {
+                switch (ntype.tp) {
+                    case prog::number_type::BOOL: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::I8:
+                            case prog::number_type::I16:
+                            case prog::number_type::I32:
+                            case prog::number_type::I64:
+                            case prog::number_type::U8:
+                            case prog::number_type::U16:
+                            case prog::number_type::U32:
+                            case prog::number_type::U64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -69,13 +73,13 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::I8: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::I16:
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::I8: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::I16:
+                            case prog::number_type::I32:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -85,12 +89,12 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::I16: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::I16: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::I32:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -100,11 +104,11 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::I32: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::I32: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -114,16 +118,16 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::U8: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::U16:
-                            case prog::primitive_type::U32:
-                            case prog::primitive_type::U64:
-                            case prog::primitive_type::I16:
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::U8: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::U16:
+                            case prog::number_type::U32:
+                            case prog::number_type::U64:
+                            case prog::number_type::I16:
+                            case prog::number_type::I32:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -133,14 +137,14 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::U16: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::U32:
-                            case prog::primitive_type::U64:
-                            case prog::primitive_type::I32:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::U16: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::U32:
+                            case prog::number_type::U64:
+                            case prog::number_type::I32:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -150,12 +154,12 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::U32: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::U64:
-                            case prog::primitive_type::I64: {
+                    case prog::number_type::U32: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::U64:
+                            case prog::number_type::I64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -165,11 +169,11 @@ namespace sg {
                         }
                     } break;
 
-                    case prog::primitive_type::F32: {
-                        switch (new_ptype.tp) {
-                            case prog::primitive_type::F64: {
+                    case prog::number_type::F32: {
+                        switch (new_ntype.tp) {
+                            case prog::number_type::F64: {
                                 auto result = new_reg();
-                                auto instr = prog::primitive_conversion_instr { value, into_ptr(new_ptype), result };
+                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
                                 add_instr(VARIANT(prog::instr, FLOAT_EXT, into_ptr(instr)));
                                 return { result };
                             }
@@ -188,8 +192,8 @@ namespace sg {
                 if (!INDEX_EQ(new_type, TUPLE))
                     break;
 
-                auto& tuple = GET(type, TUPLE);
-                auto& new_tuple = GET(new_type, TUPLE);
+                auto tuple = as_cref_vector(GET(type, TUPLE));
+                auto new_tuple = as_cref_vector(GET(new_type, TUPLE));
                 auto size = tuple.size();
 
                 if (size != new_tuple.size())
@@ -203,7 +207,7 @@ namespace sg {
                     auto instr = prog::extract_field_instr { value, index, extracted };
                     add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
 
-                    auto result = try_convert(extracted, *tuple[index], *new_tuple[index], confined);
+                    auto result = try_convert(extracted, tuple[index], new_tuple[index], confined);
 
                     if (result)
                         values.push_back(*result);
@@ -401,8 +405,8 @@ namespace sg {
                         break;
 
                     auto result = new_reg();
-                    auto instr = prog::make_global_ptr_instr { index, result };
-                    add_instr(VARIANT(prog::instr, MAKE_GLOBAL_FUNC_PTR, into_ptr(instr)));
+                    auto instr = prog::get_global_ptr_instr { index, result };
+                    add_instr(VARIANT(prog::instr, GET_GLOBAL_FUNC_PTR, into_ptr(instr)));
                     return { result };
                 }
 
@@ -436,7 +440,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -458,7 +462,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -476,14 +480,9 @@ namespace sg {
             case prog::ptr_type::SHARED: {
                 switch (new_kind) {
                     case prog::ptr_type::WEAK: {
-                        if (confined)
-                            return { value };
-                        else {
-                            auto result = new_reg();
-                            auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, ADD_WEAK_REF, into_ptr(instr)));
-                            return { result };
-                        }
+                        if (!confined)
+                            add_instr(VARIANT(prog::instr, INCR_WEAK_REF_COUNT, value));
+                        return { value };
                     } break;
 
                     case prog::ptr_type::BASIC:
@@ -491,7 +490,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, FORGET_REF_COUNTER, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, FORGET_REF_COUNT, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -507,12 +506,12 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         } else {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -521,13 +520,12 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
                         } else {
                             auto result = new_reg();
-                            auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, MAKE_EMPTY_WEAK_PTR, into_ptr(instr)));
-                            // TODO this should cause a warning
+                            add_instr(VARIANT(prog::instr, DELETE, value));
+                            add_instr(VARIANT(prog::instr, MAKE_EMPTY_WEAK_PTR, result));
                             return { result };
                         }
                     } break;
@@ -559,7 +557,7 @@ namespace sg {
             if (prog::types_equal(*array.tp, *new_type.tp) || INDEX_EQ(*array.tp, NEVER)) {
                 auto result = new_reg();
                 auto instr = prog::ptr_conversion_instr { value, result };
-                add_instr(VARIANT(prog::instr, MAKE_SLICE, into_ptr(instr)));
+                add_instr(VARIANT(prog::instr, ARRAY_PTR_INTO_SLICE, into_ptr(instr)));
                 return { result };
             }
         }

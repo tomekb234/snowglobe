@@ -2,24 +2,38 @@
 #define UTILS_HPP
 
 #include <utility>
-#include <memory>
 #include <optional>
-#include <vector>
 #include <variant>
+#include <tuple>
+#include <vector>
+#include <queue>
+#include <algorithm>
+#include <memory>
 #include <functional>
+#include <limits>
 #include <type_traits>
 
 namespace sg::utils {
     using std::move;
-    using std::unique_ptr;
-    using std::make_unique;
     using std::optional;
     using std::make_optional;
-    using std::vector;
+    using std::get;
+    using std::monostate;
     using std::in_place_index;
     using std::make_pair;
-    using std::get;
+    using std::make_tuple;
+    using std::tie;
+    using std::vector;
+    using std::queue;
+    using std::find;
+    using std::unique_ptr;
+    using std::make_unique;
+    using std::reference_wrapper;
+    using std::function;
+    using std::numeric_limits;
     using std::remove_reference;
+    using std::is_signed;
+    using std::is_unsigned;
 
     #define UNREACHABLE { throw 0; }
 
@@ -32,6 +46,11 @@ namespace sg::utils {
     template<typename T>
     unique_ptr<T> make_ptr(T&& value) {
         return make_unique<T>(move(value));
+    }
+
+    template<typename T>
+    unique_ptr<T> copy_make_ptr(T value) {
+        return make_unique<T>(value);
     }
 
     template<typename T>
@@ -65,6 +84,19 @@ namespace sg::utils {
         vector<unique_ptr<T>> result;
         for (auto& ptr : vec)
             result.push_back(make_unique<T>(inner_copy_func(*ptr)));
+        return result;
+    }
+
+    template<typename T>
+    optional<reference_wrapper<const T>> as_optional_cref(const optional<unique_ptr<T>>& value) {
+        return value ? make_optional(reference_wrapper(**value)) : optional<reference_wrapper<const T>>();
+    }
+
+    template<typename T>
+    vector<reference_wrapper<const T>> as_cref_vector(const vector<unique_ptr<T>>& vec) {
+        vector<reference_wrapper<const T>> result;
+        for (auto& ptr : vec)
+            result.push_back(*ptr);
         return result;
     }
 }

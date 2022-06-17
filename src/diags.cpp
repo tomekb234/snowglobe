@@ -1,4 +1,5 @@
 #include "diags.hpp"
+#include "program.hpp"
 #include <ostream>
 
 namespace sg::diags {
@@ -33,19 +34,19 @@ namespace sg::diags {
         if (unexpected)
             stream << "Unexpected token: " << *unexpected << endl;
         if (!expected.empty()) {
-            stream << "Expected tokens:";
+            stream << "Example expected tokens:";
             for (auto exp : expected)
                 stream << " " << exp;
             stream << endl;
         }
     }
 
-    void name_not_declared::write(ostream& stream) const {
-        stream << "The name '" << name << "' was not declared" << endl;
+    void global_name_not_found::write(ostream& stream) const {
+        stream << "Global name '" << name << "' not found" << endl;
     }
 
-    void name_not_compiled::write(ostream& stream) const {
-        stream << "The name '" << name << "' was declared but is not yet compiled" << endl;
+    void type_not_compiled::write(ostream& stream) const {
+        stream << "The type '" << name << "' cannot be used before its definition unless inside a pointer type" << endl;
     }
 
     void global_name_used::write(ostream& stream) const {
@@ -73,15 +74,26 @@ namespace sg::diags {
 
         stream << endl;
 
-        if (expected_kind) {
+        if (!expected_kinds.empty()) {
             stream << "Expected ";
 
-            switch (*expected_kind) {
-                case global_name_kind::VAR: stream << "a variable"; break;
-                case global_name_kind::CONST: stream << "a constant"; break;
-                case global_name_kind::FUNC: stream << "a function"; break;
-                case global_name_kind::STRUCT: stream << "a struct"; break;
-                case global_name_kind::ENUM: stream << "an enum"; break;
+            auto count = expected_kinds.size();
+
+            for (size_t index = 0; index < count; index++) {
+                auto expected_kind = expected_kinds[index];
+
+                switch (expected_kind) {
+                    case global_name_kind::VAR: stream << "a variable"; break;
+                    case global_name_kind::CONST: stream << "a constant"; break;
+                    case global_name_kind::FUNC: stream << "a function"; break;
+                    case global_name_kind::STRUCT: stream << "a struct"; break;
+                    case global_name_kind::ENUM: stream << "an enum"; break;
+                }
+
+                if (index < count - 2)
+                    stream << ", ";
+                else if (index == count - 2)
+                    stream << " or ";
             }
 
             stream << endl;
@@ -121,20 +133,24 @@ namespace sg::diags {
         stream << "Missing argument with index " << index << endl;
     }
 
-    void invalid_struct_field::write(ostream& stream) const {
+    void unknown_struct_field::write(ostream& stream) const {
         stream << "The struct '" << st.name << "' does not have a field named '" << name << "'" << endl;
     }
 
-    void invalid_enum_variant::write(ostream& stream) const {
+    void unknown_enum_variant::write(ostream& stream) const {
         stream << "The enum '" << en.name << "' does not have a variant named '" << name << "'" << endl;
     }
 
-    void invalid_function_parameter::write(ostream& stream) const {
+    void unknown_function_parameter::write(ostream& stream) const {
         stream << "The function '" << func.name << "' has no parameter named '" << name << "'" << endl;
     }
 
-    void expected_variant_name::write(ostream& stream) const {
-        stream << "Expected variant name" << endl;
+    void expected_enum_name::write(ostream& stream) const {
+        stream << "Expected enum name" << endl;
+    };
+
+    void expected_enum_variant::write(ostream& stream) const {
+        stream << "Expected enum variant" << endl;
     };
 
     void int_overflow::write(ostream& stream) const {
@@ -227,32 +243,65 @@ namespace sg::diags {
         stream << "' is not copyable" << endl;
     }
 
-    void expected_array_type::write(ostream& stream) const {
-        stream << "Expression with invalid type '";
+    void invalid_type::write(ostream& stream) const {
+        stream << "Expected type '";
+        prog::print_type(stream, prog, expected);
+        stream << "' instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
-        stream << "Expected an array type";
+    }
+
+    void expected_integer_type::write(ostream& stream) const {
+        stream << "Expected an integer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_tuple_type::write(ostream& stream) const {
+        stream << "Expected a tuple type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_array_type::write(ostream& stream) const {
+        stream << "Expected an array type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_enum_type::write(ostream& stream) const {
+        stream << "Expected an enum type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void invalid_tuple_size::write(ostream& stream) const {
+        stream << "Expected tuple type with size " << expected << " instead of " << size << endl;
+    }
+
+    void invalid_array_size::write(ostream& stream) const {
+        stream << "Expected array type with size " << expected << " instead of " << size << endl;
     }
 
     void invalid_size_constant_type::write(ostream& stream) const {
-        stream << "Size constant without unsigned integer type" << endl;
+        stream << "A size constant must have an unsigned integer type" << endl;
     }
 
     void restrictive_pointer_type::write(ostream& stream) const {
-        stream << "Restrictive pointer type" << endl;
+        stream << "Restrictive pointer type for confined value" << endl;
         stream << "Use '&' instead" << endl;
     }
 
     void global_function_copyable::write(ostream& stream) const {
-        stream << "Global function marked as copyable" << endl;
+        stream << "A global function cannot be marked as copyable" << endl;
     }
 
     void variable_without_type::write(ostream& stream) const {
-        stream << "Variable declared without type" << endl;
+        stream << "Type annotation required" << endl;
     }
 
     void variable_not_usable::write(ostream& stream) const {
-        stream << "Variable '" << name << "' is ";
+        stream << "The variable '" << name << "' was ";
         if (initialized)
             stream << "potentially ";
         if (uninitialized)
@@ -264,12 +313,39 @@ namespace sg::diags {
         stream << endl;
     }
 
+    void variable_not_deletable::write(ostream& stream) const {
+        if (name)
+            stream << "The value of variable '" << *name << "' ";
+        else
+            stream << "The value of an internal variable ";
+        stream << "cannot be deleted because it is either initialized";
+        if (uninitialized && moved_out)
+            stream << ", uninitialized or moved out";
+        else if (uninitialized)
+            stream << " or uninitialized ";
+        else if (moved_out)
+            stream << " or moved out";
+        stream << endl;
+    }
+
     void variable_moved_inside_loop::write(ostream& stream) const {
-        stream << "Variable '" << name << "' moved out multiple times inside a loop" << endl;
+        stream << "Cannot move out the variable '" << name << "' inside a loop" << endl;
     }
 
     void global_variable_moved::write(ostream& stream) const {
-        stream << "Cannot move out global variable '" << name << "'" << endl;
+        stream << "Cannot move out the global variable '" << name << "'" << endl;
+    }
+
+    void invalid_variable_name::write(ostream& stream) const {
+        stream << "The name '" << name << "' cannot be used as a variable" << endl;
+    }
+
+    void break_outside_loop::write(ostream& stream) const {
+        stream << "Cannot use break statement outside a loop" << endl;
+    }
+
+    void continue_outside_loop::write(ostream& stream) const {
+        stream << "Cannot use continue statement outside a loop" << endl;
     }
 
     void missing_return::write(ostream& stream) const {

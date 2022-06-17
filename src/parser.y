@@ -294,7 +294,8 @@ const_int:
 
 func_def:
     "func" optional_copying NAME "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
-        $$ = { { @$ }, move($NAME), $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body), @NAME, @end };
+        $func_body.block->end_loc = @end;
+        $$ = { { @$ }, move($NAME), $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body), @NAME };
     }
 
 optional_copying:
@@ -391,8 +392,8 @@ enum_variant:
         $$ = { { @$ }, move($NAME), { } };
     }
 
-    | NAME "(" type_seq ")" {
-        $$ = { { @$ }, move($NAME), into_ptr_vector($type_seq) };
+    | NAME "(" type_seq_nempty ")" {
+        $$ = { { @$ }, move($NAME), into_ptr_vector($type_seq_nempty) };
     }
 
 enum_variant_seq:
@@ -505,7 +506,8 @@ stmt_seq:
     }
 
 locally_stmt:
-    "locally" name_seq_nempty "{" stmt_seq "}" {
+    "locally" name_seq_nempty "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, move($name_seq_nempty), into_ptr($stmt_seq) };
     }
 
@@ -525,7 +527,8 @@ swap_stmt:
     }
 
 swap_block_stmt:
-    "swap" expr "with" expr_or_name_locally "{" stmt_seq "}" {
+    "swap" expr "with" expr_or_name_locally "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, into_ptr($expr), into_ptr($expr_or_name_locally), into_ptr($stmt_seq) };
     }
 
@@ -539,7 +542,8 @@ expr_or_name_locally:
     }
 
 if_stmt:
-    "if" condition "{" stmt_seq "}" elif_seq[branches] optional_else {
+    "if" condition "{" stmt_seq "}"[end] elif_seq[branches] optional_else {
+        $stmt_seq.end_loc = @end;
         $branches.insert($branches.begin(), { { @condition }, into_ptr($condition), into_ptr($stmt_seq) });
         $$ = { { @$ }, into_ptr_vector($branches), into_optional_ptr($optional_else) };
     }
@@ -554,7 +558,8 @@ condition:
     }
 
 elif:
-    "elif" condition "{" stmt_seq "}" {
+    "elif" condition "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, into_ptr($condition), into_ptr($stmt_seq) };
     }
 
@@ -569,7 +574,8 @@ elif_seq:
 optional_else:
     %empty { }
 
-    | "else" "{" stmt_seq "}" {
+    | "else" "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { move($stmt_seq) };
     }
 
@@ -579,7 +585,8 @@ match_stmt:
     }
 
 with:
-    "with" expr "{" stmt_seq "}" {
+    "with" expr "{" stmt_seq "}"[end] {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, into_ptr($expr), into_ptr($stmt_seq) };
     }
 
@@ -594,7 +601,8 @@ with_seq_nempty:
     }
 
 while_stmt:
-    "while" condition "{" stmt_seq "}" optional_else {
+    "while" condition "{" stmt_seq "}"[end] optional_else {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, into_ptr($condition), into_ptr($stmt_seq), into_optional_ptr($optional_else) };
     }
 
@@ -640,7 +648,8 @@ for_slice_stmt:
     }
 
 for_stmt_tail:
-    optional_reversed "{" stmt_seq "}" optional_else {
+    optional_reversed "{" stmt_seq "}"[end] optional_else {
+        $stmt_seq.end_loc = @end;
         $$ = { { @$ }, { }, $optional_reversed, into_ptr($stmt_seq), into_optional_ptr($optional_else) };
     }
 
@@ -873,15 +882,15 @@ expr:
     }
 
     | expr[inner] "." NAME {
-        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, FIELD, @$, make_pair(into_ptr($inner), move($NAME)))));
+        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, NAME, @$, make_pair(into_ptr($inner), move($NAME)))));
     }
 
     | expr[inner] "." INT {
-        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, COORD, @$, make_pair(into_ptr($inner), $INT.value))));
+        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, INDEX, @$, make_pair(into_ptr($inner), $INT.value))));
     }
 
     | expr[left] "[" expr[right] "]" {
-        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, INDEX, @$, make_pair(into_ptr($left), into_ptr($right)))));
+        $$ = AST_VARIANT(expr, EXTRACT, @$, make_ptr(AST_VARIANT(extract_expr, ITEM, @$, make_pair(into_ptr($left), into_ptr($right)))));
     }
 
     | "^" expr[inner] %prec UNARY_CARET {
@@ -889,22 +898,23 @@ expr:
     }
 
     | expr[inner] "->" NAME {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, FIELD, @$, make_pair(into_ptr($inner), move($NAME)))));
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, NAME, @$, make_pair(into_ptr($inner), move($NAME)))));
     }
 
     | expr[inner] "->" INT {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, COORD, @$, make_pair(into_ptr($inner), $INT.value))));
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, INDEX, @$, make_pair(into_ptr($inner), $INT.value))));
     }
 
     | expr[left] "[" "ref" expr[right] "]" {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, INDEX, @$, make_pair(into_ptr($left), into_ptr($right)))));
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, ITEM, @$, make_pair(into_ptr($left), into_ptr($right)))));
     }
 
     | expr[arr] "[" "ref" optional_expr[lrange] ".." optional_expr[rrange] "]" {
-        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, RANGE, @$, make_pair(into_ptr($arr), make_pair(into_optional_ptr($lrange), into_optional_ptr($rrange))))));
+        $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, ITEM_RANGE, @$, make_pair(into_ptr($arr), make_pair(into_optional_ptr($lrange), into_optional_ptr($rrange))))));
     }
 
-    | "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}" {
+    | "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
+        $func_body.block->end_loc = @end;
         $$ = AST_VARIANT(expr, LAMBDA, @$, make_ptr(lambda_expr { { @$ }, $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body) }));
     }
 
@@ -925,7 +935,7 @@ expr_marked:
     }
 
     | INT ":" expr {
-        $$ = expr_marked { AST_VARIANT(expr_marked, EXPR_WITH_COORD, @$, make_pair($INT.value, into_ptr($expr))) };
+        $$ = expr_marked { AST_VARIANT(expr_marked, EXPR_WITH_INDEX, @$, make_pair($INT.value, into_ptr($expr))) };
     }
 
 expr_marked_seq:
@@ -953,47 +963,47 @@ type:
     }
 
     | "bool" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::BOOL }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::BOOL }));
     }
 
     | "i8" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I8 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::I8 }));
     }
 
     | "i16" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I16 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::I16 }));
     }
 
     | "i32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I32 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::I32 }));
     }
 
     | "i64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::I64 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::I64 }));
     }
 
     | "u8" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U8 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::U8 }));
     }
 
     | "u16" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U16 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::U16 }));
     }
 
     | "u32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U32 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::U32 }));
     }
 
     | "u64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::U64 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::U64 }));
     }
 
     | "f32" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::F32 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::F32 }));
     }
 
     | "f64" {
-        $$ = AST_VARIANT(type, PRIMITIVE, @$, make_ptr(primitive_type { { @$ }, primitive_type::F64 }));
+        $$ = AST_VARIANT(type, NUMBER, @$, make_ptr(number_type { { @$ }, number_type::F64 }));
     }
 
     | NAME {
@@ -1135,7 +1145,7 @@ type_local_seq_nempty:
 #include "diags.hpp"
 
 void yy::parser::report_syntax_error(const yy::parser::context& context) const {
-    const size_t MAX_TOKENS = 5;
+    const size_t MAX_TOKENS = 10;
     symbol_kind_type expected[MAX_TOKENS];
 
     // Get expected token list

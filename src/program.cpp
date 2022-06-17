@@ -4,6 +4,10 @@
 namespace sg::prog {
     using namespace sg::utils;
 
+    const type_local NEVER_TYPE = { make_ptr(VARIANT(type, NEVER, monostate())), false };
+    const type_local UNIT_TYPE = { make_ptr(VARIANT(type, UNIT, monostate())), false };
+    const type_local BOOL_TYPE = { make_ptr(VARIANT(type, NUMBER, make_ptr(number_type { number_type::BOOL }))), false };
+
     static array_type copy_array_type(const array_type& tp);
     static ptr_type copy_ptr_type(const ptr_type& tp);
     static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& tp);
@@ -18,60 +22,54 @@ namespace sg::prog {
     static void print_type_pointed(ostream& stream, const program& prog, const type_pointed& tp);
     static void print_func_type(ostream& stream, const program& prog, const func_type& func);
 
-    constant copy_const(const constant& con) {
-        switch (INDEX(con)) {
+    constant copy_const(const constant& value) {
+        switch (INDEX(value)) {
             case constant::UNIT:
                 return VARIANT(constant, UNIT, monostate{ });
 
-            case constant::BOOL:
-                return VARIANT(constant, BOOL, GET(con, BOOL));
-
-            case constant::INT:
-                return VARIANT(constant, INT, GET(con, INT));
-
-            case constant::FLOAT32:
-                return VARIANT(constant, FLOAT32, GET(con, FLOAT32));
-
-            case constant::FLOAT64:
-                return VARIANT(constant, FLOAT64, GET(con, FLOAT64));
+            case constant::NUMBER: {
+                auto& [number, ntype_ptr] = GET(value, NUMBER);
+                return VARIANT(constant, NUMBER, make_pair(number, make_ptr(number_type { ntype_ptr->tp })));
+            } break;
 
             case constant::STRUCT: {
-                auto vec = copy_ptr_vector<constant>(GET(con, STRUCT), copy_const);
-                return VARIANT(constant, STRUCT, move(vec));
+                auto& [index, value_ptrs] = GET(value, STRUCT);
+                return VARIANT(constant, STRUCT, make_pair(index, copy_ptr_vector<constant>(value_ptrs, copy_const)));
             }
 
             case constant::ENUM: {
-                auto& pr = GET(con, ENUM);
-                auto vec = copy_ptr_vector<constant>(pr.second, copy_const);
-                return VARIANT(constant, ENUM, make_pair(pr.first, move(vec)));
+                auto& [enum_index, variant_index, value_ptrs] = GET(value, ENUM);
+                return VARIANT(constant, ENUM, make_tuple(enum_index, variant_index, copy_ptr_vector<constant>(value_ptrs, copy_const)));
             }
 
             case constant::TUPLE: {
-                auto vec = copy_ptr_vector<constant>(GET(con, TUPLE), copy_const);
-                return VARIANT(constant, TUPLE, move(vec));
+                auto& value_ptrs = GET(value, TUPLE);
+                return VARIANT(constant, TUPLE, copy_ptr_vector<constant>(value_ptrs, copy_const));
             }
 
             case constant::ARRAY: {
-                auto vec = copy_ptr_vector<constant>(GET(con, ARRAY), copy_const);
-                return VARIANT(constant, ARRAY, move(vec));
+                auto& value_ptrs = GET(value, ARRAY);
+                return VARIANT(constant, ARRAY, copy_ptr_vector<constant>(value_ptrs, copy_const));
             }
 
             case constant::SIZED_ARRAY: {
-                auto& pr = GET(con, SIZED_ARRAY);
-                return VARIANT(constant, SIZED_ARRAY, make_pair(make_ptr(copy_const(*pr.first)), pr.second));
+                auto& [value_ptr, size] = GET(value, SIZED_ARRAY);
+                return VARIANT(constant, SIZED_ARRAY, make_pair(make_ptr(copy_const(*value_ptr)), size));
             }
 
-            case constant::SOME:
-                return VARIANT(constant, SOME, make_ptr(copy_const(*GET(con, SOME))));
-
-            case constant::NONE:
-                return VARIANT(constant, NONE, monostate());
+            case constant::OPTIONAL: {
+                auto& value_ptr = GET(value, OPTIONAL);
+                return VARIANT(constant, OPTIONAL, value_ptr ? optional<ptr<constant>>(make_ptr(copy_const(**value_ptr))) : optional<ptr<constant>>());
+            }
 
             case constant::GLOBAL_VAR_PTR:
-                return VARIANT(constant, GLOBAL_VAR_PTR, GET(con, GLOBAL_VAR_PTR));
+                return VARIANT(constant, GLOBAL_VAR_PTR, GET(value, GLOBAL_VAR_PTR));
+
+            case constant::GLOBAL_VAR_SLICE:
+                return VARIANT(constant, GLOBAL_VAR_SLICE, GET(value, GLOBAL_VAR_SLICE));
 
             case constant::GLOBAL_FUNC_PTR:
-                return VARIANT(constant, GLOBAL_FUNC_PTR, GET(con, GLOBAL_FUNC_PTR));
+                return VARIANT(constant, GLOBAL_FUNC_PTR, GET(value, GLOBAL_FUNC_PTR));
         }
 
         UNREACHABLE;
@@ -85,8 +83,8 @@ namespace sg::prog {
             case type::UNIT:
                 return VARIANT(type, UNIT, monostate());
 
-            case type::PRIMITIVE:
-                return VARIANT(type, PRIMITIVE, make_ptr(primitive_type { GET(tp, PRIMITIVE)->tp }));
+            case type::NUMBER:
+                return VARIANT(type, NUMBER, make_ptr(number_type { GET(tp, NUMBER)->tp }));
 
             case type::STRUCT:
                 return VARIANT(type, STRUCT, GET(tp, STRUCT));
@@ -95,8 +93,8 @@ namespace sg::prog {
                 return VARIANT(type, ENUM, GET(tp, ENUM));
 
             case type::TUPLE: {
-                auto vec = copy_ptr_vector<type>(GET(tp, TUPLE), copy_type);
-                return VARIANT(type, TUPLE, move(vec));
+                auto& type_ptrs = GET(tp, TUPLE);
+                return VARIANT(type, TUPLE, copy_ptr_vector<type>(type_ptrs, copy_type));
             }
 
             case type::ARRAY:
@@ -170,8 +168,8 @@ namespace sg::prog {
             case type::NEVER:
                 return true;
 
-            case type::PRIMITIVE:
-                return GET(type_a, PRIMITIVE)->tp == GET(type_b, PRIMITIVE)->tp;
+            case type::NUMBER:
+                return GET(type_a, NUMBER)->tp == GET(type_b, NUMBER)->tp;
 
             case type::STRUCT:
                 return GET(type_a, STRUCT) == GET(type_b, STRUCT);
@@ -180,15 +178,15 @@ namespace sg::prog {
                 return GET(type_a, ENUM) == GET(type_b, ENUM);
 
             case type::TUPLE: {
-                auto& tuple_a = GET(type_a, TUPLE);
-                auto& tuple_b = GET(type_b, TUPLE);
+                auto tuple_a = as_cref_vector(GET(type_a, TUPLE));
+                auto tuple_b = as_cref_vector(GET(type_b, TUPLE));
                 auto size = tuple_a.size();
 
                 if (size != tuple_b.size())
                     return false;
 
                 for (size_t index = 0; index < size; index++) {
-                    if (!types_equal(*tuple_a[index], *tuple_b[index]))
+                    if (!types_equal(tuple_a[index], tuple_b[index]))
                         return false;
                 }
 
@@ -269,12 +267,12 @@ namespace sg::prog {
     }
 
     func_type get_func_type(const global_func& func) {
-        vector<ptr<type_local>> param_types;
+        vector<type_local> param_types;
 
         for (auto& param : func.params)
-            param_types.push_back(make_ptr(copy_type_local(*param->tp)));
+            param_types.push_back(copy_type_local(*param->tp));
 
-        return { move(param_types), make_ptr(copy_type(*func.return_tp)) };
+        return { into_ptr_vector(param_types), make_ptr(copy_type(*func.return_tp)) };
     }
 
     void print_type(ostream& stream, const program& prog, const type& tp) {
@@ -287,51 +285,51 @@ namespace sg::prog {
                 stream << "()";
                 break;
 
-            case type::PRIMITIVE: {
-                auto& ptype = *GET(tp, PRIMITIVE);
+            case type::NUMBER: {
+                auto& ntype = *GET(tp, NUMBER);
 
-                switch (ptype.tp) {
-                    case primitive_type::BOOL:
+                switch (ntype.tp) {
+                    case number_type::BOOL:
                         stream << "bool";
                         break;
 
-                    case primitive_type::I8:
+                    case number_type::I8:
                         stream << "i8";
                         break;
 
-                    case primitive_type::I16:
+                    case number_type::I16:
                         stream << "i16";
                         break;
 
-                    case primitive_type::I32:
+                    case number_type::I32:
                         stream << "i32";
                         break;
 
-                    case primitive_type::I64:
+                    case number_type::I64:
                         stream << "i64";
                         break;
 
-                    case primitive_type::U8:
+                    case number_type::U8:
                         stream << "u8";
                         break;
 
-                    case primitive_type::U16:
+                    case number_type::U16:
                         stream << "u16";
                         break;
 
-                    case primitive_type::U32:
+                    case number_type::U32:
                         stream << "u32";
                         break;
 
-                    case primitive_type::U64:
+                    case number_type::U64:
                         stream << "u64";
                         break;
 
-                    case primitive_type::F32:
+                    case number_type::F32:
                         stream << "f32";
                         break;
 
-                    case primitive_type::F64:
+                    case number_type::F64:
                         stream << "f64";
                         break;
                 }
@@ -346,16 +344,16 @@ namespace sg::prog {
                 break;
 
             case type::TUPLE: {
-                auto& tuple = GET(tp, TUPLE);
+                auto tuple = as_cref_vector(GET(tp, TUPLE));
 
                 stream << '(';
 
                 auto first = true;
-                for (auto& coord : tuple) {
+                for (auto& field : tuple) {
                     if (!first)
                         stream << ", ";
                     first = false;
-                    print_type(stream, prog, *coord);
+                    print_type(stream, prog, field);
                 }
 
                 stream << ')';
@@ -465,13 +463,13 @@ namespace sg::prog {
         stream << '(';
 
         auto first = true;
-        for (auto& param : func.param_tps) {
+        for (auto& param_ptr : func.param_tps) {
             if (!first)
                 stream << ", ";
             first = false;
-            if (!param->confined)
+            if (!param_ptr->confined)
                 stream << "!";
-            print_type(stream, prog, *param->tp);
+            print_type(stream, prog, *param_ptr->tp);
         }
 
         stream << ") -> ";

@@ -207,9 +207,9 @@ static int_token::marker_t get_int_marker(const string& text) {
     auto length = text.length();
 
     for (size_t count = 1; count <= 3 && count <= length; count++) {
-        auto it = int_markers.find(text.substr(length - count));
-        if (it != int_markers.end())
-            return it->second;
+        auto iter = int_markers.find(text.substr(length - count));
+        if (iter != int_markers.end())
+            return iter->second;
     }
 
     return int_token::NONE;
@@ -219,9 +219,9 @@ static float_token::marker_t get_float_marker(const string& text) {
     auto length = text.length();
 
     for (size_t count = 1; count <= 3 && count <= length; count++) {
-        auto it = float_markers.find(text.substr(length - count));
-        if (it != float_markers.end())
-            return it->second;
+        auto iter = float_markers.find(text.substr(length - count));
+        if (iter != float_markers.end())
+            return iter->second;
     }
 
     return float_token::NONE;
