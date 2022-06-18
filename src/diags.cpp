@@ -304,7 +304,11 @@ namespace sg::diags {
     }
 
     void variable_not_usable::write(ostream& stream) const {
-        stream << "The variable '" << name << "' was ";
+        if (name)
+            stream << "The variable '" << *name << "' ";
+        else
+            stream << "An internal variable ";
+        stream << "was ";
         if (initialized)
             stream << "potentially ";
         if (uninitialized)
@@ -333,7 +337,12 @@ namespace sg::diags {
     }
 
     void variable_moved_inside_loop::write(ostream& stream) const {
-        stream << "Cannot move out the variable '" << name << "' inside a loop" << endl;
+        stream << "Cannot move out ";
+        if (name)
+            stream << "the variable '" << *name << "' ";
+        else
+            stream << "an internal variable ";
+        stream << "inside a loop" << endl;
     }
 
     void variable_outside_confinement::write(ostream& stream) const {

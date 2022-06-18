@@ -16,7 +16,7 @@ namespace sg {
         }
 
         if (cleanup)
-            add_frame_delete_instrs(0, ast.end_loc);
+            cleanup_frame(0, ast.end_loc);
     }
 
     void function_compiler::compile_stmt(const ast::stmt& ast) {
@@ -46,8 +46,12 @@ namespace sg {
                 break;
 
             case ast::stmt::SWAP:
+                compile_swap_stmt(*GET(ast, SWAP));
+                break;
+
             case ast::stmt::SWAP_BLOCK:
-                clr.error(diags::not_implemented(), ast.loc); // TODO
+                compile_swap_block_stmt(*GET(ast, SWAP_BLOCK));
+                break;
 
             case ast::stmt::IF:
                 compile_if_stmt_branches(*GET(ast, IF), 0);
@@ -73,12 +77,81 @@ namespace sg {
     void function_compiler::compile_locally_block_stmt(const ast::locally_block_stmt& ast) {
         push_confining_frame();
 
-        for (auto name : ast.var_names)
-            compile_confinement(name, ast.names_loc);
+        for (auto name : ast.var_names) {
+            auto var_index = get_var(name, ast.names_loc);
+            compile_confinement(var_index, ast.names_loc);
+        }
 
         compile_stmt_block(*ast.block, true);
 
-        add_block_instrs(pop_confining_frame());
+        add_instrs(pop_confining_frame());
+    }
+
+    void function_compiler::compile_swap_stmt(const ast::swap_stmt& ast) {
+        auto [left_val, left_type] = compile_expr(*ast.left, false);
+        auto [right_val, right_type] = compile_expr(*ast.right, false);
+
+        auto left_lval = compile_left_expr(*ast.left, { right_type });
+        auto right_lval = compile_left_expr(*ast.right, { left_type });
+
+        left_val = conv_clr.convert(left_val, left_type, right_type, ast.left->loc);
+        right_val = conv_clr.convert(right_val, right_type, left_type, ast.right->loc);
+
+        compile_assignment(left_lval, right_val, right_type, ast.right->loc);
+        compile_assignment(right_lval, left_val, left_type, ast.left->loc);
+    }
+
+    void function_compiler::compile_swap_block_stmt(const ast::swap_block_stmt& ast) {
+        auto confining = INDEX_EQ(*ast.right, NAME_LOCALLY);
+        prog::var_index right_var_index;
+
+        if (confining)
+            right_var_index = get_var(GET(*ast.right, NAME_LOCALLY), ast.right->loc);
+
+        auto swap = [&] () {
+            prog::reg_index left_val, right_val;
+            prog::type_local left_type, right_type;
+            lvalue left_lval, right_lval;
+
+            tie(left_val, left_type) = compile_expr(*ast.left, false);
+
+            if (confining) {
+                tie(right_val, right_type) = compile_var_read(right_var_index, false, ast.right->loc);
+                left_lval = compile_left_expr(*ast.left, { right_type });
+                right_lval = VARIANT(lvalue, VAR, right_var_index);
+            } else {
+                tie(right_val, right_type) = compile_expr(*GET(*ast.right, EXPR), false);
+                left_lval = compile_left_expr(*ast.left, { right_type });
+                right_lval = compile_left_expr(*GET(*ast.right, EXPR), { left_type });
+            }
+
+            left_val = conv_clr.convert(left_val, left_type, right_type, ast.left->loc);
+            right_val = conv_clr.convert(right_val, right_type, left_type, ast.right->loc);
+
+            compile_assignment(left_lval, right_val, right_type, ast.right->loc);
+            compile_assignment(right_lval, left_val, left_type, ast.left->loc);
+        };
+
+        push_frame();
+
+        swap();
+        add_cleanup_action(swap);
+
+        if (confining) {
+            push_confining_frame();
+            compile_confinement(right_var_index, ast.right->loc);
+        } else
+            push_frame();
+
+        compile_stmt_block(*ast.block, true);
+
+        if (confining)
+            add_instrs(pop_confining_frame());
+        else
+            add_instrs(pop_frame());
+
+        cleanup_frame(0, ast.block->end_loc);
+        add_instrs(pop_frame());
     }
 
     void function_compiler::compile_if_stmt_branches(const ast::if_stmt& ast, size_t branch_index) {
@@ -106,7 +179,7 @@ namespace sg {
                 compile_stmt_block(**ast.else_branch, true);
         };
 
-        add_branch_instr(cond, true_branch, false_branch);
+        add_branch(cond, true_branch, false_branch);
     }
 
     void function_compiler::compile_match_stmt(const ast::match_stmt& ast) {
@@ -116,8 +189,10 @@ namespace sg {
         if (INDEX_EQ(*ast.value, EXPR))
             tie(value, type) = compile_expr(*GET(*ast.value, EXPR), false);
         else if (INDEX_EQ(*ast.value, NAME_LOCALLY)) {
+            auto name = GET(*ast.value, NAME_LOCALLY);
+            auto var_index = get_var(name, ast.value->loc);
             push_confining_frame();
-            tie(value, type) = compile_confinement(GET(*ast.value, NAME_LOCALLY), ast.value->loc);
+            tie(value, type) = compile_confinement(var_index, ast.value->loc);
         }
 
         if (!INDEX_EQ(*type.tp, ENUM))
@@ -126,7 +201,7 @@ namespace sg {
         compile_match_stmt_branches(ast, value, type, 0);
 
         if (INDEX_EQ(*ast.value, NAME_LOCALLY))
-            add_block_instrs(pop_confining_frame());
+            add_instrs(pop_confining_frame());
     }
 
     void function_compiler::compile_match_stmt_branches(const ast::match_stmt& ast, prog::reg_index value, const prog::type_local& type, size_t branch_index) {
@@ -168,7 +243,7 @@ namespace sg {
             }
 
             compile_stmt_block(block_ast, true);
-            add_frame_delete_instrs(1, block_ast.end_loc);
+            cleanup_frame(1, block_ast.end_loc);
         };
 
         auto false_branch = [&] () {
@@ -181,9 +256,9 @@ namespace sg {
             }
         };
 
-        add_branch_instr(test_result, true_branch, false_branch);
+        add_branch(test_result, true_branch, false_branch);
 
-        pop_frame();
+        add_instrs(pop_frame());
     }
 
     void function_compiler::compile_while_stmt(const ast::while_stmt& ast) {
@@ -207,7 +282,7 @@ namespace sg {
                 compile_stmt_block(**ast.else_block, true);
         };
 
-        add_loop_instr(head, body, end);
+        add_loop(head, body, end);
     }
 
     void function_compiler::compile_for_stmt(const ast::for_stmt& ast) {
@@ -308,7 +383,7 @@ namespace sg {
                     compile_stmt_block(**range_ast.else_block, true);
             };
 
-            add_loop_instr(head, body, end);
+            add_loop(head, body, end);
         } else if (INDEX_EQ(ast, SLICE)) {
             clr.error(diags::not_implemented(), ast.loc); // TODO
         }
@@ -327,7 +402,7 @@ namespace sg {
                 if (type.confined && !clr.type_trivial(*type.tp) && var.outside_confinement > 0)
                     clr.error(diags::variable_outside_confinement(var.name), loc);
 
-                add_var_delete_instrs(var_index, loc);
+                delete_var(var_index, loc);
 
                 value = conv_clr.convert(value, type, var.type, loc);
 
@@ -453,7 +528,7 @@ namespace sg {
                     add_instr(VARIANT(prog::instr, ABORT, monostate())); // TODO error message
                 };
 
-                add_branch_instr(test_result, true_branch, false_branch);
+                add_branch(test_result, true_branch, false_branch);
             } break;
         }
     }

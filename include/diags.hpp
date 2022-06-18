@@ -130,9 +130,9 @@ namespace sg::diags {
     DIAG0(global_function_copyable, error);
     DIAG1(variable_not_found, error, string, name);
     DIAG0(variable_without_type, error);
-    DIAG4(variable_not_usable, error, string, name, bool, initialized, bool, uninitialized, bool, moved_out);
+    DIAG4(variable_not_usable, error, optional<string>, name, bool, initialized, bool, uninitialized, bool, moved_out);
     DIAG3(variable_not_deletable, error, optional<string>, name, bool, uninitialized, bool, moved_out);
-    DIAG1(variable_moved_inside_loop, error, string, name);
+    DIAG1(variable_moved_inside_loop, error, optional<string>, name);
     DIAG1(variable_outside_confinement, error, optional<string>, name);
     DIAG1(global_variable_moved, error, string, name);
     DIAG1(invalid_variable_name, error, string, name);

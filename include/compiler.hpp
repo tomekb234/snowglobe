@@ -178,6 +178,7 @@ namespace sg {
             vector<prog::var_index> vars;
             vector<string> var_names;
             bool loop;
+            vector<function<void()>> cleanup_actions;
         };
 
         struct lvalue {
@@ -242,30 +243,37 @@ namespace sg {
 
         prog::var_index add_var(prog::type_local&& type);
         prog::var_index add_var(string name, prog::type_local&& type);
-        optional<prog::var_index> get_var(string name);
+        optional<prog::var_index> try_get_var(string name);
         vector<var_state> backup_var_states();
         void restore_var_states(const vector<var_state>& states);
         void merge_var_states(const vector<var_state>& states);
 
         // Instructions
 
-        void add_block_instrs(prog::instr_block&& block);
+        void add_instrs(prog::instr_block&& block);
         void add_copy_instrs(prog::reg_index value, const prog::type& type);
         void add_delete_instrs(prog::reg_index value, const prog::type& type);
         void add_delete_instrs(prog::reg_index value, const prog::type_local& type);
-        void add_var_delete_instrs(prog::var_index index, location loc);
-        void add_frame_delete_instrs(frame_index index, location loc);
-        void add_return_instr(prog::reg_index value, location loc);
-        void add_break_instr(location loc);
-        void add_continue_instr(location loc);
-        void add_branch_instr(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
-        void add_loop_instr(function<prog::reg_index()> head, function<void()> body, function<void()> end);
+
+        // Utilities
+
+        prog::var_index get_var(string name, location loc);
+        void delete_var(prog::var_index index, location loc);
+        void add_cleanup_action(function<void()> cleanup_action);
+        void cleanup_frame(frame_index index, location loc);
+        void add_return(prog::reg_index value, location loc);
+        void add_break(location loc);
+        void add_continue(location loc);
+        void add_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
+        void add_loop(function<prog::reg_index()> head, function<void()> body, function<void()> end);
 
         // Statements
 
         void compile_stmt_block(const ast::stmt_block& ast, bool cleanup);
         void compile_stmt(const ast::stmt& ast);
         void compile_locally_block_stmt(const ast::locally_block_stmt& ast);
+        void compile_swap_stmt(const ast::swap_stmt& ast);
+        void compile_swap_block_stmt(const ast::swap_block_stmt& ast);
         void compile_if_stmt_branches(const ast::if_stmt& ast, size_t branch_index);
         void compile_match_stmt(const ast::match_stmt& ast);
         void compile_match_stmt_branches(const ast::match_stmt& ast, prog::reg_index value, const prog::type_local& type, size_t branch_index);
@@ -276,8 +284,11 @@ namespace sg {
         // Expressions
 
         pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_var_read(prog::var_index var_index, bool confined, location loc);
+        pair<prog::reg_index, prog::type_local> compile_confinement(prog::var_index var_index, location loc);
+        pair<prog::reg_index, prog::type_local> compile_global_name(string name, bool confined, location loc);
+        pair<prog::reg_index, prog::type_local> compile_variant_name(string name, string variant_name, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_return(optional<cref<ast::expr>> ast, location loc);
-        pair<prog::reg_index, prog::type_local> compile_confinement(string var_name, location loc);
         pair<prog::reg_index, prog::type_local> compile_tuple(vector<cref<ast::expr_marked>> asts, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_array(vector<cref<ast::expr_marked>> asts, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, bool confined, location loc);

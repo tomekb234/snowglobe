@@ -30,7 +30,7 @@ namespace sg {
         } else if (!returned) {
             if (!INDEX_EQ(*func.return_tp, UNIT))
                 clr.error(diags::missing_return(), ast.body->block->end_loc);
-            add_return_instr(unit_reg(), ast.body->block->end_loc);
+            add_return(unit_reg(), ast.body->block->end_loc);
         }
 
         for (auto& var : vars)
@@ -54,7 +54,7 @@ namespace sg {
     }
 
     void function_compiler::push_frame() {
-        frames.push_back({ { }, { }, { }, false });
+        frames.push_back({ { }, { }, { }, false, { } });
     }
 
     void function_compiler::push_loop_frame() {
@@ -121,7 +121,7 @@ namespace sg {
         return index;
     }
 
-    optional<prog::var_index> function_compiler::get_var(string name) {
+    optional<prog::var_index> function_compiler::try_get_var(string name) {
         auto iter = var_names.find(name);
         if (iter == var_names.end())
             return { };
@@ -147,7 +147,7 @@ namespace sg {
             vars[index].state |= states[index];
     }
 
-    void function_compiler::add_block_instrs(prog::instr_block&& block) {
+    void function_compiler::add_instrs(prog::instr_block&& block) {
         for (auto& instr_ptr : block.instrs)
             add_instr(move(*instr_ptr));
     }
@@ -169,7 +169,14 @@ namespace sg {
             add_delete_instrs(value, *type.tp);
     }
 
-    void function_compiler::add_var_delete_instrs(prog::var_index index, location loc) {
+    prog::var_index function_compiler::get_var(string name, location loc) {
+        auto index = try_get_var(name);
+        if (!index)
+            clr.error(diags::variable_not_found(name), loc);
+        return *index;
+    }
+
+    void function_compiler::delete_var(prog::var_index index, location loc) {
         auto& var = vars[index];
 
         if (!var.type.confined && !clr.type_trivial(*var.type.tp)) {
@@ -183,18 +190,25 @@ namespace sg {
         }
     }
 
-    void function_compiler::add_frame_delete_instrs(frame_index index, location loc) {
+    void function_compiler::add_cleanup_action(function<void()> cleanup_action) {
+        frames.back().cleanup_actions.push_back(cleanup_action);
+    }
+
+    void function_compiler::cleanup_frame(frame_index index, location loc) {
         auto& fr = frames[frames.size() - index - 1];
 
         for (auto var_index : fr.vars)
-            add_var_delete_instrs(var_index, loc);
+            delete_var(var_index, loc);
+
+        for (auto iter = fr.cleanup_actions.rbegin(); iter != fr.cleanup_actions.rend(); iter++)
+            (*iter)();
     }
 
-    void function_compiler::add_return_instr(prog::reg_index value, location loc) {
+    void function_compiler::add_return(prog::reg_index value, location loc) {
         auto frame_count = frames.size();
 
         for (size_t index = 0; index < frame_count; index++)
-            add_frame_delete_instrs(index, loc);
+            cleanup_frame(index, loc);
 
         auto instr = prog::return_instr { value };
         add_instr(VARIANT(prog::instr, RETURN, into_ptr(instr)));
@@ -202,12 +216,12 @@ namespace sg {
         returned = true;
     }
 
-    void function_compiler::add_break_instr(location loc) {
+    void function_compiler::add_break(location loc) {
         auto frame_count = frames.size();
         size_t index;
 
         for (index = 0; index < frame_count; index++) {
-            add_frame_delete_instrs(index, loc);
+            cleanup_frame(index, loc);
             if (frames[frame_count - index - 1].loop)
                 break;
         }
@@ -218,14 +232,14 @@ namespace sg {
         add_instr(VARIANT(prog::instr, BREAK_LOOP, monostate()));
     }
 
-    void function_compiler::add_continue_instr(location loc) {
+    void function_compiler::add_continue(location loc) {
         auto frame_count = frames.size();
         size_t index;
 
         for (index = 0; index < frame_count; index++) {
             if (frames[frame_count - index - 1].loop)
                 break;
-            add_frame_delete_instrs(index, loc);
+            cleanup_frame(index, loc);
         }
 
         if (index == frame_count)
@@ -234,7 +248,7 @@ namespace sg {
         add_instr(VARIANT(prog::instr, CONTINUE_LOOP, monostate()));
     }
 
-    void function_compiler::add_branch_instr(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch) {
+    void function_compiler::add_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch) {
         auto init_var_states = backup_var_states();
         auto init_returned = returned;
 
@@ -259,7 +273,7 @@ namespace sg {
         returned &= branch_returned;
     }
 
-    void function_compiler::add_loop_instr(function<prog::reg_index()> head, function<void()> body, function<void()> end) {
+    void function_compiler::add_loop(function<prog::reg_index()> head, function<void()> body, function<void()> end) {
         push_loop_frame();
 
         auto cond = head();
