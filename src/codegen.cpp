@@ -170,15 +170,19 @@ namespace sg {
         for (size_t i = 0; i < func.params.size(); i++)
             regs[i] = llvm_function->getArg(i);
         
+        // prepare unreachable terminator block
+        auto terminator_block = llvm::BasicBlock::Create(gen.ctx, "terminator", llvm_function);
+        llvm::IRBuilder<>(terminator_block).CreateRet(llvm::UndefValue::get(llvm_function->getReturnType()));
+
         // generate function body
-        process_instr_block(*func.instrs, entry_block, nullptr);
+        process_instr_block(*func.instrs, entry_block, terminator_block, nullptr, nullptr);
 
         // verify corectness
         gen.llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyFunction(*llvm_function, stream); });
     }
 
-    void function_code_generator::process_instr_block(const prog::instr_block& block, llvm::BasicBlock* init_basic_block, llvm::BasicBlock* next_basic_block) {
-        llvm::IRBuilder<> builder(init_basic_block);
+    void function_code_generator::process_instr_block(const prog::instr_block& block, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block) {
+        llvm::IRBuilder<> builder(init_block);
         bool terminated = false;
 
         for (size_t i = 0; !terminated && i < block.instrs.size(); i++) {
@@ -369,17 +373,35 @@ namespace sg {
 
                 case prog::instr::BRANCH: {
                     auto& b_instr = *GET(instr, BRANCH);
-                    bool last = i == block.instrs.size()-1;
-                    auto continuation_basic_block = last ? next_basic_block : llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
 
-                    auto true_basic_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    process_instr_block(*b_instr.true_block, true_basic_block, continuation_basic_block);
-                    auto false_basic_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    process_instr_block(*b_instr.false_block, false_basic_block, continuation_basic_block);
+                    auto true_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    process_instr_block(*b_instr.true_block, true_block, continuation_block, loop_block, after_loop_block);
+                    auto false_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    process_instr_block(*b_instr.false_block, false_block, continuation_block, loop_block, after_loop_block);
 
-                    builder.CreateCondBr(regs[b_instr.cond], true_basic_block, false_basic_block);
-                    if (!last)
-                        builder.SetInsertPoint(continuation_basic_block);
+                    builder.CreateCondBr(regs[b_instr.cond], true_block, false_block);
+                    builder.SetInsertPoint(continuation_block);
+                } break;
+
+                case prog::instr::LOOP: {
+                    auto& l_instr = *GET(instr, LOOP);
+                    auto loop_body_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    process_instr_block(l_instr, loop_body_block, loop_body_block, loop_body_block, continuation_block);
+
+                    builder.CreateBr(loop_body_block);
+                    builder.SetInsertPoint(continuation_block);
+                } break;
+
+                case prog::instr::CONTINUE_LOOP: {
+                    builder.CreateBr(loop_block);
+                    terminated = true;
+                } break;
+
+                case prog::instr::BREAK_LOOP: {
+                    builder.CreateBr(after_loop_block);
+                    terminated = true;
                 } break;
 
                 default:
@@ -387,11 +409,7 @@ namespace sg {
             }
         }
 
-        if (!builder.GetInsertBlock()->getTerminator()) {
-            if (next_basic_block)
-                builder.CreateBr(next_basic_block);
-            else
-                builder.CreateRet(llvm::UndefValue::get(llvm_function->getReturnType()));
-        }
+        if (!builder.GetInsertBlock()->getTerminator())
+            builder.CreateBr(after_block);
     }
 }
