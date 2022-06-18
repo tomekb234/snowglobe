@@ -25,6 +25,11 @@ namespace sg {
             for (size_t i = 0; i < prog.global_funcs.size(); i++)
                 functions[i] = declare_function(*prog.global_funcs[i]);
 
+            // define global variables
+            global_vars.resize(prog.global_vars.size(), nullptr);
+            for (size_t i = 0; i < prog.global_vars.size(); i++)
+                global_vars[i] = define_global_variable(*prog.global_vars[i]);
+
             // generate function code
             for (size_t i = 0; i < prog.global_funcs.size(); i++)
                 function_code_generator(*this, *prog.global_funcs[i], functions[i]).generate();
@@ -96,7 +101,7 @@ namespace sg {
         UNREACHABLE;
     }
 
-    llvm::Value* code_generator::make_constant(const prog::constant& constant) {
+    llvm::Constant* code_generator::make_constant(const prog::constant& constant) {
         switch (INDEX(constant)) {
             case prog::constant::UNIT:
                 return llvm::ConstantInt::getFalse(ctx);
@@ -157,6 +162,12 @@ namespace sg {
         // create function
         return llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, func.name.value_or(""), mod);
     }
+    
+    llvm::GlobalVariable* code_generator::define_global_variable(const prog::global_var& var) {
+        auto value = make_constant(*var.value);
+        auto type = get_llvm_type(*var.tp);
+        return new llvm::GlobalVariable(mod, type, false, llvm::GlobalVariable::ExternalLinkage, value);
+    }
 
     void function_code_generator::generate() {
 
@@ -190,12 +201,22 @@ namespace sg {
             switch (INDEX(instr)) {
                 case prog::instr::READ_VAR: {
                     auto& rv_instr = *GET(instr, READ_VAR);
-                    regs[rv_instr.result] = builder.CreateLoad(gen.get_llvm_type(*func.vars[rv_instr.var]->tp), vars[rv_instr.var]);
+                    regs[rv_instr.result] = builder.CreateLoad(vars[rv_instr.var]->getAllocatedType(), vars[rv_instr.var]);
+                } break;
+
+                case prog::instr::READ_GLOBAL_VAR: {
+                    auto& rgv_instr = *GET(instr, READ_GLOBAL_VAR);
+                    regs[rgv_instr.result] = builder.CreateLoad(gen.global_vars[rgv_instr.var]->getValueType(), gen.global_vars[rgv_instr.var]);
                 } break;
 
                 case prog::instr::WRITE_VAR: {
                     auto& wv_instr = *GET(instr, WRITE_VAR);
                     builder.CreateStore(regs[wv_instr.value], vars[wv_instr.var]);
+                } break;
+
+                case prog::instr::WRITE_GLOBAL_VAR: {
+                    auto& wgv_instr = *GET(instr, WRITE_GLOBAL_VAR);
+                    builder.CreateStore(regs[wgv_instr.value], gen.global_vars[wgv_instr.var]);
                 } break;
 
                 case prog::instr::RETURN: {

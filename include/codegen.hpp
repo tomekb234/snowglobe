@@ -5,6 +5,7 @@
 #include "diagcol.hpp"
 
 #include <llvm/IR/Module.h>
+#include <llvm/IR/Instructions.h>
 
 namespace sg {
     using std::ostream;
@@ -21,6 +22,7 @@ namespace sg {
         llvm::Module mod;
 
         vector<llvm::Function*> functions;
+        vector<llvm::GlobalVariable*> global_vars;
 
         friend class function_code_generator;
 
@@ -50,10 +52,11 @@ namespace sg {
         llvm::Type* get_llvm_number_type(const prog::number_type& ntp);
 
         // constants
-        llvm::Value* make_constant(const prog::constant& constant);
+        llvm::Constant* make_constant(const prog::constant& constant);
 
         // top-level declarations
         llvm::Function* declare_function(const prog::global_func& func);
+        llvm::GlobalVariable* define_global_variable(const prog::global_var& var);
     };
 
     class function_code_generator {
@@ -62,7 +65,7 @@ namespace sg {
         llvm::Function* llvm_function;
 
         unordered_map<prog::reg_index, llvm::Value*> regs;
-        unordered_map<prog::var_index, llvm::Value*> vars;
+        unordered_map<prog::var_index, llvm::AllocaInst*> vars;
 
         public:
 
