@@ -256,6 +256,12 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_optional_type::write(ostream& stream) const {
+        stream << "Expected an optional type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void expected_tuple_type::write(ostream& stream) const {
         stream << "Expected a tuple type instead of '";
         prog::print_type(stream, prog, type);

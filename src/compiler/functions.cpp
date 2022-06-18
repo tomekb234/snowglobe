@@ -276,7 +276,7 @@ namespace sg {
         add_instr(VARIANT(prog::instr, BRANCH, make_ptr(make_branch(cond, true_branch, false_branch))));
     }
 
-    void function_compiler::add_loop(function<prog::reg_index()> head, function<void()> body, function<void()> end) {
+    void function_compiler::add_loop(function<prog::reg_index()> head, function<void()> true_branch, function<void()> false_branch, function<void()> end) {
         push_loop_frame();
 
         auto cond = head();
@@ -285,7 +285,7 @@ namespace sg {
         auto init_returned = returned;
 
         push_frame();
-        body();
+        true_branch();
         auto true_block = pop_frame();
 
         auto branch_var_states = backup_var_states();
@@ -295,12 +295,14 @@ namespace sg {
         returned &= init_returned;
 
         push_frame();
-        end();
+        false_branch();
         add_instr(VARIANT(prog::instr, BREAK_LOOP, monostate()));
         auto false_block = pop_frame();
 
         auto branch_instr = prog::branch_instr { cond, into_ptr(true_block), into_ptr(false_block) };
         add_instr(VARIANT(prog::instr, BRANCH, into_ptr(branch_instr)));
+
+        end();
 
         auto loop_block = pop_loop_frame();
         add_instr(VARIANT(prog::instr, LOOP, into_ptr(loop_block)));

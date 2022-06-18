@@ -117,6 +117,7 @@ namespace sg::diags {
     DIAG2(type_not_copyable, error, const prog::program&, prog, prog::type, type);
     DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, prog::type, expected);
     DIAG2(expected_integer_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_optional_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_tuple_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_array_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_enum_type, error, const prog::program&, prog, prog::type, type);
