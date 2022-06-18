@@ -408,16 +408,17 @@ namespace sg {
         auto result = new_reg();
 
         using num = prog::number_type;
+        using unop = ast::unary_operation_expr;
 
         switch (ast.operation) {
-            case ast::unary_operation_expr::NOT: {
+            case unop::NOT: {
                 value = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
                 auto instr = prog::unary_operation_instr { value, result };
                 add_instr(VARIANT(prog::instr, BOOL_NOT, into_ptr(instr)));
                 return { result, copy_type_local(prog::BOOL_TYPE) };
             }
 
-            case ast::unary_operation_expr::MINUS: {
+            case unop::MINUS: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
                     clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast.loc);
                 switch (GET(*type.tp, NUMBER)->tp) {
@@ -441,7 +442,7 @@ namespace sg {
                 return { result, move(type) };
             }
 
-            case ast::unary_operation_expr::BIT_NEG: {
+            case unop::BIT_NEG: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
                     clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast.loc);
                 switch (GET(*type.tp, NUMBER)->tp) {
@@ -509,9 +510,11 @@ namespace sg {
             }
         };
 
+        using binop = ast::binary_operation_expr;
+
         switch (ast.operation) {
-            case ast::binary_operation_expr::AND:
-            case ast::binary_operation_expr::OR: {
+            case binop::AND:
+            case binop::OR: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
                 left_value = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
                 prog::reg_index right_value;
@@ -524,7 +527,7 @@ namespace sg {
                     right_value = conv_clr.convert(right_raw_value, right_type, prog::BOOL_TYPE, ast.right->loc);
                 };
 
-                if (ast.operation == ast::binary_operation_expr::AND) {
+                if (ast.operation == binop::AND) {
                     auto branch_instr = make_branch(left_value, long_branch, short_branch);
                     add_instr(VARIANT(prog::instr, VALUE_BRANCH, make_ptr(prog::value_branch_instr{ move(branch_instr), right_value, left_value, result })));
                 } else {
@@ -535,22 +538,39 @@ namespace sg {
                 return { result, copy_type_local(prog::BOOL_TYPE) };
             } break;
 
-            case ast::binary_operation_expr::EQ:
-            case ast::binary_operation_expr::NEQ:
-                clr.error(diags::not_implemented(), ast.loc); // TODO
+            case binop::EQ:
+            case binop::NEQ: {
+                auto [left_value, left_type] = compile_expr(*ast.left, true);
+                auto [right_value, right_type] = compile_expr(*ast.right, true);
 
-            case ast::binary_operation_expr::LS:
-            case ast::binary_operation_expr::LSEQ:
-            case ast::binary_operation_expr::GT:
-            case ast::binary_operation_expr::GTEQ:
-            case ast::binary_operation_expr::ADD:
-            case ast::binary_operation_expr::SUB:
-            case ast::binary_operation_expr::MUL:
-            case ast::binary_operation_expr::DIV:
-            case ast::binary_operation_expr::MOD:
-            case ast::binary_operation_expr::BIT_AND:
-            case ast::binary_operation_expr::BIT_OR:
-            case ast::binary_operation_expr::BIT_XOR: {
+                auto common_type = clr.common_supertype(*left_type.tp, *right_type.tp, ast.loc);
+
+                left_value = conv_clr.convert(left_value, *left_type.tp, common_type, ast.left->loc);
+                right_value = conv_clr.convert(right_value, *right_type.tp, common_type, ast.right->loc);
+
+                auto result = new_reg();
+                auto instr = prog::binary_operation_instr { left_value, right_value, result };
+
+                if (ast.operation == binop::EQ)
+                    add_instr(VARIANT(prog::instr, EQ, into_ptr(instr)));
+                else if (ast.operation == binop::NEQ)
+                    add_instr(VARIANT(prog::instr, NEQ, into_ptr(instr)));
+
+                return { result, copy_type_local(prog::BOOL_TYPE) };
+            } break;
+
+            case binop::LS:
+            case binop::LSEQ:
+            case binop::GT:
+            case binop::GTEQ:
+            case binop::ADD:
+            case binop::SUB:
+            case binop::MUL:
+            case binop::DIV:
+            case binop::MOD:
+            case binop::BIT_AND:
+            case binop::BIT_OR:
+            case binop::BIT_XOR: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
                 auto[right_value, right_type] = compile_expr(*ast.right, true);
                 auto common_type = clr.common_supertype(*left_type.tp, *right_type.tp, ast.loc);
@@ -577,59 +597,59 @@ namespace sg {
                 bool bool_result_type = false;
 
                 switch (ast.operation) {
-                    case ast::binary_operation_expr::LS: {
+                    case binop::LS: {
                         add_instr(VARIANT(prog::instr, LS, move(op_instr)));
                         bool_result_type = true;
                     } break;
 
-                    case ast::binary_operation_expr::LSEQ: {
+                    case binop::LSEQ: {
                         add_instr(VARIANT(prog::instr, LSEQ, move(op_instr)));
                         bool_result_type = true;
                     } break;
 
-                    case ast::binary_operation_expr::GT: {
+                    case binop::GT: {
                         add_instr(VARIANT(prog::instr, GT, move(op_instr)));
                         bool_result_type = true;
                     } break;
 
-                    case ast::binary_operation_expr::GTEQ: {
+                    case binop::GTEQ: {
                         add_instr(VARIANT(prog::instr, GTEQ, move(op_instr)));
                         bool_result_type = true;
                     } break;
 
-                    case ast::binary_operation_expr::ADD:
+                    case binop::ADD:
                         add_instr(VARIANT(prog::instr, ADD, move(op_instr)));
                         break;
 
-                    case ast::binary_operation_expr::SUB:
+                    case binop::SUB:
                         add_instr(VARIANT(prog::instr, SUB, move(op_instr)));
                         break;
 
-                    case ast::binary_operation_expr::MUL:
+                    case binop::MUL:
                         add_instr(VARIANT(prog::instr, MUL, move(op_instr)));
                         break;
 
-                    case ast::binary_operation_expr::DIV:
+                    case binop::DIV:
                         add_instr(VARIANT(prog::instr, DIV, move(op_instr)));
                         break;
 
-                    case ast::binary_operation_expr::MOD:
+                    case binop::MOD:
                         add_instr(VARIANT(prog::instr, MOD, move(op_instr)));
                         break;
 
-                    case ast::binary_operation_expr::BIT_AND: {
+                    case binop::BIT_AND: {
                         if (is_float(ntype))
                             INVALID_BINARY_OP;
                         add_instr(VARIANT(prog::instr, BIT_AND, move(op_instr)));
                     } break;
 
-                    case ast::binary_operation_expr::BIT_OR: {
+                    case binop::BIT_OR: {
                         if (is_float(ntype))
                             INVALID_BINARY_OP;
                         add_instr(VARIANT(prog::instr, BIT_OR, move(op_instr)));
                     } break;
 
-                    case ast::binary_operation_expr::BIT_XOR: {
+                    case binop::BIT_XOR: {
                         if (is_float(ntype))
                             INVALID_BINARY_OP;
                         add_instr(VARIANT(prog::instr, BIT_XOR, move(op_instr)));
@@ -645,8 +665,8 @@ namespace sg {
                     return { result, prog::type_local{ into_ptr(common_type), false } };
             }
 
-            case ast::binary_operation_expr::BIT_LSH:
-            case ast::binary_operation_expr::BIT_RSH: {
+            case binop::BIT_LSH:
+            case binop::BIT_RSH: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
                 auto[right_value, right_type] = compile_expr(*ast.right, true);
 
@@ -666,7 +686,7 @@ namespace sg {
 
                 auto op_instr = make_ptr(prog::numeric_binary_operation_instr{ {left_value, right_value, result }, kind });
 
-                if (ast.operation == ast::binary_operation_expr::BIT_LSH)
+                if (ast.operation == binop::BIT_LSH)
                     add_instr(VARIANT(prog::instr, BIT_LSH, move(op_instr)));
                 else
                     add_instr(VARIANT(prog::instr, BIT_RSH, move(op_instr)));

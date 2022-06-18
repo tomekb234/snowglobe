@@ -306,6 +306,8 @@ namespace sg::prog {
             BIT_NEG,
             INCR,
             DECR,
+            EQ,
+            NEQ,
             ADD,
             SUB,
             MUL,
@@ -390,6 +392,8 @@ namespace sg::prog {
             ptr<unary_operation_instr>, // BIT_NEG
             ptr<unary_operation_instr>, // INCR
             ptr<unary_operation_instr>, // DECR
+            ptr<binary_operation_instr>, // EQ
+            ptr<binary_operation_instr>, // NEQ
             ptr<numeric_binary_operation_instr>, // ADD
             ptr<numeric_binary_operation_instr>, // SUB
             ptr<numeric_binary_operation_instr>, // MUL
