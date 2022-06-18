@@ -23,14 +23,14 @@ namespace sg {
     }
 
     prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc) {
-        if (type.confined != new_type.confined && !clr.type_trivially_copyable(*type.tp))
+        if (type.confined != new_type.confined && !clr.type_trivial(*type.tp))
             clr.error(diags::confinement_mismatch(type.confined), loc);
 
         return convert(value, *type.tp, *new_type.tp, new_type.confined, loc);
     }
 
     prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc) {
-        if (type.confined && !clr.type_trivially_copyable(*type.tp))
+        if (type.confined && !clr.type_trivial(*type.tp))
             clr.error(diags::confinement_mismatch(type.confined), loc);
 
         return convert(value, *type.tp, new_type, false, loc);
@@ -323,12 +323,12 @@ namespace sg {
                     auto& new_outer = *new_inptr.owner_tp;
 
                     auto outer_value = new_reg();
-                    auto instr1 = prog::ptr_conversion_instr { value, outer_value };
-                    add_instr(VARIANT(prog::instr, EXTRACT_OUTER_PTR, into_ptr(instr1)));
+                    auto outer_extract_instr = prog::ptr_conversion_instr { value, outer_value };
+                    add_instr(VARIANT(prog::instr, EXTRACT_OUTER_PTR, into_ptr(outer_extract_instr)));
 
                     auto inner_value = new_reg();
-                    auto instr2 = prog::ptr_conversion_instr { value, inner_value };
-                    add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(instr2)));
+                    auto inner_extract_instr = prog::ptr_conversion_instr { value, inner_value };
+                    add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(inner_extract_instr)));
 
                     auto outer_result = try_convert_ptr_kind(outer_value, inptr.kind, new_inptr.kind, confined);
                     if (!outer_result)
@@ -396,12 +396,10 @@ namespace sg {
             case prog::type::KNOWN_FUNC: {
                 auto index = GET(type, KNOWN_FUNC);
                 auto& func = *clr.prog.global_funcs[index];
+                auto ftype = prog::get_func_type(func);
 
                 if (INDEX_EQ(new_type, GLOBAL_FUNC)) {
-                    auto ftype = prog::get_func_type(func);
-                    auto& new_ftype = *GET(new_type, GLOBAL_FUNC);
-
-                    if (!prog::func_types_equal(ftype, new_ftype))
+                    if (!prog::func_types_equal(ftype, *GET(new_type, GLOBAL_FUNC)))
                         break;
 
                     auto result = new_reg();
@@ -411,13 +409,15 @@ namespace sg {
                 }
 
                 else if (INDEX_EQ(new_type, FUNC)) {
-                    auto ftype = prog::get_func_type(func);
-                    auto& new_ftype = *GET(new_type, GLOBAL_FUNC);
-
-                    if (!prog::func_types_equal(ftype, new_ftype))
+                    if (!prog::func_types_equal(ftype, *GET(new_type, FUNC)))
                         break;
 
-                    // TODO
+                    auto wrapper_index = clr.get_global_func_wrapper(index);
+
+                    auto result = new_reg();
+                    auto instr = prog::get_global_ptr_instr { wrapper_index, result };
+                    add_instr(VARIANT(prog::instr, GET_GLOBAL_FUNC_PTR_WRAPPED, into_ptr(instr)));
+                    return { result };
                 }
             } break;
         }

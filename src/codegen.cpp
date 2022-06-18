@@ -155,7 +155,7 @@ namespace sg {
         auto function_type = llvm::FunctionType::get(ret_type, arg_types, false);
 
         // create function
-        return llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, func.name, mod);
+        return llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, func.name.value_or(""), mod);
     }
 
     void function_code_generator::generate() {
@@ -181,7 +181,7 @@ namespace sg {
         gen.llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyFunction(*llvm_function, stream); });
     }
 
-    void function_code_generator::process_instr_block(const prog::instr_block& block, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block) {
+    llvm::BasicBlock* function_code_generator::process_instr_block(const prog::instr_block& block, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block) {
         llvm::IRBuilder<> builder(init_block);
         bool terminated = false;
 
@@ -371,17 +371,26 @@ namespace sg {
                     regs[nc_instr.result] = builder.CreateFPExt(regs[nc_instr.value], gen.get_llvm_number_type(*nc_instr.new_type));
                 } break;
 
-                case prog::instr::BRANCH: {
-                    auto& b_instr = *GET(instr, BRANCH);
+                case prog::instr::BRANCH:
+                case prog::instr::VALUE_BRANCH: {
+                    auto& b_instr = INDEX_EQ(instr, BRANCH) ? *GET(instr, BRANCH) : *GET(instr, VALUE_BRANCH);
                     auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
 
-                    auto true_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    process_instr_block(*b_instr.true_block, true_block, continuation_block, loop_block, after_loop_block);
-                    auto false_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    process_instr_block(*b_instr.false_block, false_block, continuation_block, loop_block, after_loop_block);
+                    auto true_init_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    auto true_return_block = process_instr_block(*b_instr.true_block, true_init_block, continuation_block, loop_block, after_loop_block);
+                    auto false_init_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    auto false_return_block = process_instr_block(*b_instr.false_block, false_init_block, continuation_block, loop_block, after_loop_block);
 
-                    builder.CreateCondBr(regs[b_instr.cond], true_block, false_block);
+                    builder.CreateCondBr(regs[b_instr.cond], true_init_block, false_init_block);
                     builder.SetInsertPoint(continuation_block);
+
+                    if (INDEX_EQ(instr, VALUE_BRANCH)) {
+                        auto& vb_instr = *GET(instr, VALUE_BRANCH);
+                        auto phi_node = llvm::PHINode::Create(regs[vb_instr.true_value]->getType(), 2, "", continuation_block);
+                        phi_node->addIncoming(regs[vb_instr.true_value], true_return_block);
+                        phi_node->addIncoming(regs[vb_instr.false_value], false_return_block);
+                        regs[vb_instr.result] = phi_node;
+                    }
                 } break;
 
                 case prog::instr::LOOP: {
@@ -411,5 +420,6 @@ namespace sg {
 
         if (!builder.GetInsertBlock()->getTerminator())
             builder.CreateBr(after_block);
+        return builder.GetInsertBlock();
     }
 }

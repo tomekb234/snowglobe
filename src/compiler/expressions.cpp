@@ -18,115 +18,21 @@ namespace sg {
             case ast::expr::APPLICATION: {
                 auto& [receiver_ast_ptr, arg_ast_ptrs] = GET(ast, APPLICATION);
                 return compile_application(*receiver_ast_ptr, as_cref_vector(arg_ast_ptrs), confined, ast.loc);
-            } break;
+            }
 
             case ast::expr::NAME: {
                 auto& name = GET(ast, NAME);
 
-                auto var = get_var(name);
+                auto var_index = try_get_var(name);
+                if (var_index)
+                    return compile_var_read(*var_index, confined, ast.loc);
 
-                if (var) {
-                    auto& state = var_states[*var];
-                    auto& loop_level = var_loop_levels[*var];
-
-                    if (state != VAR_INITIALIZED)
-                        clr.error(diags::variable_not_usable(name, state & VAR_INITIALIZED, state & VAR_UNINITIALIZED, state & VAR_MOVED_OUT), ast.loc);
-
-                    auto result = new_reg();
-                    auto instr = prog::read_var_instr { *var, result };
-                    add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(instr)));
-
-                    auto& var_type = var_types[*var];
-
-                    if (!confined && !var_type.confined) {
-                        if (clr.type_copyable(*var_type.tp))
-                            add_copy_instrs(result, *var_type.tp);
-                        else if (loop_level == 0)
-                            state = VAR_MOVED_OUT;
-                        else
-                            clr.error(diags::variable_moved_inside_loop(name), ast.loc);
-                    }
-
-                    auto type = copy_type_local(var_type);
-
-                    if (confined)
-                        type.confined = true;
-
-                    return { result, move(type) };
-                }
-
-                auto& gname = clr.get_global_name(name, ast.loc);
-
-                switch (gname.kind) {
-                    case global_name_kind::VAR: {
-                        auto& var = *clr.prog.global_vars[gname.index];
-
-                        auto result = new_reg();
-                        auto instr = prog::read_global_var_instr { gname.index, result };
-                        add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(instr)));
-
-                        if (!confined) {
-                            if (clr.type_copyable(*var.tp))
-                                add_copy_instrs(result, *var.tp);
-                            else
-                                clr.error(diags::global_variable_moved(name), ast.loc);
-                        }
-
-                        auto type = prog::type_local { make_ptr(copy_type(*var.tp)), confined };
-                        return { result, move(type) };
-                    }
-
-                    case global_name_kind::CONST: {
-                        auto& value = clr.consts[gname.index];
-
-                        auto result = new_reg();
-                        auto instr = prog::make_const_instr { make_ptr(copy_const(*value.value)), result };
-                        add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
-
-                        auto type = prog::type_local { make_ptr(copy_type(*value.tp)), confined };
-                        return { result, move(type) };
-                    }
-
-                    case global_name_kind::FUNC: {
-                        auto type = prog::type_local { make_ptr(VARIANT(prog::type, KNOWN_FUNC, gname.index)), false };
-                        return { unit_reg(), move(type) };
-                    }
-
-                    case global_name_kind::STRUCT: {
-                        auto type = prog::type_local { make_ptr(VARIANT(prog::type, STRUCT_CTOR, gname.index)), false };
-                        return { unit_reg(), move(type) };
-                    }
-
-                    case global_name_kind::ENUM:
-                        clr.error(diags::invalid_kind(name, global_name_kind::ENUM, { }), ast.loc);
-                }
-            } break;
+                return compile_global_name(name, confined, ast.loc);
+            }
 
             case ast::expr::VARIANT_NAME: {
                 auto& [name, variant_name] = GET(ast, VARIANT_NAME);
-
-                if (get_var(name))
-                    clr.error(diags::expected_enum_name(), ast.loc);
-
-                auto enum_index = clr.get_global_name(name, { global_name_kind::ENUM }, ast.loc).index;
-                auto& en = *clr.prog.enum_types[enum_index];
-
-                auto iter = en.variant_names.find(variant_name);
-                if (iter == en.variant_names.end())
-                    clr.error(diags::unknown_enum_variant(en, name), ast.loc);
-                auto variant_index = iter->second;
-                auto& variant = *en.variants[variant_index];
-
-                if (variant.tps.empty()) {
-                    auto result = new_reg();
-                    auto instr = prog::make_enum_variant_instr { enum_index, variant_index, { }, result };
-                    add_instr(VARIANT(prog::instr, MAKE_ENUM_VARIANT, into_ptr(instr)));
-                    auto type = prog::type_local { make_ptr(VARIANT(prog::type, ENUM, enum_index)), confined };
-                    return { result, move(type) };
-                }
-
-                auto type = prog::type_local { make_ptr(VARIANT(prog::type, ENUM_CTOR, make_pair(enum_index, variant_index))), false };
-                return { unit_reg(), move(type) };
+                return compile_variant_name(name, variant_name, confined, ast.loc);
             }
 
             case ast::expr::LITERAL: {
@@ -174,12 +80,12 @@ namespace sg {
             }
 
             case ast::expr::BREAK: {
-                add_break_instr(ast.loc);
+                add_break(ast.loc);
                 return { unit_reg(), copy_type_local(prog::NEVER_TYPE) };
             }
 
             case ast::expr::CONTINUE: {
-                add_continue_instr(ast.loc);
+                add_continue(ast.loc);
                 return { unit_reg(), copy_type_local(prog::NEVER_TYPE) };
             }
 
@@ -202,6 +108,127 @@ namespace sg {
         UNREACHABLE;
     }
 
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_var_read(prog::var_index var_index, bool confined, location loc) {
+        auto& var = vars[var_index];
+
+        if (var.state != VAR_INITIALIZED)
+            clr.error(diags::variable_not_usable(var.name, var.state & VAR_INITIALIZED, var.state & VAR_UNINITIALIZED, var.state & VAR_MOVED_OUT), loc);
+
+        auto result = new_reg();
+        auto instr = prog::read_var_instr { var_index, result };
+        add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(instr)));
+
+        if (!confined && !var.type.confined && !clr.type_trivial(*var.type.tp)) {
+            if (clr.type_copyable(*var.type.tp))
+                add_copy_instrs(result, *var.type.tp);
+            else if (var.outside_loop > 0)
+                clr.error(diags::variable_moved_inside_loop(var.name), loc);
+            else
+                var.state = VAR_MOVED_OUT;
+        }
+
+        auto type = copy_type_local(var.type);
+        if (confined)
+            type.confined = true;
+
+        return { result, move(type) };
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_confinement(prog::var_index var_index, location loc) {
+        auto var_name = *vars[var_index].name;
+        auto& var_type = vars[var_index].type;
+        if (var_type.confined)
+            clr.warning(diags::variable_already_confined(var_name), loc);
+
+        auto new_var_type = prog::type_local { make_ptr(copy_type(*var_type.tp)), true };
+        auto new_var_index = add_var(var_name, copy_type_local(new_var_type));
+
+        vars[new_var_index].state = vars[var_index].state;
+
+        auto value = new_reg();
+        auto read_instr = prog::read_var_instr { var_index, value };
+        auto write_instr = prog::write_var_instr { new_var_index, value };
+        add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
+        add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
+
+        return { value, move(new_var_type) };
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_global_name(string name, bool confined, location loc) {
+        auto& gname = clr.get_global_name(name, loc);
+
+        switch (gname.kind) {
+            case global_name_kind::VAR: {
+                auto& var = *clr.prog.global_vars[gname.index];
+
+                auto result = new_reg();
+                auto instr = prog::read_global_var_instr { gname.index, result };
+                add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(instr)));
+
+                if (!confined) {
+                    if (clr.type_copyable(*var.tp))
+                        add_copy_instrs(result, *var.tp);
+                    else
+                        clr.error(diags::global_variable_moved(name), loc);
+                }
+
+                auto type = prog::type_local { make_ptr(copy_type(*var.tp)), confined };
+                return { result, move(type) };
+            }
+
+            case global_name_kind::CONST: {
+                auto& value = clr.consts[gname.index];
+
+                auto result = new_reg();
+                auto instr = prog::make_const_instr { make_ptr(copy_const(*value.value)), result };
+                add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
+
+                auto type = prog::type_local { make_ptr(copy_type(*value.tp)), confined };
+                return { result, move(type) };
+            }
+
+            case global_name_kind::FUNC: {
+                auto type = prog::type_local { make_ptr(VARIANT(prog::type, KNOWN_FUNC, gname.index)), false };
+                return { unit_reg(), move(type) };
+            }
+
+            case global_name_kind::STRUCT: {
+                auto type = prog::type_local { make_ptr(VARIANT(prog::type, STRUCT_CTOR, gname.index)), false };
+                return { unit_reg(), move(type) };
+            }
+
+            case global_name_kind::ENUM:
+                clr.error(diags::invalid_kind(name, global_name_kind::ENUM, { }), loc);
+        }
+
+        UNREACHABLE;
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_variant_name(string name, string variant_name, bool confined, location loc) {
+        if (try_get_var(name))
+            clr.error(diags::expected_enum_name(), loc);
+
+        auto enum_index = clr.get_global_name(name, { global_name_kind::ENUM }, loc).index;
+        auto& en = *clr.prog.enum_types[enum_index];
+
+        auto iter = en.variant_names.find(variant_name);
+        if (iter == en.variant_names.end())
+            clr.error(diags::unknown_enum_variant(en, name), loc);
+        auto variant_index = iter->second;
+        auto& variant = *en.variants[variant_index];
+
+        if (variant.tps.empty()) {
+            auto result = new_reg();
+            auto instr = prog::make_enum_variant_instr { enum_index, variant_index, { }, result };
+            add_instr(VARIANT(prog::instr, MAKE_ENUM_VARIANT, into_ptr(instr)));
+            auto type = prog::type_local { make_ptr(VARIANT(prog::type, ENUM, enum_index)), confined };
+            return { result, move(type) };
+        }
+
+        auto type = prog::type_local { make_ptr(VARIANT(prog::type, ENUM_CTOR, make_pair(enum_index, variant_index))), false };
+        return { unit_reg(), move(type) };
+    }
+
     pair<prog::reg_index, prog::type_local> function_compiler::compile_return(optional<cref<ast::expr>> ast, location loc) {
         prog::reg_index result;
         prog::type_local type;
@@ -215,7 +242,7 @@ namespace sg {
 
         result = conv_clr.convert(result, type, *func.return_tp, loc);
 
-        add_return_instr(result, loc);
+        add_return(result, loc);
 
         return { result, copy_type_local(prog::NEVER_TYPE) };
     }
@@ -316,7 +343,7 @@ namespace sg {
             case prog::type::FUNC_WITH_PTR: {
                 auto& ftype = INDEX_EQ(receiver_type, FUNC) ? *GET(receiver_type, FUNC) : *GET(receiver_type, FUNC_WITH_PTR);
 
-                if (confined && !clr.type_trivially_copyable(*ftype.return_tp))
+                if (confined && !clr.type_trivial(*ftype.return_tp))
                     clr.error(diags::function_call_in_confined_context(), loc);
 
                 auto args = compile_call_args(arg_asts, ftype, { }, loc);
@@ -340,7 +367,7 @@ namespace sg {
             case prog::type::GLOBAL_FUNC: {
                 auto& ftype = *GET(receiver_type, GLOBAL_FUNC);
 
-                if (confined && !clr.type_trivially_copyable(*ftype.return_tp))
+                if (confined && !clr.type_trivial(*ftype.return_tp))
                     clr.error(diags::function_call_in_confined_context(), loc);
 
                 auto args = compile_call_args(arg_asts, ftype, { }, loc);
@@ -357,7 +384,7 @@ namespace sg {
                 auto& func = *clr.prog.global_funcs[func_index];
                 auto ftype = prog::get_func_type(func);
 
-                if (confined && !clr.type_trivially_copyable(*ftype.return_tp))
+                if (confined && !clr.type_trivial(*ftype.return_tp))
                     clr.error(diags::function_call_in_confined_context(), loc);
 
                 auto args = compile_call_args(arg_asts, ftype, { func }, loc);
@@ -448,23 +475,24 @@ namespace sg {
             case ast::binary_operation_expr::AND:
             case ast::binary_operation_expr::OR: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
-                auto left_value_converted = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
+                left_value = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
+                prog::reg_index right_value;
                 auto result = new_reg();
 
-                auto return_left_branch = [&](){
-                    add_instr(VARIANT(prog::instr, COPY_REG, make_ptr(prog::copy_reg_instr{ left_value_converted, result })));
+                auto short_branch = [&](){};
+                auto long_branch = [&](){
+                    auto[right_raw_value, right_type] = compile_expr(*ast.right, true);
+                    right_value = conv_clr.convert(right_raw_value, right_type, prog::BOOL_TYPE, ast.right->loc);
                 };
+                if (ast.operation == ast::binary_operation_expr::AND) {
+                    auto branch_instr = make_branch(left_value, long_branch, short_branch);
+                    add_instr(VARIANT(prog::instr, VALUE_BRANCH, make_ptr(prog::value_branch_instr{ move(branch_instr), right_value, left_value, result })));
+                }
+                else {
+                    auto branch_instr = make_branch(left_value, short_branch, long_branch);
+                    add_instr(VARIANT(prog::instr, VALUE_BRANCH, make_ptr(prog::value_branch_instr{ move(branch_instr), left_value, right_value, result })));
+                }
 
-                auto eval_right_branch = [&](){
-                    auto[right_value, right_type] = compile_expr(*ast.right, true);
-                    right_value = conv_clr.convert(right_value, right_type, prog::BOOL_TYPE, ast.right->loc);
-                    add_instr(VARIANT(prog::instr, COPY_REG, make_ptr(prog::copy_reg_instr{ right_value, result })));
-                };
-
-                if (ast.operation == ast::binary_operation_expr::AND)
-                    add_branch_instr(left_value, eval_right_branch, return_left_branch);
-                else
-                    add_branch_instr(left_value, return_left_branch, eval_right_branch);
                 return { result, copy_type_local(prog::BOOL_TYPE) };
             } break;
 
@@ -629,7 +657,7 @@ namespace sg {
                 if (name == ast::IGNORED_PLACEHOLDER)
                     return VARIANT(lvalue, IGNORED, monostate());
 
-                auto var = get_var(name);
+                auto var = try_get_var(name);
                 if (var)
                     return VARIANT(lvalue, VAR, *var);
 
@@ -691,8 +719,8 @@ namespace sg {
         vector<prog::type_local> implicit_types;
         if (implicit_type && INDEX_EQ(*implicit_type->get().tp, TUPLE)) {
             auto confined = implicit_type->get().confined;
-            for (auto& type_ptr : GET(*implicit_type->get().tp, TUPLE))
-                implicit_types.push_back({ make_ptr(copy_type(*type_ptr)), confined });
+            for (const prog::type& type : as_cref_vector(GET(*implicit_type->get().tp, TUPLE)))
+                implicit_types.push_back({ make_ptr(copy_type(type)), confined });
         }
 
         vector<lvalue> lvals;
@@ -809,7 +837,7 @@ namespace sg {
         for (auto& value_ast : value_asts) {
             auto [value, type] = compile_expr(value_ast, confined);
 
-            if (!clr.type_trivially_copyable(*type.tp)) {
+            if (!clr.type_trivial(*type.tp)) {
                 if (!all_confined)
                     all_confined = { type.confined };
                 else if (type.confined != *all_confined)

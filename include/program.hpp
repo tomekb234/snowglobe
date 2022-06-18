@@ -50,7 +50,6 @@ namespace sg::prog {
     struct read_global_var_instr;
     struct write_var_instr;
     struct write_global_var_instr;
-    struct copy_reg_instr;
     struct return_instr;
     struct func_call_instr;
     struct func_ptr_call_instr;
@@ -75,6 +74,7 @@ namespace sg::prog {
     struct numeric_conversion_instr;
     struct transform_instr;
     struct branch_instr;
+    struct value_branch_instr;
 
     typedef size_t global_index;
     typedef size_t param_index;
@@ -97,7 +97,7 @@ namespace sg::prog {
     };
 
     struct global_func {
-        string name;
+        optional<string> name;
         vector<ptr<func_param>> params;
         unordered_map<string, param_index> param_names;
         ptr<type> return_tp;
@@ -106,7 +106,7 @@ namespace sg::prog {
     };
 
     struct func_param {
-        string name;
+        optional<string> name;
         ptr<type_local> tp;
     };
 
@@ -118,7 +118,7 @@ namespace sg::prog {
     struct struct_type {
         string name;
         bool copyable;
-        bool trivially_copyable;
+        bool trivial;
         unordered_map<string, field_index> field_names;
         vector<ptr<struct_field>> fields;
     };
@@ -131,7 +131,7 @@ namespace sg::prog {
     struct enum_type {
         string name;
         bool copyable;
-        bool trivially_copyable;
+        bool trivial;
         unordered_map<string, variant_index> variant_names;
         vector<ptr<enum_variant>> variants;
     };
@@ -148,7 +148,8 @@ namespace sg::prog {
             OPTIONAL,
             GLOBAL_VAR_PTR,
             GLOBAL_VAR_SLICE,
-            GLOBAL_FUNC_PTR
+            GLOBAL_FUNC_PTR,
+            GLOBAL_FUNC_PTR_WRAPPED
         };
 
         variant<
@@ -162,7 +163,8 @@ namespace sg::prog {
             optional<ptr<constant>>, // OPTIONAL
             global_index, // GLOBAL_VAR_PTR
             global_index, // GLOBAL_VAR_SLICE
-            global_index // GLOBAL_FUNC_PTR
+            global_index, // GLOBAL_FUNC_PTR
+            global_index // GLOBAL_FUNC_PTR_WRAPPED
         > value;
     };
 
@@ -270,7 +272,6 @@ namespace sg::prog {
             READ_GLOBAL_VAR,
             WRITE_VAR,
             WRITE_GLOBAL_VAR,
-            COPY_REG,
             RETURN,
             FUNC_CALL,
             FUNC_PTR_CALL,
@@ -286,6 +287,7 @@ namespace sg::prog {
             MAKE_EMPTY_WEAK_PTR,
             GET_GLOBAL_VAR_PTR,
             GET_GLOBAL_FUNC_PTR,
+            GET_GLOBAL_FUNC_PTR_WRAPPED,
 
             TEST_OPTIONAL,
             TEST_VARIANT,
@@ -336,6 +338,7 @@ namespace sg::prog {
             DECR_WEAK_REF_COUNT,
 
             BRANCH,
+            VALUE_BRANCH,
             LOOP,
             CONTINUE_LOOP,
             BREAK_LOOP,
@@ -347,7 +350,6 @@ namespace sg::prog {
             ptr<read_global_var_instr>, // READ_GLOBAL_VAR
             ptr<write_var_instr>, // WRITE_VAR
             ptr<write_global_var_instr>, // WRITE_GLOBAL_VAR
-            ptr<copy_reg_instr>, // COPY_REG
             ptr<return_instr>, // RETURN
             ptr<func_call_instr>, // FUNC_CALL
             ptr<func_ptr_call_instr>, // FUNC_PTR_CALL
@@ -363,6 +365,7 @@ namespace sg::prog {
             reg_index, // MAKE_EMPTY_WEAK_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
+            ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR_WRAPPED
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
             ptr<test_variant_instr>, // TEST_ENUM_VARIANT
@@ -413,6 +416,7 @@ namespace sg::prog {
             reg_index, // DECR_WEAK_REF_COUNT
 
             ptr<branch_instr>, // BRANCH
+            ptr<value_branch_instr>, // VALE_BRANCH
             ptr<instr_block>, // LOOP
             monostate, // CONTINUE_LOOP
             monostate, // BREAK_LOOP
@@ -438,11 +442,6 @@ namespace sg::prog {
     struct write_global_var_instr {
         global_index var;
         reg_index value;
-    };
-
-    struct copy_reg_instr {
-        reg_index value;
-        reg_index result;
     };
 
     struct return_instr {
@@ -584,9 +583,16 @@ namespace sg::prog {
         ptr<instr_block> false_block;
     };
 
+    struct value_branch_instr : branch_instr {
+        reg_index true_value;
+        reg_index false_value;
+        reg_index result;
+    };
+
     extern const type_local NEVER_TYPE;
     extern const type_local UNIT_TYPE;
     extern const type_local BOOL_TYPE;
+    extern const type_local UNIT_PTR_TYPE;
 
     constant copy_const(const constant& con);
     type copy_type(const type& tp);

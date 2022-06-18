@@ -391,10 +391,6 @@ namespace sg {
 
             case ast::float_token::F32: {
                 auto reduced = static_cast<float>(value);
-
-                if (value != reduced)
-                    error(diags::single_float_overflow(value), ast.loc);
-
                 auto ntype = prog::number_type { prog::number_type::F32 };
                 return { VARIANT(prog::constant, NUMBER, make_pair(encode_number(reduced), copy_make_ptr(ntype))), ntype };
             }
@@ -561,6 +557,11 @@ namespace sg {
                 case prog::instr::GET_GLOBAL_FUNC_PTR: {
                     auto& get_ptr_instr = *GET(instr, GET_GLOBAL_FUNC_PTR);
                     reg_values[get_ptr_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR, get_ptr_instr.index);
+                } break;
+
+                case prog::instr::GET_GLOBAL_FUNC_PTR_WRAPPED: {
+                    auto& get_ptr_instr = *GET(instr, GET_GLOBAL_FUNC_PTR_WRAPPED);
+                    reg_values[get_ptr_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR_WRAPPED, get_ptr_instr.index);
                 } break;
 
                 case prog::instr::ARRAY_PTR_INTO_SLICE: {

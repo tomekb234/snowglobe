@@ -8,6 +8,9 @@ namespace sg::prog {
     const type_local UNIT_TYPE = { make_ptr(VARIANT(type, UNIT, monostate())), false };
     const type_local BOOL_TYPE = { make_ptr(VARIANT(type, NUMBER, make_ptr(number_type { number_type::BOOL }))), false };
 
+    const type_local UNIT_PTR_TYPE = { make_ptr(VARIANT(type, PTR, make_ptr(ptr_type { ptr_type::GLOBAL,
+        make_ptr(type_pointed { make_ptr(VARIANT(type, UNIT, monostate())), false }) }))), false };
+
     static array_type copy_array_type(const array_type& tp);
     static ptr_type copy_ptr_type(const ptr_type& tp);
     static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& tp);
@@ -70,6 +73,9 @@ namespace sg::prog {
 
             case constant::GLOBAL_FUNC_PTR:
                 return VARIANT(constant, GLOBAL_FUNC_PTR, GET(value, GLOBAL_FUNC_PTR));
+
+            case constant::GLOBAL_FUNC_PTR_WRAPPED:
+                return VARIANT(constant, GLOBAL_FUNC_PTR_WRAPPED, GET(value, GLOBAL_FUNC_PTR_WRAPPED));
         }
 
         UNREACHABLE;
@@ -406,7 +412,10 @@ namespace sg::prog {
 
             case type::KNOWN_FUNC: {
                 auto& func = *prog.global_funcs[GET(tp, KNOWN_FUNC)];
-                stream << "<function " << func.name << ">";
+                if (func.name)
+                    stream << "<function " << *func.name << ">";
+                else
+                    stream << "<internal function>";
                 break;
             }
 
@@ -463,13 +472,13 @@ namespace sg::prog {
         stream << '(';
 
         auto first = true;
-        for (auto& param_ptr : func.param_tps) {
+        for (const prog::type_local& tp : as_cref_vector(func.param_tps)) {
             if (!first)
                 stream << ", ";
             first = false;
-            if (!param_ptr->confined)
+            if (!tp.confined)
                 stream << "!";
-            print_type(stream, prog, *param_ptr->tp);
+            print_type(stream, prog, *tp.tp);
         }
 
         stream << ") -> ";

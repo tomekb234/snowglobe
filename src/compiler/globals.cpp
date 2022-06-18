@@ -43,7 +43,7 @@ namespace sg {
 
         for (const ast::func_param& param_ast : as_cref_vector(ast.params)) {
             param_names[param_ast.name] = params.size();
-            params.push_back(prog::func_param { param_ast.name, make_ptr(compile_type_local(*param_ast.tp, true)) });
+            params.push_back(prog::func_param { { param_ast.name }, make_ptr(compile_type_local(*param_ast.tp, true)) });
         }
 
         prog::type return_type;
@@ -52,7 +52,7 @@ namespace sg {
         else
             return_type = VARIANT(prog::type, UNIT, monostate());
 
-        return { name, into_ptr_vector(params), move(param_names), into_ptr(return_type), { }, { } };
+        return { { name }, into_ptr_vector(params), move(param_names), into_ptr(return_type), { }, { } };
     }
 
     prog::struct_type compiler::declare_struct_type(const ast::struct_def& ast) {
@@ -88,8 +88,8 @@ namespace sg {
             auto type = compile_type(*field_ast.tp, false);
             if (st.copyable && !type_copyable(type))
                 error(diags::type_not_copyable(prog, copy_type(type)), field_ast.tp->loc);
-            if (!type_trivially_copyable(type))
-                st.trivially_copyable = false;
+            if (!type_trivial(type))
+                st.trivial = false;
 
             auto field = prog::struct_field { field_ast.name, into_ptr(type) };
             field_names[field.name] = fields.size();
@@ -113,8 +113,8 @@ namespace sg {
                 auto type = compile_type(type_ast, false);
                 if (en.copyable && !type_copyable(type))
                     error(diags::type_not_copyable(prog, copy_type(type)), type_ast.loc);
-                if (!type_trivially_copyable(type))
-                    en.trivially_copyable = false;
+                if (!type_trivial(type))
+                    en.trivial = false;
                 types.push_back(move(type));
             }
 
@@ -125,5 +125,33 @@ namespace sg {
 
         en.variants = into_ptr_vector(variants);
         en.variant_names = move(variant_names);
+    }
+
+    prog::global_func compiler::make_global_func_wrapper(prog::global_index func_index) {
+        auto& func = *prog.global_funcs[func_index];
+
+        vector<prog::func_param> params;
+        params.push_back({ { }, make_ptr(copy_type_local(prog::UNIT_PTR_TYPE)) });
+        for (const prog::func_param& param : as_cref_vector(func.params))
+            params.push_back({ { }, make_ptr(copy_type_local(*param.tp)) });
+        auto param_count = params.size();
+
+        vector<prog::instr> instrs;
+
+        vector<prog::reg_index> call_args;
+        for (size_t index = 1; index < param_count; index++)
+            call_args.push_back(index);
+
+        auto result = param_count;
+        auto call_instr = prog::func_call_instr { func_index, call_args, result };
+        instrs.push_back(VARIANT(prog::instr, FUNC_CALL, into_ptr(call_instr)));
+
+        auto return_instr = prog::return_instr { result };
+        instrs.push_back(VARIANT(prog::instr, RETURN, into_ptr(return_instr)));
+
+        auto return_type = copy_type(*func.return_tp);
+        auto block = prog::instr_block { into_ptr_vector(instrs) };
+
+        return { { }, into_ptr_vector(params), { }, into_ptr(return_type), { }, into_ptr(block) };
     }
 }

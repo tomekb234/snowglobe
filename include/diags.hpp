@@ -81,7 +81,7 @@ namespace sg::diags {
 
     // Name resolution related
 
-    DIAG1(global_name_not_found, error, string, name);
+    DIAG1(name_not_found, error, string, name);
     DIAG1(type_not_compiled, error, string, name);
     DIAG1(global_name_used, error, string, name);
     DIAG1(field_name_used, error, string, name);
@@ -104,7 +104,6 @@ namespace sg::diags {
     DIAG0(expected_enum_name, error);
     DIAG0(expected_enum_variant, error);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
-    DIAG1(single_float_overflow, error, double, value);
     DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
     DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
 
@@ -129,15 +128,18 @@ namespace sg::diags {
     // Function compilation related
 
     DIAG0(global_function_copyable, error);
+    DIAG1(variable_not_found, error, string, name);
     DIAG0(variable_without_type, error);
-    DIAG4(variable_not_usable, error, string, name, bool, initialized, bool, uninitialized, bool, moved_out);
+    DIAG4(variable_not_usable, error, optional<string>, name, bool, initialized, bool, uninitialized, bool, moved_out);
     DIAG3(variable_not_deletable, error, optional<string>, name, bool, uninitialized, bool, moved_out);
-    DIAG1(variable_moved_inside_loop, error, string, name);
+    DIAG1(variable_moved_inside_loop, error, optional<string>, name);
+    DIAG1(variable_outside_confinement, error, optional<string>, name);
     DIAG1(global_variable_moved, error, string, name);
     DIAG1(invalid_variable_name, error, string, name);
     DIAG0(break_outside_loop, error);
     DIAG0(continue_outside_loop, error);
     DIAG0(missing_return, error);
+    DIAG1(variable_already_confined, warning, string, name);
     DIAG0(dead_code, warning);
 
     // Code generator diagnostics

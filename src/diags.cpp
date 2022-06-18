@@ -41,8 +41,8 @@ namespace sg::diags {
         }
     }
 
-    void global_name_not_found::write(ostream& stream) const {
-        stream << "Global name '" << name << "' not found" << endl;
+    void name_not_found::write(ostream& stream) const {
+        stream << "Name '" << name << "' not found" << endl;
     }
 
     void type_not_compiled::write(ostream& stream) const {
@@ -142,7 +142,10 @@ namespace sg::diags {
     }
 
     void unknown_function_parameter::write(ostream& stream) const {
-        stream << "The function '" << func.name << "' has no parameter named '" << name << "'" << endl;
+        stream << "The function ";
+        if (func.name)
+            stream << "'" << *func.name << "' ";
+        stream << "has no parameter named '" << name << "'" << endl;
     }
 
     void expected_enum_name::write(ostream& stream) const {
@@ -155,10 +158,6 @@ namespace sg::diags {
 
     void int_overflow::write(ostream& stream) const {
         stream << "The number '" << (negative ? "-" : "") << value << "' does not fit in " << (signed_type ? "signed" : "unsigned") << " " << bits << "-bit integer type" << endl;
-    }
-
-    void single_float_overflow::write(ostream& stream) const {
-        stream << "The number '" << value << "' does not fit in single-precision floating-point type" << endl;
     }
 
     void invalid_unary_operation::write(ostream& stream) const {
@@ -296,12 +295,20 @@ namespace sg::diags {
         stream << "A global function cannot be marked as copyable" << endl;
     }
 
+    void variable_not_found::write(ostream& stream) const {
+        stream << "Local variable with name '" << name << "' not found" << endl;
+    }
+
     void variable_without_type::write(ostream& stream) const {
         stream << "Type annotation required" << endl;
     }
 
     void variable_not_usable::write(ostream& stream) const {
-        stream << "The variable '" << name << "' was ";
+        if (name)
+            stream << "The variable '" << *name << "' ";
+        else
+            stream << "An internal variable ";
+        stream << "was ";
         if (initialized)
             stream << "potentially ";
         if (uninitialized)
@@ -314,10 +321,11 @@ namespace sg::diags {
     }
 
     void variable_not_deletable::write(ostream& stream) const {
+        stream << "The value of ";
         if (name)
-            stream << "The value of variable '" << *name << "' ";
+            stream << "the variable '" << *name << "' ";
         else
-            stream << "The value of an internal variable ";
+            stream << "an internal variable ";
         stream << "cannot be deleted because it is either initialized";
         if (uninitialized && moved_out)
             stream << ", uninitialized or moved out";
@@ -329,7 +337,25 @@ namespace sg::diags {
     }
 
     void variable_moved_inside_loop::write(ostream& stream) const {
-        stream << "Cannot move out the variable '" << name << "' inside a loop" << endl;
+        stream << "Cannot move out ";
+        if (name)
+            stream << "the variable '" << *name << "' ";
+        else
+            stream << "an internal variable ";
+        stream << "inside a loop" << endl;
+    }
+
+    void variable_outside_confinement::write(ostream& stream) const {
+        stream << "Cannot assign a confined value to ";
+        if (name)
+            stream << "the variable '" << *name << "' ";
+        else
+            stream << "an internal variable ";
+       stream << "from outside of current 'locally' block" << endl;
+    }
+
+    void variable_already_confined::write(ostream& stream) const {
+        stream << "The variable '" << name << "' was already confined" << endl;
     }
 
     void global_variable_moved::write(ostream& stream) const {
@@ -341,15 +367,15 @@ namespace sg::diags {
     }
 
     void break_outside_loop::write(ostream& stream) const {
-        stream << "Cannot use break statement outside a loop" << endl;
+        stream << "Cannot use 'break' statement outside a loop" << endl;
     }
 
     void continue_outside_loop::write(ostream& stream) const {
-        stream << "Cannot use continue statement outside a loop" << endl;
+        stream << "Cannot use 'continue' statement outside a loop" << endl;
     }
 
     void missing_return::write(ostream& stream) const {
-        stream << "Missing return statement" << endl;
+        stream << "Missing 'return' statement" << endl;
     }
 
     void dead_code::write(ostream& stream) const {

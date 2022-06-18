@@ -219,6 +219,7 @@ namespace sg::ast {
     struct locally_block_stmt : node {
         vector<string> var_names;
         ptr<stmt_block> block;
+        location names_loc;
     };
 
     struct swap_stmt : node {

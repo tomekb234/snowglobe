@@ -508,7 +508,7 @@ stmt_seq:
 locally_stmt:
     "locally" name_seq_nempty "{" stmt_seq "}"[end] {
         $stmt_seq.end_loc = @end;
-        $$ = { { @$ }, move($name_seq_nempty), into_ptr($stmt_seq) };
+        $$ = { { @$ }, move($name_seq_nempty), into_ptr($stmt_seq), @name_seq_nempty };
     }
 
 name_seq_nempty:

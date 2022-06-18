@@ -1,7 +1,7 @@
 CXX = c++ -std=c++17 -c -Wall -Wextra -I $I -I $G
 LINKER = c++ -std=c++17
 LLVM_LINKER_FLAGS = $(shell llvm-config --libs)
-LLVM_CXX_FLAGS = -I $(shell llvm-config --includedir)
+LLVM_CXX_FLAGS = -isystem $(shell llvm-config --includedir)
 RE2C = re2c
 BISON = bison
 

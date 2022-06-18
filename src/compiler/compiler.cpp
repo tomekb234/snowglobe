@@ -92,7 +92,7 @@ namespace sg {
                         func_indices.push({ });
                         auto& func_ast = *GET(def_ast, FUNC_DEF);
                         auto func = declare_global_func(func_ast);
-                        auto name = func.name;
+                        auto name = *func.name;
                         auto index = prog.global_funcs.size();
                         prog.global_funcs.push_back(into_ptr(func));
                         global_names[name] = { global_name_kind::FUNC, index, false };
@@ -142,7 +142,7 @@ namespace sg {
                         func_indices.pop();
                         auto& func = *prog.global_funcs[*index];
                         compile_global_func(func_ast, func);
-                        global_names[func.name].compiled = true;
+                        global_names[*func.name].compiled = true;
                     } break;
 
                     default:
@@ -159,7 +159,7 @@ namespace sg {
     const compiler::global_name& compiler::get_global_name(string name, location loc) {
         auto iter = global_names.find(name);
         if (iter == global_names.end())
-            error(diags::global_name_not_found(name), loc);
+            error(diags::name_not_found(name), loc);
         return iter->second;
     }
 
@@ -175,6 +175,19 @@ namespace sg {
         if (!gname.compiled && !allow_uncompiled)
             error(diags::type_not_compiled(name), loc);
         return gname;
+    }
+
+    prog::global_index compiler::get_global_func_wrapper(prog::global_index func_index) {
+        auto iter = func_wrappers.find(func_index);
+        if (iter != func_wrappers.end())
+            return iter->second;
+
+        auto wrapper = make_global_func_wrapper(func_index);
+        auto wrapper_index = prog.global_funcs.size();
+        prog.global_funcs.push_back(into_ptr(wrapper));
+
+        func_wrappers[func_index] = wrapper_index;
+        return wrapper_index;
     }
 
     vector<cref<ast::expr>> compiler::order_args(
