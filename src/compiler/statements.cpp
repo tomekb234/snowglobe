@@ -296,7 +296,7 @@ namespace sg {
             tie(end_value, end_type) = compile_expr(*range_ast.end, true);
             auto incr = !range_ast.reversed;
 
-            auto type = clr.common_supertype(*begin_type.tp, *begin_type.tp, ast.loc);
+            auto type = clr.common_supertype(*begin_type.tp, *end_type.tp, ast.loc);
             auto type_local = prog::type_local { make_ptr(copy_type(type)), false };
 
             if (!INDEX_EQ(type, NUMBER))

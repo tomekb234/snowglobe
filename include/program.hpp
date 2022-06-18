@@ -50,7 +50,6 @@ namespace sg::prog {
     struct read_global_var_instr;
     struct write_var_instr;
     struct write_global_var_instr;
-    struct copy_reg_instr;
     struct return_instr;
     struct func_call_instr;
     struct func_ptr_call_instr;
@@ -75,6 +74,7 @@ namespace sg::prog {
     struct numeric_conversion_instr;
     struct transform_instr;
     struct branch_instr;
+    struct value_branch_instr;
 
     typedef size_t global_index;
     typedef size_t param_index;
@@ -272,7 +272,6 @@ namespace sg::prog {
             READ_GLOBAL_VAR,
             WRITE_VAR,
             WRITE_GLOBAL_VAR,
-            COPY_REG,
             RETURN,
             FUNC_CALL,
             FUNC_PTR_CALL,
@@ -339,6 +338,7 @@ namespace sg::prog {
             DECR_WEAK_REF_COUNT,
 
             BRANCH,
+            VALUE_BRANCH,
             LOOP,
             CONTINUE_LOOP,
             BREAK_LOOP,
@@ -350,7 +350,6 @@ namespace sg::prog {
             ptr<read_global_var_instr>, // READ_GLOBAL_VAR
             ptr<write_var_instr>, // WRITE_VAR
             ptr<write_global_var_instr>, // WRITE_GLOBAL_VAR
-            ptr<copy_reg_instr>, // COPY_REG
             ptr<return_instr>, // RETURN
             ptr<func_call_instr>, // FUNC_CALL
             ptr<func_ptr_call_instr>, // FUNC_PTR_CALL
@@ -417,6 +416,7 @@ namespace sg::prog {
             reg_index, // DECR_WEAK_REF_COUNT
 
             ptr<branch_instr>, // BRANCH
+            ptr<value_branch_instr>, // VALE_BRANCH
             ptr<instr_block>, // LOOP
             monostate, // CONTINUE_LOOP
             monostate, // BREAK_LOOP
@@ -442,11 +442,6 @@ namespace sg::prog {
     struct write_global_var_instr {
         global_index var;
         reg_index value;
-    };
-
-    struct copy_reg_instr {
-        reg_index value;
-        reg_index result;
     };
 
     struct return_instr {
@@ -586,6 +581,12 @@ namespace sg::prog {
         reg_index cond;
         ptr<instr_block> true_block;
         ptr<instr_block> false_block;
+    };
+
+    struct value_branch_instr : branch_instr {
+        reg_index true_value;
+        reg_index false_value;
+        reg_index result;
     };
 
     extern const type_local NEVER_TYPE;

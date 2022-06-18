@@ -264,6 +264,7 @@ namespace sg {
         void add_return(prog::reg_index value, location loc);
         void add_break(location loc);
         void add_continue(location loc);
+        prog::branch_instr make_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
         void add_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
         void add_loop(function<prog::reg_index()> head, function<void()> body, function<void()> end);
 

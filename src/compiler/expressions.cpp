@@ -475,23 +475,24 @@ namespace sg {
             case ast::binary_operation_expr::AND:
             case ast::binary_operation_expr::OR: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
-                auto left_value_converted = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
+                left_value = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
+                prog::reg_index right_value;
                 auto result = new_reg();
 
-                auto return_left_branch = [&](){
-                    add_instr(VARIANT(prog::instr, COPY_REG, make_ptr(prog::copy_reg_instr{ left_value_converted, result })));
+                auto short_branch = [&](){};
+                auto long_branch = [&](){
+                    auto[right_raw_value, right_type] = compile_expr(*ast.right, true);
+                    right_value = conv_clr.convert(right_raw_value, right_type, prog::BOOL_TYPE, ast.right->loc);
                 };
+                if (ast.operation == ast::binary_operation_expr::AND) {
+                    auto branch_instr = make_branch(left_value, long_branch, short_branch);
+                    add_instr(VARIANT(prog::instr, VALUE_BRANCH, make_ptr(prog::value_branch_instr{ move(branch_instr), right_value, left_value, result })));
+                }
+                else {
+                    auto branch_instr = make_branch(left_value, short_branch, long_branch);
+                    add_instr(VARIANT(prog::instr, VALUE_BRANCH, make_ptr(prog::value_branch_instr{ move(branch_instr), left_value, right_value, result })));
+                }
 
-                auto eval_right_branch = [&](){
-                    auto[right_value, right_type] = compile_expr(*ast.right, true);
-                    right_value = conv_clr.convert(right_value, right_type, prog::BOOL_TYPE, ast.right->loc);
-                    add_instr(VARIANT(prog::instr, COPY_REG, make_ptr(prog::copy_reg_instr{ right_value, result })));
-                };
-
-                if (ast.operation == ast::binary_operation_expr::AND)
-                    add_branch(left_value, eval_right_branch, return_left_branch);
-                else
-                    add_branch(left_value, return_left_branch, eval_right_branch);
                 return { result, copy_type_local(prog::BOOL_TYPE) };
             } break;
 
