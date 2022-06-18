@@ -42,6 +42,7 @@ namespace sg {
         void llvm_verify(function<bool(llvm::raw_ostream*)> func);
 
         llvm::Type* get_llvm_type(const prog::type& tp);
+        llvm::Type* get_llvm_number_type(const prog::number_type& ntp);
 
         llvm::Value* make_constant(const prog::constant& constant);
     };

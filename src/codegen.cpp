@@ -51,40 +51,43 @@ namespace sg {
             case prog::type::UNIT:
                 return llvm::Type::getInt1Ty(ctx);
 
-            case prog::type::NUMBER: {
-                switch (GET(type, NUMBER)->tp) {
-                    case prog::number_type::BOOL:
-                        return llvm::Type::getInt1Ty(ctx);
-
-                    case prog::number_type::I8:
-                    case prog::number_type::U8:
-                        return llvm::Type::getInt8Ty(ctx);
-
-                    case prog::number_type::I16:
-                    case prog::number_type::U16:
-                        return llvm::Type::getInt16Ty(ctx);
-
-                    case prog::number_type::I32:
-                    case prog::number_type::U32:
-                        return llvm::Type::getInt32Ty(ctx);
-
-                    case prog::number_type::I64:
-                    case prog::number_type::U64:
-                        return llvm::Type::getInt64Ty(ctx);
-
-                    case prog::number_type::F32:
-                        return llvm::Type::getFloatTy(ctx);
-
-                    case prog::number_type::F64:
-                        return llvm::Type::getDoubleTy(ctx);
-                }
-
-                UNREACHABLE;
-            }
+            case prog::type::NUMBER:
+                return get_llvm_number_type(*GET(type, NUMBER));
 
             default:
                 error(diags::not_implemented()); // TODO
         }
+    }
+
+    llvm::Type* code_generator::get_llvm_number_type(const prog::number_type& ntp) {
+        switch (ntp.tp) {
+            case prog::number_type::BOOL:
+                return llvm::Type::getInt1Ty(ctx);
+
+            case prog::number_type::I8:
+            case prog::number_type::U8:
+                return llvm::Type::getInt8Ty(ctx);
+
+            case prog::number_type::I16:
+            case prog::number_type::U16:
+                return llvm::Type::getInt16Ty(ctx);
+
+            case prog::number_type::I32:
+            case prog::number_type::U32:
+                return llvm::Type::getInt32Ty(ctx);
+
+            case prog::number_type::I64:
+            case prog::number_type::U64:
+                return llvm::Type::getInt64Ty(ctx);
+
+            case prog::number_type::F32:
+                return llvm::Type::getFloatTy(ctx);
+
+            case prog::number_type::F64:
+                return llvm::Type::getDoubleTy(ctx);
+        }
+
+        UNREACHABLE;
     }
 
     llvm::Value* code_generator::make_constant(const prog::constant& constant) {
@@ -198,6 +201,36 @@ namespace sg {
                     regs[mc_instr.result] = gen.make_constant(*mc_instr.value);
                 } break;
 
+                case prog::instr::BOOL_NOT: {
+                    auto& uo_instr = *GET(instr, BOOL_NOT);
+                    regs[uo_instr.result] = builder.CreateXor(regs[uo_instr.value], llvm::ConstantInt::get(llvm::Type::getInt1Ty(gen.ctx), 1));
+                } break;
+
+                case prog::instr::INT_NEG: {
+                    auto& uo_instr = *GET(instr, INT_NEG);
+                    regs[uo_instr.result] = builder.CreateSub(llvm::ConstantInt::get(regs[uo_instr.value]->getType(), 0), regs[uo_instr.value]);
+                } break;
+
+                case prog::instr::FLOAT_NEG: {
+                    auto& uo_instr = *GET(instr, FLOAT_NEG);
+                    regs[uo_instr.result] = builder.CreateFNeg(regs[uo_instr.value]);
+                } break;
+
+                case prog::instr::BIT_NEG: {
+                    auto& uo_instr = *GET(instr, BIT_NEG);
+                    regs[uo_instr.result] = builder.CreateXor(regs[uo_instr.value], llvm::ConstantInt::get(regs[uo_instr.value]->getType(), -1));
+                } break;
+
+                case prog::instr::INCR: {
+                    auto& uo_instr = *GET(instr, INCR);
+                    regs[uo_instr.result] = builder.CreateAdd(regs[uo_instr.value], llvm::ConstantInt::get(regs[uo_instr.value]->getType(), 1));
+                } break;
+
+                case prog::instr::DECR: {
+                    auto& uo_instr = *GET(instr, DECR);
+                    regs[uo_instr.result] = builder.CreateSub(regs[uo_instr.value], llvm::ConstantInt::get(regs[uo_instr.value]->getType(), 1));
+                } break;
+
                 case prog::instr::ADD: {
                     auto& nbo_instr = *GET(instr, ADD);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
@@ -205,6 +238,61 @@ namespace sg {
                     else
                         regs[nbo_instr.result] = builder.CreateAdd(regs[nbo_instr.left], regs[nbo_instr.right]);
                 } break;
+
+                case prog::instr::SUB: {
+                    auto& nbo_instr = *GET(instr, SUB);
+                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
+                        regs[nbo_instr.result] = builder.CreateFSub(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else
+                        regs[nbo_instr.result] = builder.CreateSub(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::MUL: {
+                    auto& nbo_instr = *GET(instr, MUL);
+                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
+                        regs[nbo_instr.result] = builder.CreateFMul(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else
+                        regs[nbo_instr.result] = builder.CreateMul(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::DIV: {
+                    auto& nbo_instr = *GET(instr, DIV);
+                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                        regs[nbo_instr.result] = builder.CreateUDiv(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                        regs[nbo_instr.result] = builder.CreateSDiv(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else
+                        regs[nbo_instr.result] = builder.CreateFDiv(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::MOD: {
+                    auto& nbo_instr = *GET(instr, MOD);
+                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                        regs[nbo_instr.result] = builder.CreateURem(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                        regs[nbo_instr.result] = builder.CreateSRem(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else
+                        regs[nbo_instr.result] = builder.CreateFRem(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::BIT_AND: {
+                    auto& nbo_instr = *GET(instr, BIT_AND);
+                    regs[nbo_instr.result] = builder.CreateAnd(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::BIT_OR: {
+                    auto& nbo_instr = *GET(instr, BIT_OR);
+                    regs[nbo_instr.result] = builder.CreateOr(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::BIT_XOR: {
+                    auto& nbo_instr = *GET(instr, BIT_XOR);
+                    regs[nbo_instr.result] = builder.CreateXor(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::BIT_LSH:
+                case prog::instr::BIT_RSH:
+                    gen.error(diags::not_implemented()); // TODO
 
                 case prog::instr::LS: {
                     auto& nbo_instr = *GET(instr, LS);
@@ -214,6 +302,51 @@ namespace sg {
                         regs[nbo_instr.result] = builder.CreateICmpSLT(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else
                         regs[nbo_instr.result] = builder.CreateFCmpULT(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::LSEQ: {
+                    auto& nbo_instr = *GET(instr, LSEQ);
+                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                        regs[nbo_instr.result] = builder.CreateICmpULE(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                        regs[nbo_instr.result] = builder.CreateICmpSLE(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else
+                        regs[nbo_instr.result] = builder.CreateFCmpULE(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::GT: {
+                    auto& nbo_instr = *GET(instr, GT);
+                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                        regs[nbo_instr.result] = builder.CreateICmpUGT(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                        regs[nbo_instr.result] = builder.CreateICmpSGT(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else
+                        regs[nbo_instr.result] = builder.CreateFCmpUGT(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::GTEQ: {
+                    auto& nbo_instr = *GET(instr, GTEQ);
+                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                        regs[nbo_instr.result] = builder.CreateICmpUGE(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                        regs[nbo_instr.result] = builder.CreateICmpSGE(regs[nbo_instr.left], regs[nbo_instr.right]);
+                    else
+                        regs[nbo_instr.result] = builder.CreateFCmpUGE(regs[nbo_instr.left], regs[nbo_instr.right]);
+                } break;
+
+                case prog::instr::ZERO_EXT: {
+                    auto& nc_instr = *GET(instr, ZERO_EXT);
+                    regs[nc_instr.result] = builder.CreateZExt(regs[nc_instr.value], gen.get_llvm_number_type(*nc_instr.new_type));
+                } break;
+
+                case prog::instr::SIGNED_EXT: {
+                    auto& nc_instr = *GET(instr, SIGNED_EXT);
+                    regs[nc_instr.result] = builder.CreateSExt(regs[nc_instr.value], gen.get_llvm_number_type(*nc_instr.new_type));
+                } break;
+
+                case prog::instr::FLOAT_EXT: {
+                    auto& nc_instr = *GET(instr, FLOAT_EXT);
+                    regs[nc_instr.result] = builder.CreateFPExt(regs[nc_instr.value], gen.get_llvm_number_type(*nc_instr.new_type));
                 } break;
 
                 case prog::instr::BRANCH: {
