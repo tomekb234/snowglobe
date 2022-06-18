@@ -426,43 +426,43 @@ stmt:
     }
 
     | expr[left] "+=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::ADD }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::ADD, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] "-=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::SUB }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::SUB, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] "*=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::MUL }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::MUL, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] "/=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::DIV }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::DIV, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] "%=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::MOD }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::MOD, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] "&=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_AND }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_AND, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] "|=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_OR }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_OR, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] "^=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_XOR }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_XOR, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] "<<=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_LSH }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_LSH, into_ptr($left), into_ptr($right) }) }));
     }
 
     | expr[left] ">>=" expr[right] ";" {
-        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { { @$ }, into_ptr($left), into_ptr($right) }, compound_assignment_stmt::BIT_RSH }));
+        $$ = AST_VARIANT(stmt, COMPOUND_ASSIGNMENT, @$, make_ptr(compound_assignment_stmt { { @$ }, make_ptr(binary_operation_expr { { @$ }, binary_operation_expr::BIT_RSH, into_ptr($left), into_ptr($right) }) }));
     }
 
     | locally_stmt {

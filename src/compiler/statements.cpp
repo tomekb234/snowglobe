@@ -33,13 +33,17 @@ namespace sg {
 
             case ast::stmt::ASSIGNMENT: {
                 auto& assignment_ast = *GET(ast, ASSIGNMENT);
-                auto [result, type] = compile_expr(*assignment_ast.value, false);
-                auto lval = compile_left_expr(*assignment_ast.lvalue, type);
-                compile_assignment(lval, result, type, assignment_ast.value->loc);
+                auto [value, type] = compile_expr(*assignment_ast.value, false);
+                auto lval = compile_left_expr(*assignment_ast.lvalue, { type });
+                compile_assignment(lval, value, type, assignment_ast.value->loc);
             } break;
 
-            case ast::stmt::COMPOUND_ASSIGNMENT:
-                clr.error(diags::not_implemented(), ast.loc); // TODO
+            case ast::stmt::COMPOUND_ASSIGNMENT: {
+                auto& expr_ast = *GET(ast, COMPOUND_ASSIGNMENT)->expr;
+                auto [value, type] = compile_binary_operation(expr_ast);
+                auto lval = compile_left_expr(*expr_ast.left, { type });
+                compile_assignment(lval, value, type, expr_ast.right->loc);
+            } break;
 
             case ast::stmt::LOCALLY_BLOCK:
                 compile_locally_block_stmt(*GET(ast, LOCALLY_BLOCK));

@@ -201,19 +201,8 @@ namespace sg::ast {
         ptr<expr> value;
     };
 
-    struct compound_assignment_stmt : assignment_stmt {
-        enum {
-            ADD,
-            SUB,
-            MUL,
-            DIV,
-            MOD,
-            BIT_AND,
-            BIT_OR,
-            BIT_XOR,
-            BIT_LSH,
-            BIT_RSH
-        } operation;
+    struct compound_assignment_stmt : node {
+        ptr<binary_operation_expr> expr;
     };
 
     struct locally_block_stmt : node {
