@@ -460,7 +460,7 @@ namespace sg {
 
                     auto& [number, ntype_ptr] = GET(reg_values[conversion_instr.value], NUMBER);
 
-                    #define NUMERIC_CONVERSION(from, type_from, to, type_to) { \
+                    #define CONVERSION(from, type_from, to, type_to) { \
                         if (ntype_ptr->tp == prog::number_type::from && conversion_instr.new_type->tp == prog::number_type::to) { \
                             auto decoded = decode_number<type_from>(number); \
                             auto converted = static_cast<type_to>(decoded); \
@@ -470,44 +470,44 @@ namespace sg {
                         } \
                     }
 
-                    NUMERIC_CONVERSION(BOOL, bool, I8, int8_t);
-                    NUMERIC_CONVERSION(BOOL, bool, I16, int16_t);
-                    NUMERIC_CONVERSION(BOOL, bool, I32, int32_t);
-                    NUMERIC_CONVERSION(BOOL, bool, I64, int64_t);
-                    NUMERIC_CONVERSION(BOOL, bool, U8, uint8_t);
-                    NUMERIC_CONVERSION(BOOL, bool, U16, uint16_t);
-                    NUMERIC_CONVERSION(BOOL, bool, U32, uint32_t);
-                    NUMERIC_CONVERSION(BOOL, bool, U64, uint64_t);
+                    CONVERSION(BOOL, bool, I8, int8_t);
+                    CONVERSION(BOOL, bool, I16, int16_t);
+                    CONVERSION(BOOL, bool, I32, int32_t);
+                    CONVERSION(BOOL, bool, I64, int64_t);
+                    CONVERSION(BOOL, bool, U8, uint8_t);
+                    CONVERSION(BOOL, bool, U16, uint16_t);
+                    CONVERSION(BOOL, bool, U32, uint32_t);
+                    CONVERSION(BOOL, bool, U64, uint64_t);
 
-                    NUMERIC_CONVERSION(I8, int8_t, I16, int16_t);
-                    NUMERIC_CONVERSION(I8, int8_t, I32, int32_t);
-                    NUMERIC_CONVERSION(I8, int8_t, I64, int64_t);
+                    CONVERSION(I8, int8_t, I16, int16_t);
+                    CONVERSION(I8, int8_t, I32, int32_t);
+                    CONVERSION(I8, int8_t, I64, int64_t);
 
-                    NUMERIC_CONVERSION(I16, int16_t, I32, int32_t);
-                    NUMERIC_CONVERSION(I16, int16_t, I64, int64_t);
+                    CONVERSION(I16, int16_t, I32, int32_t);
+                    CONVERSION(I16, int16_t, I64, int64_t);
 
-                    NUMERIC_CONVERSION(I32, int32_t, I64, int64_t);
+                    CONVERSION(I32, int32_t, I64, int64_t);
 
-                    NUMERIC_CONVERSION(U8, uint8_t, U16, uint16_t);
-                    NUMERIC_CONVERSION(U8, uint8_t, U32, uint32_t);
-                    NUMERIC_CONVERSION(U8, uint8_t, U64, uint64_t);
-                    NUMERIC_CONVERSION(U8, uint8_t, I16, int16_t);
-                    NUMERIC_CONVERSION(U8, uint8_t, I32, int32_t);
-                    NUMERIC_CONVERSION(U8, uint8_t, I64, int64_t);
+                    CONVERSION(U8, uint8_t, U16, uint16_t);
+                    CONVERSION(U8, uint8_t, U32, uint32_t);
+                    CONVERSION(U8, uint8_t, U64, uint64_t);
+                    CONVERSION(U8, uint8_t, I16, int16_t);
+                    CONVERSION(U8, uint8_t, I32, int32_t);
+                    CONVERSION(U8, uint8_t, I64, int64_t);
 
-                    NUMERIC_CONVERSION(U16, uint16_t, U32, uint32_t);
-                    NUMERIC_CONVERSION(U16, uint16_t, U64, uint64_t);
-                    NUMERIC_CONVERSION(U16, uint16_t, I32, int32_t);
-                    NUMERIC_CONVERSION(U16, uint16_t, I64, int64_t);
+                    CONVERSION(U16, uint16_t, U32, uint32_t);
+                    CONVERSION(U16, uint16_t, U64, uint64_t);
+                    CONVERSION(U16, uint16_t, I32, int32_t);
+                    CONVERSION(U16, uint16_t, I64, int64_t);
 
-                    NUMERIC_CONVERSION(U32, uint32_t, U64, uint64_t);
-                    NUMERIC_CONVERSION(U32, uint16_t, I64, int64_t);
+                    CONVERSION(U32, uint32_t, U64, uint64_t);
+                    CONVERSION(U32, uint16_t, I64, int64_t);
 
-                    NUMERIC_CONVERSION(F32, float, F64, double);
+                    CONVERSION(F32, float, F64, double);
 
                     UNREACHABLE;
 
-                    #undef NUMERIC_CONV
+                    #undef CONVERSION
                 } break;
 
                 case prog::instr::EXTRACT_FIELD: {

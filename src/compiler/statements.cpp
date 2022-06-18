@@ -437,24 +437,26 @@ namespace sg {
             auto& ntype = *GET(type, NUMBER);
             prog::numeric_binary_operation_instr::kind_t op_kind;
 
+            using num = prog::number_type;
+
             switch (ntype.tp) {
-                case prog::number_type::BOOL:
-                case prog::number_type::U8:
-                case prog::number_type::U16:
-                case prog::number_type::U32:
-                case prog::number_type::U64:
+                case num::BOOL:
+                case num::U8:
+                case num::U16:
+                case num::U32:
+                case num::U64:
                     op_kind = prog::numeric_binary_operation_instr::UNSIGNED;
                     break;
 
-                case prog::number_type::I8:
-                case prog::number_type::I16:
-                case prog::number_type::I32:
-                case prog::number_type::I64:
+                case num::I8:
+                case num::I16:
+                case num::I32:
+                case num::I64:
                     op_kind = prog::numeric_binary_operation_instr::SIGNED;
                     break;
 
-                case prog::number_type::F32:
-                case prog::number_type::F64:
+                case num::F32:
+                case num::F64:
                     clr.error(diags::expected_integer_type(clr.prog, copy_type(type)), begin_ast.loc);
             }
 

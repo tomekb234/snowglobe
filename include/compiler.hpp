@@ -295,6 +295,7 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_unary_operation(const ast::unary_operation_expr& ast);
         pair<prog::reg_index, prog::type_local> compile_binary_operation(const ast::binary_operation_expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_numeric_cast(const ast::numeric_cast_expr& ast);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type);
         lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);

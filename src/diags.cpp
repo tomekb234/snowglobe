@@ -250,6 +250,12 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_number_type::write(ostream& stream) const {
+        stream << "Expected a number type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void expected_integer_type::write(ostream& stream) const {
         stream << "Expected an integer type instead of '";
         prog::print_type(stream, prog, type);

@@ -51,133 +51,102 @@ namespace sg {
                 auto& ntype = *GET(type, NUMBER);
                 auto& new_ntype = *GET(new_type, NUMBER);
 
+                #define CONVERT(instr_name) { \
+                    auto result = new_reg(); \
+                    auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result }; \
+                    add_instr(VARIANT(prog::instr, instr_name, into_ptr(instr))); \
+                    return { result }; \
+                }
+
+                using num = prog::number_type;
+
                 switch (ntype.tp) {
-                    case prog::number_type::BOOL: {
+                    case num::BOOL: {
                         switch (new_ntype.tp) {
-                            case prog::number_type::I8:
-                            case prog::number_type::I16:
-                            case prog::number_type::I32:
-                            case prog::number_type::I64:
-                            case prog::number_type::U8:
-                            case prog::number_type::U16:
-                            case prog::number_type::U32:
-                            case prog::number_type::U64: {
-                                auto result = new_reg();
-                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
-                                add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
-                                return { result };
-                            }
-
+                            case num::I8:
+                            case num::I16:
+                            case num::I32:
+                            case num::I64:
+                            case num::U8:
+                            case num::U16:
+                            case num::U32:
+                            case num::U64:
+                                CONVERT(ZERO_EXT);
                             default:
                                 break;
                         }
                     } break;
 
-                    case prog::number_type::I8: {
+                    case num::I8: {
                         switch (new_ntype.tp) {
-                            case prog::number_type::I16:
-                            case prog::number_type::I32:
-                            case prog::number_type::I64: {
-                                auto result = new_reg();
-                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
-                                add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
-                                return { result };
-                            }
-
+                            case num::I16:
+                            case num::I32:
+                            case num::I64:
+                                CONVERT(SIGNED_EXT);
                             default:
                                 break;
                         }
                     } break;
 
-                    case prog::number_type::I16: {
+                    case num::I16: {
                         switch (new_ntype.tp) {
-                            case prog::number_type::I32:
-                            case prog::number_type::I64: {
-                                auto result = new_reg();
-                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
-                                add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
-                                return { result };
-                            }
-
+                            case num::I32:
+                            case num::I64:
+                                CONVERT(SIGNED_EXT);
                             default:
                                 break;
                         }
                     } break;
 
-                    case prog::number_type::I32: {
+                    case num::I32: {
                         switch (new_ntype.tp) {
-                            case prog::number_type::I64: {
-                                auto result = new_reg();
-                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
-                                add_instr(VARIANT(prog::instr, SIGNED_EXT, into_ptr(instr)));
-                                return { result };
-                            }
-
+                            case num::I64:
+                                CONVERT(SIGNED_EXT);
                             default:
                                 break;
                         }
                     } break;
 
-                    case prog::number_type::U8: {
+                    case num::U8: {
                         switch (new_ntype.tp) {
-                            case prog::number_type::U16:
-                            case prog::number_type::U32:
-                            case prog::number_type::U64:
-                            case prog::number_type::I16:
-                            case prog::number_type::I32:
-                            case prog::number_type::I64: {
-                                auto result = new_reg();
-                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
-                                add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
-                                return { result };
-                            }
-
+                            case num::U16:
+                            case num::U32:
+                            case num::U64:
+                            case num::I16:
+                            case num::I32:
+                            case num::I64:
+                                CONVERT(ZERO_EXT);
                             default:
                                 break;
                         }
                     } break;
 
-                    case prog::number_type::U16: {
+                    case num::U16: {
                         switch (new_ntype.tp) {
-                            case prog::number_type::U32:
-                            case prog::number_type::U64:
-                            case prog::number_type::I32:
-                            case prog::number_type::I64: {
-                                auto result = new_reg();
-                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
-                                add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
-                                return { result };
-                            }
-
+                            case num::U32:
+                            case num::U64:
+                            case num::I32:
+                            case num::I64:
+                                CONVERT(ZERO_EXT);
                             default:
                                 break;
                         }
                     } break;
 
-                    case prog::number_type::U32: {
+                    case num::U32: {
                         switch (new_ntype.tp) {
-                            case prog::number_type::U64:
-                            case prog::number_type::I64: {
-                                auto result = new_reg();
-                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
-                                add_instr(VARIANT(prog::instr, ZERO_EXT, into_ptr(instr)));
-                                return { result };
-                            }
-
+                            case num::U64:
+                            case num::I64:
+                                CONVERT(ZERO_EXT);
                             default:
                                 break;
                         }
                     } break;
 
-                    case prog::number_type::F32: {
+                    case num::F32: {
                         switch (new_ntype.tp) {
-                            case prog::number_type::F64: {
-                                auto result = new_reg();
-                                auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result };
-                                add_instr(VARIANT(prog::instr, FLOAT_EXT, into_ptr(instr)));
-                                return { result };
-                            }
-
+                            case num::F64:
+                                CONVERT(FLOAT_EXT);
                             default:
                                 break;
                         }
@@ -186,6 +155,8 @@ namespace sg {
                     default:
                         break;
                 }
+
+                #undef CONVERT
             } break;
 
             case prog::type::TUPLE: {

@@ -54,7 +54,7 @@ namespace sg {
                 return compile_binary_operation(*GET(ast, BINARY_OPERATION));
 
             case ast::expr::NUMERIC_CAST:
-                clr.error(diags::not_implemented(), ast.loc); // TODO
+                return compile_numeric_cast(*GET(ast, NUMERIC_CAST));
 
             case ast::expr::NONE: {
                 auto result = new_reg();
@@ -407,6 +407,8 @@ namespace sg {
         auto [value, type] = compile_expr(*ast.value, true);
         auto result = new_reg();
 
+        using num = prog::number_type;
+
         switch (ast.operation) {
             case ast::unary_operation_expr::NOT: {
                 value = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
@@ -419,16 +421,16 @@ namespace sg {
                 if (!INDEX_EQ(*type.tp, NUMBER))
                     clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast.loc);
                 switch (GET(*type.tp, NUMBER)->tp) {
-                    case prog::number_type::I8:
-                    case prog::number_type::I16:
-                    case prog::number_type::I32:
-                    case prog::number_type::I64: {
+                    case num::I8:
+                    case num::I16:
+                    case num::I32:
+                    case num::I64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         add_instr(VARIANT(prog::instr, INT_NEG, into_ptr(instr)));
                     } break;
 
-                    case prog::number_type::F32:
-                    case prog::number_type::F64: {
+                    case num::F32:
+                    case num::F64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         add_instr(VARIANT(prog::instr, FLOAT_NEG, into_ptr(instr)));
                     } break;
@@ -443,14 +445,14 @@ namespace sg {
                 if (!INDEX_EQ(*type.tp, NUMBER))
                     clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast.loc);
                 switch (GET(*type.tp, NUMBER)->tp) {
-                    case prog::number_type::I8:
-                    case prog::number_type::I16:
-                    case prog::number_type::I32:
-                    case prog::number_type::I64:
-                    case prog::number_type::U8:
-                    case prog::number_type::U16:
-                    case prog::number_type::U32:
-                    case prog::number_type::U64: {
+                    case num::I8:
+                    case num::I16:
+                    case num::I32:
+                    case num::I64:
+                    case num::U8:
+                    case num::U16:
+                    case num::U32:
+                    case num::U64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         add_instr(VARIANT(prog::instr, BIT_NEG, into_ptr(instr)));
                         return { result, move(type) };
@@ -471,12 +473,14 @@ namespace sg {
                 copy_type(*left_type.tp), copy_type(*right_type.tp)), ast.loc); \
         }
 
+        using num = prog::number_type;
+
         auto is_uint = [&] (const prog::number_type& tp) -> bool {
             switch (tp.tp) {
-                case prog::number_type::U8:
-                case prog::number_type::U16:
-                case prog::number_type::U32:
-                case prog::number_type::U64:
+                case num::U8:
+                case num::U16:
+                case num::U32:
+                case num::U64:
                     return true;
                 default:
                     return false;
@@ -485,10 +489,10 @@ namespace sg {
 
         auto is_sint = [&] (const prog::number_type& tp) -> bool {
             switch (tp.tp) {
-                case prog::number_type::I8:
-                case prog::number_type::I16:
-                case prog::number_type::I32:
-                case prog::number_type::I64:
+                case num::I8:
+                case num::I16:
+                case num::I32:
+                case num::I64:
                     return true;
                 default:
                     return false;
@@ -497,8 +501,8 @@ namespace sg {
 
         auto is_float = [&] (const prog::number_type& tp) -> bool {
             switch (tp.tp) {
-                case prog::number_type::F32:
-                case prog::number_type::F64:
+                case num::F32:
+                case num::F64:
                     return true;
                 default:
                     return false;
@@ -674,6 +678,182 @@ namespace sg {
         UNREACHABLE;
 
         #undef INVALID_BINARY_OP
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_numeric_cast(const ast::numeric_cast_expr& ast) {
+        auto [value, type] = compile_expr(*ast.value, true);
+        auto new_type = clr.compile_type_local(*ast.tp, false);
+
+        if (!INDEX_EQ(*type.tp, NUMBER))
+            clr.error(diags::expected_number_type(clr.prog, copy_type(*type.tp)), ast.value->loc);
+        if (!INDEX_EQ(*new_type.tp, NUMBER))
+            clr.error(diags::expected_number_type(clr.prog, copy_type(*new_type.tp)), ast.loc);
+
+        auto& ntype = *GET(*type.tp, NUMBER);
+        auto& new_ntype = *GET(*type.tp, NUMBER);
+
+        #define PASS { \
+            return { value, move(type) }; \
+        }
+
+        #define CAST(instr_name) { \
+            auto result = new_reg(); \
+            auto instr = prog::numeric_conversion_instr { value, into_ptr(new_ntype), result }; \
+            add_instr(VARIANT(prog::instr, instr_name, into_ptr(instr))); \
+            return { result, move(new_type) }; \
+        }
+
+        using num = prog::number_type;
+
+        switch (ntype.tp) {
+            case num::BOOL: {
+                switch (new_ntype.tp) {
+                    case num::BOOL:
+                        PASS;
+                    case num::I8: case num::I16: case num::I32: case num::I64: case num::U8: case num::U16: case num::U32: case num::U64:
+                        CAST(ZERO_EXT);
+                    case num::F32: case num::F64:
+                        CAST(UINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::I8: {
+                switch (new_ntype.tp) {
+                    case num::I8: case num::U8:
+                        PASS;
+                    case num::BOOL:
+                        CAST(TRUNC);
+                    case num::U16: case num::U32: case num::U64:
+                        CAST(ZERO_EXT);
+                    case num::I16: case num::I32: case num::I64:
+                        CAST(SIGNED_EXT);
+                    case num::F32: case num::F64:
+                        CAST(SINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::I16: {
+                switch (new_ntype.tp) {
+                    case num::I16: case num::U16:
+                        PASS;
+                    case num::BOOL: case num::I8: case num::U8:
+                        CAST(TRUNC);
+                    case num::U32: case num::U64:
+                        CAST(ZERO_EXT);
+                    case num::I32: case num::I64:
+                        CAST(SIGNED_EXT);
+                    case num::F32: case num::F64:
+                        CAST(SINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::I32: {
+                switch (new_ntype.tp) {
+                    case num::I32: case num::U32:
+                        PASS;
+                    case num::BOOL: case num::I8: case num::I16: case num::U8: case num::U16:
+                        CAST(TRUNC);
+                    case num::U64:
+                        CAST(ZERO_EXT);
+                    case num::I64:
+                        CAST(SIGNED_EXT);
+                    case num::F32: case num::F64:
+                        CAST(SINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::I64: {
+                switch (new_ntype.tp) {
+                    case num::I64: case num::U64:
+                        PASS;
+                    case num::BOOL: case num::I8: case num::I16: case num::I32: case num::U8: case num::U16: case num::U32:
+                        CAST(TRUNC);
+                    case num::F32: case num::F64:
+                        CAST(SINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::U8: {
+                switch (new_ntype.tp) {
+                    case num::I8: case num::U8:
+                        PASS;
+                    case num::BOOL:
+                        CAST(TRUNC);
+                    case num::I16: case num::I32: case num::I64: case num::U16: case num::U32: case num::U64:
+                        CAST(ZERO_EXT);
+                    case num::F32: case num::F64:
+                        CAST(UINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::U16: {
+                switch (new_ntype.tp) {
+                    case num::I16: case num::U16:
+                        PASS;
+                    case num::BOOL: case num::I8: case num::U8:
+                        CAST(TRUNC);
+                    case num::I32: case num::I64: case num::U32: case num::U64:
+                        CAST(ZERO_EXT);
+                    case num::F32: case num::F64:
+                        CAST(UINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::U32: {
+                switch (new_ntype.tp) {
+                    case num::I32: case num::U32:
+                        PASS;
+                    case num::BOOL: case num::I8: case num::I16: case num::U8: case num::U16:
+                        CAST(TRUNC);
+                    case num::I64: case num::U64:
+                        CAST(ZERO_EXT);
+                    case num::F32: case num::F64:
+                        CAST(UINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::U64: {
+                switch (new_ntype.tp) {
+                    case num::I64: case num::U64:
+                        PASS;
+                    case num::BOOL: case num::I8: case num::I16: case num::I32: case num::U8: case num::U16: case num::U32:
+                        CAST(TRUNC);
+                    case num::F32: case num::F64:
+                        CAST(UINT_TO_FLOAT);
+                }
+            } break;
+
+            case num::F32: {
+                switch (new_ntype.tp) {
+                    case num::F32:
+                        PASS;
+                    case num::F64:
+                        CAST(FLOAT_EXT);
+                    case num::BOOL: case num::U8: case num::U16: case num::U32: case num::U64:
+                        CAST(FLOAT_TO_UINT);
+                    case num::I8: case num::I16: case num::I32: case num::I64:
+                        CAST(FLOAT_TO_SINT);
+                }
+            } break;
+
+            case num::F64: {
+                switch (new_ntype.tp) {
+                    case num::F64:
+                        PASS;
+                    case num::F32:
+                        CAST(FLOAT_TRUNC);
+                    case num::BOOL: case num::U8: case num::U16: case num::U32: case num::U64:
+                        CAST(FLOAT_TO_UINT);
+                    case num::I8: case num::I16: case num::I32: case num::I64:
+                        CAST(FLOAT_TO_SINT);
+                }
+            } break;
+        }
+
+        UNREACHABLE;
+
+        #undef PASS
+        #undef CAST
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {

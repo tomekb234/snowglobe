@@ -321,9 +321,15 @@ namespace sg::prog {
             GT,
             GTEQ,
 
+            TRUNC,
             ZERO_EXT,
             SIGNED_EXT,
+            UINT_TO_FLOAT,
+            SINT_TO_FLOAT,
+            FLOAT_TRUNC,
             FLOAT_EXT,
+            FLOAT_TO_UINT,
+            FLOAT_TO_SINT,
             TRANSFORM_ARRAY,
             TRANSFORM_OPTIONAL,
             ARRAY_PTR_INTO_SLICE,
@@ -399,9 +405,15 @@ namespace sg::prog {
             ptr<numeric_binary_operation_instr>, // GT
             ptr<numeric_binary_operation_instr>, // GTEQ
 
+            ptr<numeric_conversion_instr>, // TRUNC
             ptr<numeric_conversion_instr>, // ZERO_EXT
             ptr<numeric_conversion_instr>, // SIGNED_EXT
+            ptr<numeric_conversion_instr>, // UINT_TO_FLOAT
+            ptr<numeric_conversion_instr>, // SINT_TO_FLOAT
+            ptr<numeric_conversion_instr>, // FLOAT_TRUNC
             ptr<numeric_conversion_instr>, // FLOAT_EXT
+            ptr<numeric_conversion_instr>, // FLOAT_TO_UINT
+            ptr<numeric_conversion_instr>, // FLOAT_TO_SINT
             ptr<transform_instr>, // TRANSFORM_ARRAY
             ptr<transform_instr>, // TRANSFORM_OPTIONAL
             ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
