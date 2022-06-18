@@ -3,7 +3,6 @@
 #include "diags.hpp"
 
 #include <vector>
-#include <sstream>
 
 #include <llvm-12/llvm/IR/IRBuilder.h>
 #include <llvm-12/llvm/IR/Verifier.h>
@@ -21,9 +20,16 @@ namespace sg {
 
     bool code_generator::generate() {
         try {
-            for (auto& global_func : prog.global_funcs)
-                function_code_generator(*this, *global_func).generate();
+            // declare all functions
+            functions.resize(prog.global_funcs.size(), nullptr);
+            for (size_t i = 0; i < prog.global_funcs.size(); i++)
+                functions[i] = declare_function(*prog.global_funcs[i]);
 
+            // generate function code
+            for (size_t i = 0; i < prog.global_funcs.size(); i++)
+                function_code_generator(*this, *prog.global_funcs[i], functions[i]).generate();
+
+            // verify module well-formedness
             llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyModule(mod, stream); });
         } catch (generator_error) {
             return false;
@@ -140,16 +146,19 @@ namespace sg {
         UNREACHABLE;
     }
 
-    void function_code_generator::generate() {
+    llvm::Function* code_generator::declare_function(const prog::global_func& func) {
         // get function type
         vector<llvm::Type*> arg_types;
         for (auto& param : func.params)
-            arg_types.push_back(gen.get_llvm_type(*param->tp->tp));
-        auto ret_type = gen.get_llvm_type(*func.return_tp);
+            arg_types.push_back(get_llvm_type(*param->tp->tp));
+        auto ret_type = get_llvm_type(*func.return_tp);
         auto function_type = llvm::FunctionType::get(ret_type, arg_types, false);
 
         // create function
-        llvm_function = llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, func.name, gen.mod);
+        return llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, func.name, mod);
+    }
+
+    void function_code_generator::generate() {
 
         // create entry block
         auto entry_block = llvm::BasicBlock::Create(gen.ctx, "entry", llvm_function);
@@ -189,6 +198,15 @@ namespace sg {
                     auto& r_instr = *GET(instr, RETURN);
                     builder.CreateRet(regs[r_instr.value]);
                     terminated = true;
+                } break;
+
+                case prog::instr::FUNC_CALL: {
+                    auto& fc_instr = *GET(instr, FUNC_CALL);
+                    auto callee = llvm::FunctionCallee(gen.functions[fc_instr.func]);
+                    vector<llvm::Value*> args;
+                    for (auto arg : fc_instr.args)
+                        args.push_back(regs[arg]);
+                    regs[fc_instr.result] = builder.CreateCall(callee, args);
                 } break;
 
                 case prog::instr::MAKE_UNIT: {

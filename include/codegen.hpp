@@ -12,12 +12,15 @@ namespace sg {
     using std::unordered_map;
     using std::make_unique;
     using std::function;
+    using std::vector;
 
     class code_generator {
         const prog::program& prog;
         diagnostic_collector& diags;
         llvm::LLVMContext ctx;
         llvm::Module mod;
+
+        vector<llvm::Function*> functions;
 
         friend class function_code_generator;
 
@@ -30,6 +33,7 @@ namespace sg {
 
         private:
 
+        // diagnostic helpers
         struct generator_error { };
 
         template<typename T>
@@ -41,23 +45,28 @@ namespace sg {
 
         void llvm_verify(function<bool(llvm::raw_ostream*)> func);
 
+        // LLVM types handling
         llvm::Type* get_llvm_type(const prog::type& tp);
         llvm::Type* get_llvm_number_type(const prog::number_type& ntp);
 
+        // constants
         llvm::Value* make_constant(const prog::constant& constant);
+
+        // top-level declarations
+        llvm::Function* declare_function(const prog::global_func& func);
     };
 
     class function_code_generator {
         code_generator& gen;
         const prog::global_func& func;
-
         llvm::Function* llvm_function;
+
         unordered_map<prog::reg_index, llvm::Value*> regs;
         unordered_map<prog::var_index, llvm::Value*> vars;
 
         public:
 
-        function_code_generator(code_generator& gen, const prog::global_func& func) : gen(gen), func(func) {}
+        function_code_generator(code_generator& gen, const prog::global_func& func, llvm::Function* llvm_function) : gen(gen), func(func), llvm_function(llvm_function) {}
 
         void generate();
 

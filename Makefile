@@ -27,7 +27,7 @@ compiler = $C/compiler.o $C/globals.o $C/functions.o $C/statements.o $C/expressi
 $B/snowglobe: $B/input.o $B/lexer.o $B/parser.o $B/program.o $(compiler) $B/diagcol.o $B/diags.o $B/codegen.o $B/main.o | $B $C
 	$(LINKER) $^ $(LLVM_LINKER_FLAGS) -o $@
 
-$B/main.o: $S/main.cpp $(input_hpp) $(diagcol_hpp) $(ast_hpp) $(parser_hpp) $(compiler_hpp) $(program_hpp) | $B
+$B/main.o: $S/main.cpp $(input_hpp) $(diagcol_hpp) $(ast_hpp) $(parser_hpp) $(compiler_hpp) $(program_hpp) $(codegen_hpp) | $B
 	$(CXX) $(LLVM_CXX_FLAGS) $< -o $@
 
 $B/input.o: $S/input.cpp $(input_hpp) | $B
