@@ -89,7 +89,11 @@ namespace sg {
                 return { unit_reg(), copy_type_local(prog::NEVER_TYPE) };
             }
 
-            case ast::expr::CONDITIONAL:
+            case ast::expr::CONDITIONAL: {
+                auto& conditional_expr = *GET(ast, CONDITIONAL);
+                return compile_conditional(conditional_expr);
+            }
+
             case ast::expr::GLOBAL_REF:
             case ast::expr::HEAP_ALLOC:
             case ast::expr::DEREFERENCE:
@@ -524,10 +528,12 @@ namespace sg {
 
                 if (ast.operation == binop::AND) {
                     auto branch_instr = make_branch(left_value, long_branch, short_branch);
-                    add_instr(VARIANT(prog::instr, VALUE_BRANCH, make_ptr(prog::value_branch_instr{ move(branch_instr), right_value, left_value, result })));
+                    auto value_branch_instr = prog::value_branch_instr{ move(branch_instr), right_value, left_value, result };
+                    add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
                 } else {
                     auto branch_instr = make_branch(left_value, short_branch, long_branch);
-                    add_instr(VARIANT(prog::instr, VALUE_BRANCH, make_ptr(prog::value_branch_instr{ move(branch_instr), left_value, right_value, result })));
+                    auto value_branch_instr = prog::value_branch_instr{ move(branch_instr), left_value, right_value, result };
+                    add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
                 }
 
                 return { result, copy_type_local(prog::BOOL_TYPE) };
@@ -869,6 +875,59 @@ namespace sg {
 
         #undef PASS
         #undef CAST
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_conditional(const ast::conditional_expr& ast) {
+        auto [value, type] = compile_expr(*ast.value, true);
+        auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
+
+        prog::reg_index true_value, false_value;
+        prog::type_local true_type, false_type;
+
+        auto true_branch = [&] () {
+            tie(true_value, true_type) = compile_expr(*ast.true_result, false);
+        };
+
+        auto false_branch = [&] () {
+            tie(false_value, false_type) = compile_expr(*ast.false_result, false);
+        };
+
+        auto result = new_reg();
+        auto branch_instr = make_branch(cond, true_branch, false_branch);
+        auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_value, false_value, result };
+        add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
+
+        optional<bool> both_confined;
+
+        if (!clr.type_trivial(*true_type.tp))
+            both_confined = { true_type.confined };
+
+        if (!clr.type_trivial(*false_type.tp)) {
+            if (!both_confined)
+                both_confined = { false_type.confined };
+            else if (false_type.confined != *both_confined)
+                clr.error(diags::confinement_ambiguous(), ast.loc);
+        }
+
+        auto common_type = clr.common_supertype(*true_type.tp, *false_type.tp, ast.loc);
+        auto common_type_local = prog::type_local { into_ptr(common_type), both_confined ? *both_confined : false };
+
+        prog::reg_index true_conv_value, false_conv_value;
+
+        auto true_conv_branch = [&] () {
+            true_conv_value = conv_clr.convert(result, true_type, common_type_local, ast.true_result->loc);
+        };
+
+        auto false_conv_branch = [&] () {
+            false_conv_value = conv_clr.convert(result, false_type, common_type_local, ast.false_result->loc);
+        };
+
+        auto conv_result = new_reg();
+        auto conv_branch_instr = make_branch(cond, true_conv_branch, false_conv_branch);
+        auto conv_value_branch_instr = prog::value_branch_instr { move(conv_branch_instr), true_conv_value, false_conv_value, conv_result };
+        add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(conv_value_branch_instr)));
+
+        return { conv_result, move(common_type_local) };
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {

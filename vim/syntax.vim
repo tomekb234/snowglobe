@@ -1,6 +1,6 @@
 " Vim syntax file
 " Language: Snowglobe
-" Latest Revision: 02 May 2022
+" Latest Revision: 19 Jun 2022
 
 if exists("b:current_syntax")
 	finish
@@ -18,8 +18,8 @@ endif
 " Keywords
 syn keyword		sgTypeKeyword			bool f32 f64 i8 i16 i32 i64 never u8 u16 u32 u64
 syn keyword		sgBooleanValueKeyword	false true
-syn keyword		sgStructKeyword			enum struct 
-syn keyword		sgConditionalKeyword	elif else if match
+syn keyword		sgStructKeyword			enum struct
+syn keyword		sgConditionalKeyword	elif else if match then
 syn keyword		sgLoopKeyword			for while
 syn keyword		sgOtherKeyword			as break const continue copyable func in locally none ref return reversed some swap var with
 
