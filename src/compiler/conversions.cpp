@@ -326,24 +326,34 @@ namespace sg {
                 if (INDEX_EQ(new_type, FUNC_WITH_PTR)) {
                     auto& new_fptr = *GET(new_type, FUNC_WITH_PTR);
 
-                    auto result = try_convert_ptr_kind(value, fptr.kind, new_fptr.kind, confined);
-                    if (!result)
+                    if (!prog::func_types_equal(fptr, new_fptr))
                         break;
 
-                    if (prog::func_types_equal(fptr, new_fptr))
-                        return { *result };
-                }
+                    auto ptr_value = new_reg();
+                    auto extract_ptr_instr = prog::ptr_conversion_instr { value, ptr_value };
+                    add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_ptr_instr)));
 
-                else if (INDEX_EQ(new_type, FUNC) && ptr_kind_trivial(fptr.kind, confined)) {
-                    auto& new_func = *GET(new_type, FUNC);
+                    auto func_value = new_reg();
+                    auto extract_func_instr = prog::ptr_conversion_instr { value, func_value };
+                    add_instr(VARIANT(prog::instr, EXTRACT_FUNC_PTR, into_ptr(extract_func_instr)));
+
+                    auto ptr_result = try_convert_ptr_kind(ptr_value, fptr.kind, new_fptr.kind, confined);
+                    if (!ptr_result)
+                        break;
+
+                    ptr_result = try_convert_ptr_target(*ptr_result, *fptr.target_tp, *new_fptr.target_tp);
+                    if (!ptr_result)
+                        break;
 
                     auto result = new_reg();
-                    auto instr = prog::ptr_conversion_instr { value, result };
-                    add_instr(VARIANT(prog::instr, EXTRACT_FUNC, into_ptr(instr)));
+                    auto make_instr = prog::make_joint_func_ptr_instr { *ptr_result, func_value, result };
+                    add_instr(VARIANT(prog::instr, MAKE_JOINT_FUNC_PTR, into_ptr(make_instr)));
 
-                    if (prog::func_types_equal(fptr, new_func))
-                        return { result };
+                    return { result };
                 }
+
+                else if (INDEX_EQ(new_type, FUNC) && ptr_kind_trivial(fptr.kind, confined))
+                    return { value };
 
                 else if (INDEX_EQ(new_type, PTR)) {
                     auto& new_ptr = *GET(new_type, PTR);
@@ -385,9 +395,14 @@ namespace sg {
 
                     auto wrapper_index = clr.get_global_func_wrapper(index);
 
+                    auto value = new_reg();
+                    auto get_instr = prog::get_global_ptr_instr { wrapper_index, value };
+                    add_instr(VARIANT(prog::instr, GET_GLOBAL_FUNC_PTR, into_ptr(get_instr)));
+
                     auto result = new_reg();
-                    auto instr = prog::get_global_ptr_instr { wrapper_index, result };
-                    add_instr(VARIANT(prog::instr, GET_GLOBAL_FUNC_PTR_WRAPPED, into_ptr(instr)));
+                    auto into_instr = prog::ptr_conversion_instr { value, result };
+                    add_instr(VARIANT(prog::instr, INTO_FAKE_JOINT_FUNC_PTR, into_ptr(into_instr)));
+
                     return { result };
                 }
             } break;

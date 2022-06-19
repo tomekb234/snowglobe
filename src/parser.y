@@ -81,6 +81,7 @@
 %token SOME "some"
 %token STRUCT "struct"
 %token SWAP "swap"
+%token THEN "then"
 %token TRUE "true"
 %token U8 "u8"
 %token U16 "u16"
@@ -161,7 +162,7 @@
 %left "+" "-"
 %left "*" "/" "%"
 %left "as"
-%right "!" "~" "@" "$" "#" "?" UNARY_MINUS UNARY_STAR UNARY_AMP UNARY_CARET
+%right "!" "~" "@" "$" "#" "?" UNARY_MINUS UNARY_STAR UNARY_CARET
 %left "." "->"
 %precedence "(" "["
 
@@ -174,7 +175,6 @@
 %nterm <var_def> const_def
 %nterm <const_int> const_int
 %nterm <func_def> func_def
-%nterm <bool> optional_copying
 %nterm <func_param> func_param
 %nterm <vector<func_param>> func_param_seq
 %nterm <vector<func_param>> func_param_seq_nempty
@@ -293,18 +293,9 @@ const_int:
     }
 
 func_def:
-    "func" optional_copying NAME "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
+    "func" NAME "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
         $func_body.block->end_loc = @end;
-        $$ = { { @$ }, move($NAME), $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body), @NAME };
-    }
-
-optional_copying:
-    %empty {
-        $$ = false;
-    }
-
-    | "@" {
-        $$ = true;
+        $$ = { { @$ }, move($NAME), into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body), @NAME };
     }
 
 func_param:
@@ -853,8 +844,12 @@ expr:
         $$ = AST_VARIANT(expr, CONTINUE, @$, monostate());
     }
 
-    | "&" NAME %prec UNARY_AMP {
-        $$ = AST_VARIANT(expr, REFERENCE, @$, move($NAME));
+    | "$" NAME {
+        $$ = AST_VARIANT(expr, GLOBAL_REF, @$, move($NAME));
+    }
+
+    | "(" "if" expr[cond] "then" expr[left] "else" expr[right] ")" {
+        $$ = AST_VARIANT(expr, CONDITIONAL, @$, make_ptr(conditional_expr { { @$ }, into_ptr($cond), into_ptr($left), into_ptr($right) }));
     }
 
     | "@" expr[inner] {
@@ -897,11 +892,11 @@ expr:
         $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, OWNER, @$, into_ptr($inner))));
     }
 
-    | expr[inner] "->" NAME {
+    | expr[inner] "." "&" NAME {
         $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, NAME, @$, make_pair(into_ptr($inner), move($NAME)))));
     }
 
-    | expr[inner] "->" INT {
+    | expr[inner] "." "&" INT {
         $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, INDEX, @$, make_pair(into_ptr($inner), $INT.value))));
     }
 
@@ -913,9 +908,8 @@ expr:
         $$ = AST_VARIANT(expr, PTR_EXTRACT, @$, make_ptr(AST_VARIANT(ptr_extract_expr, ITEM_RANGE, @$, make_pair(into_ptr($arr), make_pair(into_optional_ptr($lrange), into_optional_ptr($rrange))))));
     }
 
-    | "func" optional_copying "(" func_param_seq ")" optional_return_type "{" func_body "}"[end] {
-        $func_body.block->end_loc = @end;
-        $$ = AST_VARIANT(expr, LAMBDA, @$, make_ptr(lambda_expr { { @$ }, $optional_copying, into_ptr_vector($func_param_seq), into_optional_ptr($optional_return_type), into_ptr($func_body) }));
+    | "(" "func" func_param_seq "->" expr[result] ")" {
+        $$ = AST_VARIANT(expr, LAMBDA, @$, make_ptr(lambda_expr { { @$ }, into_ptr_vector($func_param_seq), into_ptr($result) }));
     }
 
 optional_expr:

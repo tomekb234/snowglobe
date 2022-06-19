@@ -65,6 +65,7 @@ static string parse_string(const string& text);
 "some" { TOKEN(SOME) }
 "struct" { TOKEN(STRUCT) }
 "swap" { TOKEN(SWAP) }
+"then" { TOKEN(THEN) }
 "true" { TOKEN(TRUE) }
 "u8" { TOKEN(U8) }
 "u16" { TOKEN(U16) }

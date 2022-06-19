@@ -89,7 +89,8 @@ namespace sg {
                 return { unit_reg(), copy_type_local(prog::NEVER_TYPE) };
             }
 
-            case ast::expr::REFERENCE:
+            case ast::expr::CONDITIONAL:
+            case ast::expr::GLOBAL_REF:
             case ast::expr::HEAP_ALLOC:
             case ast::expr::DEREFERENCE:
             case ast::expr::TEST:
@@ -135,23 +136,17 @@ namespace sg {
     }
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_confinement(prog::var_index var_index, location loc) {
+        auto [value, type] = compile_var_read(var_index, true, loc);
+
         auto var_name = *vars[var_index].name;
-        auto& var_type = vars[var_index].type;
-        if (var_type.confined)
-            clr.warning(diags::variable_already_confined(var_name), loc);
+        auto new_var_index = add_var(var_name, copy_type_local(type));
 
-        auto new_var_type = prog::type_local { make_ptr(copy_type(*var_type.tp)), true };
-        auto new_var_index = add_var(var_name, copy_type_local(new_var_type));
-
-        vars[new_var_index].state = vars[var_index].state;
-
-        auto value = new_reg();
-        auto read_instr = prog::read_var_instr { var_index, value };
         auto write_instr = prog::write_var_instr { new_var_index, value };
-        add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
         add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
 
-        return { value, move(new_var_type) };
+        vars[new_var_index].state = VAR_INITIALIZED;
+
+        return { value, move(type) };
     }
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_global_name(string name, bool confined, location loc) {
@@ -349,13 +344,13 @@ namespace sg {
                 auto args = compile_call_args(arg_asts, ftype, { }, loc);
 
                 auto ptr = new_reg();
-                auto instr1 = prog::ptr_conversion_instr { receiver, ptr };
-                add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(instr1)));
+                auto extract_ptr_instr = prog::ptr_conversion_instr { receiver, ptr };
+                add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_ptr_instr)));
                 args.insert(args.begin(), ptr);
 
                 auto func = new_reg();
-                auto instr2 = prog::ptr_conversion_instr { receiver, func };
-                add_instr(VARIANT(prog::instr, EXTRACT_FUNC, into_ptr(instr2)));
+                auto extract_func_instr = prog::ptr_conversion_instr { receiver, func };
+                add_instr(VARIANT(prog::instr, EXTRACT_FUNC_PTR, into_ptr(extract_func_instr)));
 
                 auto result = new_reg();
                 auto instr = prog::func_ptr_call_instr { func, args, result };

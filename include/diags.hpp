@@ -129,7 +129,6 @@ namespace sg::diags {
 
     // Function compilation related
 
-    DIAG0(global_function_copyable, error);
     DIAG1(variable_not_found, error, string, name);
     DIAG0(variable_without_type, error);
     DIAG4(variable_not_usable, error, optional<string>, name, bool, initialized, bool, uninitialized, bool, moved_out);
@@ -141,7 +140,6 @@ namespace sg::diags {
     DIAG0(break_outside_loop, error);
     DIAG0(continue_outside_loop, error);
     DIAG0(missing_return, error);
-    DIAG1(variable_already_confined, warning, string, name);
     DIAG0(dead_code, warning);
 }
 

@@ -40,11 +40,6 @@ namespace sg {
             case ast::expr::LITERAL:
                 return compile_const_literal(*GET(ast, LITERAL));
 
-            case ast::expr::UNARY_OPERATION:
-            case ast::expr::BINARY_OPERATION:
-            case ast::expr::NUMERIC_CAST:
-                error(diags::not_implemented(), ast.loc); // TODO compile-time arithmetic
-
             case ast::expr::SOME: {
                 auto [inner_value, inner_type] = compile_const(*GET(ast, SOME));
                 auto value = VARIANT(prog::constant, OPTIONAL, optional<ptr<prog::constant>>(into_ptr(inner_value)));
@@ -58,8 +53,8 @@ namespace sg {
                 return { move(value), move(type) };
             }
 
-            case ast::expr::REFERENCE: {
-                auto& name = GET(ast, REFERENCE);
+            case ast::expr::GLOBAL_REF: {
+                auto& name = GET(ast, GLOBAL_REF);
                 auto index = get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
                 auto& target_type = *prog.global_vars[index]->tp;
                 auto type_pointed = prog::type_pointed { make_ptr(prog::copy_type(target_type)), false };
@@ -555,13 +550,14 @@ namespace sg {
                 } break;
 
                 case prog::instr::GET_GLOBAL_FUNC_PTR: {
-                    auto& get_ptr_instr = *GET(instr, GET_GLOBAL_FUNC_PTR);
-                    reg_values[get_ptr_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR, get_ptr_instr.index);
+                    auto& get_instr = *GET(instr, GET_GLOBAL_FUNC_PTR);
+                    reg_values[get_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR, get_instr.index);
                 } break;
 
-                case prog::instr::GET_GLOBAL_FUNC_PTR_WRAPPED: {
-                    auto& get_ptr_instr = *GET(instr, GET_GLOBAL_FUNC_PTR_WRAPPED);
-                    reg_values[get_ptr_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR_WRAPPED, get_ptr_instr.index);
+                case prog::instr::INTO_FAKE_JOINT_FUNC_PTR: {
+                    auto& into_instr = *GET(instr, INTO_FAKE_JOINT_FUNC_PTR);
+                    auto index = GET(reg_values[into_instr.value], GLOBAL_FUNC_PTR);
+                    reg_values[into_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_FAKE_JOINT_PTR, index);
                 } break;
 
                 case prog::instr::ARRAY_PTR_INTO_SLICE: {

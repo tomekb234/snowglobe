@@ -35,9 +35,6 @@ namespace sg {
         if (global_names.count(name))
             error(diags::global_name_used(name), ast.name_loc);
 
-        if (ast.copying)
-            error(diags::global_function_copyable(), ast.name_loc);
-
         vector<prog::func_param> params;
         unordered_map<string, prog::param_index> param_names;
 

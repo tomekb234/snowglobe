@@ -58,6 +58,7 @@ namespace sg::ast {
     struct unary_operation_expr;
     struct binary_operation_expr;
     struct numeric_cast_expr;
+    struct conditional_expr;
     struct sized_array_expr;
     struct heap_slice_alloc_expr;
     struct extract_expr;
@@ -120,7 +121,6 @@ namespace sg::ast {
 
     struct func_def : node {
         string name;
-        bool copying;
         vector<ptr<func_param>> params;
         optional<ptr<type>> return_tp;
         ptr<func_body> body;
@@ -320,7 +320,8 @@ namespace sg::ast {
             RETURN,
             BREAK,
             CONTINUE,
-            REFERENCE,
+            CONDITIONAL,
+            GLOBAL_REF,
             HEAP_ALLOC,
             DEREFERENCE,
             TEST,
@@ -348,7 +349,8 @@ namespace sg::ast {
             optional<ptr<expr>>, // RETURN
             monostate, // BREAK
             monostate, // CONTINUE
-            string, // REFERENCE
+            ptr<conditional_expr>, // CONDITIONAL
+            string, // GLOBAL_REF
             ptr<expr>, // HEAP_ALLOC
             ptr<expr>, // DEREFERENCE
             ptr<expr>, // TEST
@@ -460,6 +462,12 @@ namespace sg::ast {
         ptr<type_local> tp;
     };
 
+    struct conditional_expr : node {
+        ptr<expr> value;
+        ptr<expr> true_result;
+        ptr<expr> false_result;
+    };
+
     struct sized_array_expr : node {
         ptr<expr> value;
         ptr<const_int> size;
@@ -503,10 +511,8 @@ namespace sg::ast {
     };
 
     struct lambda_expr : node {
-        bool copying;
         vector<ptr<func_param>> params;
-        optional<ptr<type>> return_tp;
-        ptr<func_body> body;
+        ptr<expr> result;
     };
 
     struct type : node {

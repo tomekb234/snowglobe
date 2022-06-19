@@ -65,6 +65,7 @@ namespace sg::prog {
     struct binary_operation_instr;
     struct numeric_binary_operation_instr;
     struct make_inner_ptr_instr;
+    struct make_joint_func_ptr_instr;
     struct test_optional_instr;
     struct test_variant_instr;
     struct extract_item_instr;
@@ -149,7 +150,7 @@ namespace sg::prog {
             GLOBAL_VAR_PTR,
             GLOBAL_VAR_SLICE,
             GLOBAL_FUNC_PTR,
-            GLOBAL_FUNC_PTR_WRAPPED
+            GLOBAL_FUNC_FAKE_JOINT_PTR
         };
 
         variant<
@@ -164,7 +165,7 @@ namespace sg::prog {
             global_index, // GLOBAL_VAR_PTR
             global_index, // GLOBAL_VAR_SLICE
             global_index, // GLOBAL_FUNC_PTR
-            global_index // GLOBAL_FUNC_PTR_WRAPPED
+            global_index // GLOBAL_FUNC_FAKE_JOINT_PTR
         > value;
     };
 
@@ -284,10 +285,10 @@ namespace sg::prog {
             MAKE_STRUCT,
             MAKE_ENUM_VARIANT,
             MAKE_INNER_PTR,
+            MAKE_JOINT_FUNC_PTR,
             MAKE_EMPTY_WEAK_PTR,
             GET_GLOBAL_VAR_PTR,
             GET_GLOBAL_FUNC_PTR,
-            GET_GLOBAL_FUNC_PTR_WRAPPED,
 
             TEST_OPTIONAL,
             TEST_VARIANT,
@@ -298,7 +299,7 @@ namespace sg::prog {
             EXTRACT_INNER_PTR,
             EXTRACT_OUTER_PTR,
             EXTRACT_PTR,
-            EXTRACT_FUNC,
+            EXTRACT_FUNC_PTR,
 
             BOOL_NOT,
             INT_NEG,
@@ -338,6 +339,7 @@ namespace sg::prog {
             INTO_SHARED_PTR,
             INTO_FAKE_SHARED_PTR,
             FORGET_REF_COUNT,
+            INTO_FAKE_JOINT_FUNC_PTR,
 
             DELETE,
             INCR_REF_COUNT,
@@ -370,10 +372,10 @@ namespace sg::prog {
             ptr<make_struct_instr>, // MAKE_STRUCT
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
             ptr<make_inner_ptr_instr>, // MAKE_INNER_PTR
+            ptr<make_joint_func_ptr_instr>, // MAKE_JOINT_FUNC_PTR
             reg_index, // MAKE_EMPTY_WEAK_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
-            ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR_WRAPPED
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
             ptr<test_variant_instr>, // TEST_ENUM_VARIANT
@@ -384,7 +386,7 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // EXTRACT_INNER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_PTR
-            ptr<ptr_conversion_instr>, // EXTRACT_FUNC
+            ptr<ptr_conversion_instr>, // EXTRACT_FUNC_PTR
 
             ptr<unary_operation_instr>, // BOOL_NOT
             ptr<unary_operation_instr>, // INT_NEG
@@ -424,6 +426,7 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // INTO_SHARED_PTR
             ptr<ptr_conversion_instr>, // INTO_FAKE_SHARED_PTR
             ptr<ptr_conversion_instr>, // FORGET_REF_COUNT
+            ptr<ptr_conversion_instr>, // INTO_FAKE_JOINT_FUNC_PTR
 
             reg_index, // DELETE
             reg_index, // INCR_REF_COUNT
@@ -541,6 +544,12 @@ namespace sg::prog {
     struct make_inner_ptr_instr {
         reg_index outer;
         reg_index inner;
+        reg_index result;
+    };
+
+    struct make_joint_func_ptr_instr {
+        reg_index ptr;
+        reg_index func_ptr;
         reg_index result;
     };
 

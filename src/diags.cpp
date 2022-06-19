@@ -303,10 +303,6 @@ namespace sg::diags {
         stream << "Use '&' instead" << endl;
     }
 
-    void global_function_copyable::write(ostream& stream) const {
-        stream << "A global function cannot be marked as copyable" << endl;
-    }
-
     void variable_not_found::write(ostream& stream) const {
         stream << "Local variable with name '" << name << "' not found" << endl;
     }
@@ -364,10 +360,6 @@ namespace sg::diags {
         else
             stream << "an internal variable ";
        stream << "from outside of current 'locally' block" << endl;
-    }
-
-    void variable_already_confined::write(ostream& stream) const {
-        stream << "The variable '" << name << "' was already confined" << endl;
     }
 
     void global_variable_moved::write(ostream& stream) const {
