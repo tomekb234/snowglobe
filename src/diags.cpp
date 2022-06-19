@@ -205,6 +205,10 @@ namespace sg::diags {
         stream << endl;
     }
 
+    void slice_dereference::write(ostream& stream) const {
+        stream << "Cannot dereference a slice" << endl;
+    }
+
     void not_convertible::write(ostream& stream) const {
         stream << "A value with type '";
         prog::print_type(stream, prog, type);
@@ -226,6 +230,10 @@ namespace sg::diags {
 
     void function_call_in_confined_context::write(ostream& stream) const {
         stream << "Cannot receive a function result with non-trivial destructor in a confined context" << endl;
+    }
+
+    void allocation_in_confined_context::write(ostream& stream) const {
+        stream << "Cannot allocate memory in a confined context" << endl;
     }
 
     void no_common_supertype::write(ostream& stream) const {
@@ -296,6 +304,12 @@ namespace sg::diags {
 
     void invalid_size_constant_type::write(ostream& stream) const {
         stream << "A size constant must have an unsigned integer type" << endl;
+    }
+
+    void invalid_dereference_type::write(ostream& stream) const {
+        stream << "Expected an optional or pointer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
     }
 
     void restrictive_pointer_type::write(ostream& stream) const {

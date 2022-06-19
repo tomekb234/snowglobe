@@ -84,7 +84,7 @@ namespace sg {
 
             auto type = compile_type(*field_ast.tp, false);
             if (st.copyable && !type_copyable(type))
-                error(diags::type_not_copyable(prog, copy_type(type)), field_ast.tp->loc);
+                error(diags::type_not_copyable(prog, move(type)), field_ast.tp->loc);
             if (!type_trivial(type))
                 st.trivial = false;
 
@@ -109,7 +109,7 @@ namespace sg {
             for (const ast::type& type_ast : as_cref_vector(variant_ast.tps)) {
                 auto type = compile_type(type_ast, false);
                 if (en.copyable && !type_copyable(type))
-                    error(diags::type_not_copyable(prog, copy_type(type)), type_ast.loc);
+                    error(diags::type_not_copyable(prog, move(type)), type_ast.loc);
                 if (!type_trivial(type))
                     en.trivial = false;
                 types.push_back(move(type));

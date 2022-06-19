@@ -91,12 +91,42 @@ namespace sg {
 
             case ast::expr::CONDITIONAL: {
                 auto& conditional_expr = *GET(ast, CONDITIONAL);
-                return compile_conditional(conditional_expr);
+                return compile_conditional(conditional_expr, confined);
             }
 
-            case ast::expr::GLOBAL_REF:
-            case ast::expr::HEAP_ALLOC:
-            case ast::expr::DEREFERENCE:
+            case ast::expr::GLOBAL_REF: {
+                auto name = GET(ast, GLOBAL_REF);
+                auto var_index = clr.get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
+
+                auto& var_type = *clr.prog.global_vars[var_index]->tp;
+                auto type = prog::type_local { make_ptr(prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false)), false };
+
+                auto result = new_reg();
+                auto instr = prog::get_global_ptr_instr { var_index, result };
+                add_instr(VARIANT(prog::instr, GET_GLOBAL_VAR_PTR, into_ptr(instr)));
+
+                return { result, move(type) };
+            }
+
+            case ast::expr::HEAP_ALLOC: {
+                if (confined)
+                    clr.error(diags::allocation_in_confined_context(), ast.loc);
+
+                auto [value, value_type] = compile_expr(*GET(ast, HEAP_ALLOC), false);
+                auto type = prog::type_local { make_ptr(prog::make_ptr_type(move(*value_type.tp), prog::ptr_type::UNIQUE, false)), false };
+
+                auto result = new_reg();
+                auto instr = prog::alloc_instr { value, result };
+                add_instr(VARIANT(prog::instr, ALLOC, into_ptr(instr)));
+
+                return { result, move(type) };
+            }
+
+            case ast::expr::DEREFERENCE: {
+                auto& expr = *GET(ast, DEREFERENCE);
+                return compile_dereference(expr, confined);
+            }
+
             case ast::expr::TEST:
             case ast::expr::SIZED_ARRAY:
             case ast::expr::HEAP_SLICE_ALLOC:
@@ -115,28 +145,27 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_var_read(prog::var_index var_index, bool confined, location loc) {
         auto& var = vars[var_index];
+        auto& state = var.state;
+        auto& type = *var.type.tp;
+        auto var_confined = var.type.confined;
 
-        if (var.state != VAR_INITIALIZED)
-            clr.error(diags::variable_not_usable(var.name, var.state & VAR_INITIALIZED, var.state & VAR_UNINITIALIZED, var.state & VAR_MOVED_OUT), loc);
+        if (state != VAR_INITIALIZED)
+            clr.error(diags::variable_not_usable(var.name, state & VAR_INITIALIZED, state & VAR_UNINITIALIZED, state & VAR_MOVED_OUT), loc);
 
         auto result = new_reg();
         auto instr = prog::read_var_instr { var_index, result };
         add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(instr)));
 
-        if (!confined && !var.type.confined && !clr.type_trivial(*var.type.tp)) {
-            if (clr.type_copyable(*var.type.tp))
-                add_copy_instrs(result, *var.type.tp);
-            else if (var.outside_loop > 0)
-                clr.error(diags::variable_moved_inside_loop(var.name), loc);
+        if (!confined && !var_confined && !clr.type_trivial(type)) {
+            if (clr.type_copyable(type))
+                add_copy_instrs(result, type);
             else
-                var.state = VAR_MOVED_OUT;
+                move_out_var(var_index, loc);
         }
 
-        auto type = copy_type_local(var.type);
-        if (confined)
-            type.confined = true;
+        auto type_local = prog::type_local { make_ptr(copy_type(type)), var_confined || confined };
 
-        return { result, move(type) };
+        return { result, move(type_local) };
     }
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_confinement(prog::var_index var_index, location loc) {
@@ -419,7 +448,7 @@ namespace sg {
 
             case unop::MINUS: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
-                    clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast.loc);
+                    clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
                 switch (GET(*type.tp, NUMBER)->tp) {
                     case num::I8:
                     case num::I16:
@@ -436,14 +465,14 @@ namespace sg {
                     } break;
 
                     default:
-                        clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast.loc);
+                        clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
                 }
                 return { result, move(type) };
             }
 
             case unop::BIT_NEG: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
-                    clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast.loc);
+                    clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
                 switch (GET(*type.tp, NUMBER)->tp) {
                     case num::I8:
                     case num::I16:
@@ -459,7 +488,7 @@ namespace sg {
                     }
 
                     default:
-                        clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, copy_type(*type.tp)), ast.loc);
+                        clr.error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
                 }
             }
         }
@@ -706,9 +735,9 @@ namespace sg {
         auto new_type = clr.compile_type_local(*ast.tp, false);
 
         if (!INDEX_EQ(*type.tp, NUMBER))
-            clr.error(diags::expected_number_type(clr.prog, copy_type(*type.tp)), ast.value->loc);
+            clr.error(diags::expected_number_type(clr.prog, move(*type.tp)), ast.value->loc);
         if (!INDEX_EQ(*new_type.tp, NUMBER))
-            clr.error(diags::expected_number_type(clr.prog, copy_type(*new_type.tp)), ast.loc);
+            clr.error(diags::expected_number_type(clr.prog, move(*new_type.tp)), ast.loc);
 
         auto& ntype = *GET(*type.tp, NUMBER);
         auto& new_ntype = *GET(*type.tp, NUMBER);
@@ -877,7 +906,7 @@ namespace sg {
         #undef CAST
     }
 
-    pair<prog::reg_index, prog::type_local> function_compiler::compile_conditional(const ast::conditional_expr& ast) {
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_conditional(const ast::conditional_expr& ast, bool confined) {
         auto [value, type] = compile_expr(*ast.value, true);
         auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
 
@@ -885,11 +914,11 @@ namespace sg {
         prog::type_local true_type, false_type;
 
         auto true_branch = [&] () {
-            tie(true_value, true_type) = compile_expr(*ast.true_result, false);
+            tie(true_value, true_type) = compile_expr(*ast.true_result, confined);
         };
 
         auto false_branch = [&] () {
-            tie(false_value, false_type) = compile_expr(*ast.false_result, false);
+            tie(false_value, false_type) = compile_expr(*ast.false_result, confined);
         };
 
         auto result = new_reg();
@@ -928,6 +957,97 @@ namespace sg {
         add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(conv_value_branch_instr)));
 
         return { conv_result, move(common_type_local) };
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_dereference(const ast::expr& ast, bool confined) {
+        prog::reg_index value;
+        prog::type_local type_local;
+        optional<prog::var_index> var_index;
+
+        if (INDEX_EQ(ast, NAME) && (var_index = try_get_var(GET(ast, NAME))))
+            tie(value, type_local) = compile_var_read(*var_index, true, ast.loc);
+        else
+            tie(value, type_local) = compile_expr(ast, true);
+
+        auto& type = *type_local.tp;
+
+        switch (INDEX(type)) {
+            case prog::type::OPTIONAL: {
+                auto inner_type = prog::type_local { make_ptr(copy_type(*GET(type, OPTIONAL))), type_local.confined };
+
+                auto test_result = new_reg();
+                auto test_instr = prog::test_optional_instr { value, test_result };
+                add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
+
+                auto true_result = new_reg();
+                auto false_result = unit_reg();
+
+                auto true_branch = [&] () {
+                    auto extract_instr = prog::extract_optional_value_instr { value, true_result };
+                    add_instr(VARIANT(prog::instr, EXTRACT_OPTIONAL_VALUE, into_ptr(extract_instr)));
+                };
+
+                auto false_branch = [&] () {
+                    add_instr(VARIANT(prog::instr, ABORT, monostate()));
+                };
+
+                auto result = new_reg();
+                auto branch_instr = make_branch(test_result, true_branch, false_branch);
+                auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_result, false_result, result };
+                add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
+
+                return { result, move(inner_type) };
+            }
+
+            case prog::type::PTR:
+            case prog::type::INNER_PTR:
+            case prog::type::FUNC_WITH_PTR: {
+                auto ptr_value = value;
+                prog::ptr_type* ptr_type_ptr;
+
+                if (INDEX_EQ(type, PTR))
+                    ptr_type_ptr = GET(type, PTR).get();
+                if (INDEX_EQ(type, INNER_PTR)) {
+                    ptr_type_ptr = GET(type, INNER_PTR).get();
+                    ptr_value = new_reg();
+                    auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
+                    add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(extract_instr)));
+                } else if (INDEX_EQ(type, FUNC_WITH_PTR)) {
+                    ptr_type_ptr = GET(type, FUNC_WITH_PTR).get();
+                    ptr_value = new_reg();
+                    auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
+                    add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
+                }
+
+                auto& ptr_type = *ptr_type_ptr;
+                auto& type_pointed = *ptr_type.target_tp;
+                auto& target_type = *type_pointed.tp;
+
+                if (type_pointed.slice)
+                    clr.error(diags::slice_dereference(), ast.loc);
+
+                auto result = new_reg();
+                auto deref_instr = prog::deref_instr { ptr_value, result };
+                add_instr(VARIANT(prog::instr, DEREF, into_ptr(deref_instr)));
+
+                if (!confined && !clr.type_trivial(target_type)) {
+                    if (clr.type_copyable(target_type))
+                        add_copy_instrs(result, target_type);
+                    else if (ptr_type.kind == prog::ptr_type::UNIQUE && var_index && !vars[*var_index].type.confined) {
+                        add_delete_instrs(value, type);
+                        move_out_var(*var_index, ast.loc);
+                    } else
+                        clr.error(diags::type_not_copyable(clr.prog, move(target_type)), ast.loc);
+                }
+
+                auto target_type_local = prog::type_local { into_ptr(target_type), confined };
+
+                return { result, move(target_type_local) };
+            }
+
+            default:
+                clr.error(diags::invalid_dereference_type(clr.prog, move(type)), ast.loc);
+        }
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {

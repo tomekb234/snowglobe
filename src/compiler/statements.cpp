@@ -213,7 +213,7 @@ namespace sg {
             }
 
             if (!INDEX_EQ(*type.tp, OPTIONAL))
-                clr.error(diags::expected_optional_type(clr.prog, copy_type(*type.tp)), value_ast.loc);
+                clr.error(diags::expected_optional_type(clr.prog, move(*type.tp)), value_ast.loc);
 
             auto cond = new_reg();
             auto test_instr = prog::test_optional_instr { value, cond };
@@ -265,7 +265,7 @@ namespace sg {
         }
 
         if (!INDEX_EQ(*type.tp, ENUM))
-            clr.error(diags::expected_enum_type(clr.prog, copy_type(*type.tp)), value_ast.loc);
+            clr.error(diags::expected_enum_type(clr.prog, move(*type.tp)), value_ast.loc);
 
         compile_match_stmt_branches(ast, value, type, 0);
 
@@ -293,7 +293,7 @@ namespace sg {
         auto lvals = as_cref_vector(lval_ptrs);
 
         if (enum_index != GET(*type.tp, ENUM))
-            clr.error(diags::invalid_type(clr.prog, copy_type(*type.tp), VARIANT(prog::type, ENUM, enum_index)), value_ast.loc);
+            clr.error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, ENUM, enum_index)), value_ast.loc);
 
         auto& en = *clr.prog.enum_types[enum_index];
         auto& variant = *en.variants[variant_index];
@@ -376,7 +376,7 @@ namespace sg {
                 }
 
                 if (!INDEX_EQ(*type.tp, OPTIONAL))
-                    clr.error(diags::expected_optional_type(clr.prog, copy_type(*type.tp)), value_ast.loc);
+                    clr.error(diags::expected_optional_type(clr.prog, move(*type.tp)), value_ast.loc);
 
                 auto cond = new_reg();
                 auto test_instr = prog::test_optional_instr { value, cond };
@@ -432,7 +432,7 @@ namespace sg {
             auto type_local = prog::type_local { make_ptr(copy_type(type)), false };
 
             if (!INDEX_EQ(type, NUMBER))
-                clr.error(diags::expected_integer_type(clr.prog, copy_type(type)), begin_ast.loc);
+                clr.error(diags::expected_integer_type(clr.prog, move(type)), begin_ast.loc);
 
             auto& ntype = *GET(type, NUMBER);
             prog::numeric_binary_operation_instr::kind_t op_kind;
@@ -457,7 +457,7 @@ namespace sg {
 
                 case num::F32:
                 case num::F64:
-                    clr.error(diags::expected_integer_type(clr.prog, copy_type(type)), begin_ast.loc);
+                    clr.error(diags::expected_integer_type(clr.prog, move(type)), begin_ast.loc);
             }
 
             begin_value = conv_clr.convert(begin_value, begin_type, type, begin_ast.loc);
@@ -569,7 +569,7 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, TUPLE))
-                    clr.error(diags::expected_tuple_type(clr.prog, copy_type(*type.tp)), loc);
+                    clr.error(diags::expected_tuple_type(clr.prog, move(*type.tp)), loc);
 
                 auto field_types = as_cref_vector(GET(*type.tp, TUPLE));
                 auto confined = type.confined;
@@ -592,7 +592,7 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, ARRAY))
-                    clr.error(diags::expected_array_type(clr.prog, copy_type(*type.tp)), loc);
+                    clr.error(diags::expected_array_type(clr.prog, move(*type.tp)), loc);
 
                 auto& array_type = *GET(*type.tp, ARRAY);
                 auto item_type = prog::type_local { make_ptr(copy_type(*array_type.tp)), type.confined };
@@ -614,7 +614,7 @@ namespace sg {
                 auto lvals = as_cref_vector(lval_ptrs);
 
                 if (!INDEX_EQ(*type.tp, STRUCT) || GET(*type.tp, STRUCT) != struct_index)
-                    clr.error(diags::invalid_type(clr.prog, copy_type(*type.tp), VARIANT(prog::type, STRUCT, struct_index)), loc);
+                    clr.error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, STRUCT, struct_index)), loc);
 
                 auto& st = *clr.prog.struct_types[struct_index];
                 auto count = st.fields.size();
@@ -636,7 +636,7 @@ namespace sg {
                 auto lvals = as_cref_vector(lval_ptrs);
 
                 if (!INDEX_EQ(*type.tp, ENUM) || GET(*type.tp, ENUM) != enum_index)
-                    clr.error(diags::invalid_type(clr.prog, copy_type(*type.tp), VARIANT(prog::type, ENUM, enum_index)), loc);
+                    clr.error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, ENUM, enum_index)), loc);
 
                 auto& en = *clr.prog.enum_types[enum_index];
                 auto& variant = *en.variants[variant_index];
@@ -659,7 +659,7 @@ namespace sg {
                 };
 
                 auto false_branch = [&] () {
-                    add_instr(VARIANT(prog::instr, ABORT, monostate())); // TODO error message
+                    add_instr(VARIANT(prog::instr, ABORT, monostate()));
                 };
 
                 add_branch(test_result, true_branch, false_branch);

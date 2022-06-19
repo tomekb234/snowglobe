@@ -56,11 +56,9 @@ namespace sg {
             case ast::expr::GLOBAL_REF: {
                 auto& name = GET(ast, GLOBAL_REF);
                 auto index = get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
-                auto& target_type = *prog.global_vars[index]->tp;
-                auto type_pointed = prog::type_pointed { make_ptr(prog::copy_type(target_type)), false };
-                auto ptr_type = prog::ptr_type { prog::ptr_type::GLOBAL, into_ptr(type_pointed) };
                 auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, index);
-                auto type = VARIANT(prog::type, PTR, into_ptr(ptr_type));
+                auto& var_type = *prog.global_vars[index]->tp;
+                auto type = prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false);
                 return { move(value), move(type) };
             }
 
@@ -78,7 +76,7 @@ namespace sg {
                 auto& target_ast = *GET(ast, LENGTH);
                 auto target_type = compile_const(target_ast).second;
                 if (!INDEX_EQ(target_type, ARRAY))
-                    error(diags::expected_array_type(prog, copy_type(target_type)), target_ast.loc);
+                    error(diags::expected_array_type(prog, move(target_type)), target_ast.loc);
                 auto size = GET(target_type, ARRAY)->size;
                 auto ntype = prog::number_type { prog::number_type::U64 };
                 auto value = VARIANT(prog::constant, NUMBER, make_pair(encode_number(size), copy_make_ptr(ntype)));
@@ -293,8 +291,7 @@ namespace sg {
                 prog.global_vars.push_back(make_ptr(prog::global_var { optional<string>(), make_ptr(copy_type(array_type)), into_ptr(array_value) }));
 
                 auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, index);
-                auto type_pointed = prog::type_pointed { into_ptr(array_type), false };
-                auto type = VARIANT(prog::type, PTR, make_ptr(prog::ptr_type { prog::ptr_type::GLOBAL, into_ptr(type_pointed) }));
+                auto type = prog::make_ptr_type(move(array_type), prog::ptr_type::GLOBAL, false);
                 return { move(value), move(type) };
             }
 

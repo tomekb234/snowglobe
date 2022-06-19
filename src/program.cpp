@@ -7,9 +7,7 @@ namespace sg::prog {
     const type_local NEVER_TYPE = { make_ptr(VARIANT(type, NEVER, monostate())), false };
     const type_local UNIT_TYPE = { make_ptr(VARIANT(type, UNIT, monostate())), false };
     const type_local BOOL_TYPE = { make_ptr(VARIANT(type, NUMBER, make_ptr(number_type { number_type::BOOL }))), false };
-
-    const type_local UNIT_PTR_TYPE = { make_ptr(VARIANT(type, PTR, make_ptr(ptr_type { ptr_type::GLOBAL,
-        make_ptr(type_pointed { make_ptr(VARIANT(type, UNIT, monostate())), false }) }))), false };
+    const type_local UNIT_PTR_TYPE = { make_ptr(make_ptr_type(VARIANT(type, UNIT, monostate()), ptr_type::GLOBAL, false)), false };
 
     static array_type copy_array_type(const array_type& tp);
     static ptr_type copy_ptr_type(const ptr_type& tp);
@@ -24,6 +22,12 @@ namespace sg::prog {
     static void print_ptr_kind(ostream& stream, const ptr_type::kind_t& tp);
     static void print_type_pointed(ostream& stream, const program& prog, const type_pointed& tp);
     static void print_func_type(ostream& stream, const program& prog, const func_type& func);
+
+    type make_ptr_type(type&& tp, ptr_type::kind_t kind, bool slice) {
+        auto tp_pointed = type_pointed { into_ptr(tp), slice };
+        auto ptr_tp = ptr_type { kind, into_ptr(tp_pointed) };
+        return VARIANT(prog::type, PTR, into_ptr(ptr_tp));
+    }
 
     constant copy_const(const constant& value) {
         switch (INDEX(value)) {

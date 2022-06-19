@@ -106,6 +106,7 @@ namespace sg::diags {
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
     DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
     DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
+    DIAG0(slice_dereference, error);
 
     // Typing related
 
@@ -113,6 +114,7 @@ namespace sg::diags {
     DIAG1(confinement_mismatch, error, bool, confined);
     DIAG0(confinement_ambiguous, error);
     DIAG0(function_call_in_confined_context, error);
+    DIAG0(allocation_in_confined_context, error);
     DIAG3(no_common_supertype, error, const prog::program&, prog, prog::type, type_a, prog::type, type_b);
     DIAG2(type_not_copyable, error, const prog::program&, prog, prog::type, type);
     DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, prog::type, expected);
@@ -125,6 +127,7 @@ namespace sg::diags {
     DIAG2(invalid_tuple_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);
     DIAG0(invalid_size_constant_type, error);
+    DIAG2(invalid_dereference_type, error, const prog::program&, prog, prog::type, type);
     DIAG0(restrictive_pointer_type, warning);
 
     // Function compilation related

@@ -74,6 +74,8 @@ namespace sg::prog {
     struct extract_variant_field_instr;
     struct numeric_conversion_instr;
     struct transform_instr;
+    struct alloc_instr;
+    struct deref_instr;
     struct branch_instr;
     struct value_branch_instr;
 
@@ -333,14 +335,18 @@ namespace sg::prog {
             FLOAT_EXT,
             FLOAT_TO_UINT,
             FLOAT_TO_SINT,
+
             TRANSFORM_ARRAY,
             TRANSFORM_OPTIONAL,
+
             ARRAY_PTR_INTO_SLICE,
             INTO_SHARED_PTR,
             INTO_FAKE_SHARED_PTR,
             FORGET_REF_COUNT,
             INTO_FAKE_JOINT_FUNC_PTR,
 
+            ALLOC,
+            DEREF,
             DELETE,
             INCR_REF_COUNT,
             INCR_WEAK_REF_COUNT,
@@ -420,14 +426,18 @@ namespace sg::prog {
             ptr<numeric_conversion_instr>, // FLOAT_EXT
             ptr<numeric_conversion_instr>, // FLOAT_TO_UINT
             ptr<numeric_conversion_instr>, // FLOAT_TO_SINT
+
             ptr<transform_instr>, // TRANSFORM_ARRAY
             ptr<transform_instr>, // TRANSFORM_OPTIONAL
+
             ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
             ptr<ptr_conversion_instr>, // INTO_SHARED_PTR
             ptr<ptr_conversion_instr>, // INTO_FAKE_SHARED_PTR
             ptr<ptr_conversion_instr>, // FORGET_REF_COUNT
             ptr<ptr_conversion_instr>, // INTO_FAKE_JOINT_FUNC_PTR
 
+            ptr<alloc_instr>, // ALLOC
+            ptr<deref_instr>, // DEREF
             reg_index, // DELETE
             reg_index, // INCR_REF_COUNT
             reg_index, // INCR_WEAK_REF_COUNT
@@ -602,6 +612,16 @@ namespace sg::prog {
         reg_index result;
     };
 
+    struct alloc_instr {
+        reg_index value;
+        reg_index result;
+    };
+
+    struct deref_instr {
+        reg_index ptr;
+        reg_index result;
+    };
+
     struct branch_instr {
         reg_index cond;
         ptr<instr_block> true_block;
@@ -618,6 +638,8 @@ namespace sg::prog {
     extern const type_local UNIT_TYPE;
     extern const type_local BOOL_TYPE;
     extern const type_local UNIT_PTR_TYPE;
+
+    type make_ptr_type(type&& tp, ptr_type::kind_t kind, bool slice);
 
     constant copy_const(const constant& con);
     type copy_type(const type& tp);

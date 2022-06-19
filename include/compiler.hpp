@@ -258,6 +258,7 @@ namespace sg {
         // Utilities
 
         prog::var_index get_var(string name, location loc);
+        void move_out_var(prog::var_index index, location loc);
         void delete_var(prog::var_index index, location loc);
         void add_cleanup_action(function<void()> cleanup_action);
         void cleanup_frame(frame_index index, location loc);
@@ -296,7 +297,8 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> compile_unary_operation(const ast::unary_operation_expr& ast);
         pair<prog::reg_index, prog::type_local> compile_binary_operation(const ast::binary_operation_expr& ast);
         pair<prog::reg_index, prog::type_local> compile_numeric_cast(const ast::numeric_cast_expr& ast);
-        pair<prog::reg_index, prog::type_local> compile_conditional(const ast::conditional_expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_conditional(const ast::conditional_expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_dereference(const ast::expr& ast, bool confined);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type);
         lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);

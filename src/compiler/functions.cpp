@@ -176,6 +176,15 @@ namespace sg {
         return *index;
     }
 
+    void function_compiler::move_out_var(prog::var_index index, location loc) {
+        auto& var = vars[index];
+
+        if (var.outside_loop > 0)
+            clr.error(diags::variable_moved_inside_loop(var.name), loc);
+
+        var.state = VAR_MOVED_OUT;
+    }
+
     void function_compiler::delete_var(prog::var_index index, location loc) {
         auto& var = vars[index];
 
