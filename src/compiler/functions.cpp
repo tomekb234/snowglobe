@@ -25,12 +25,12 @@ namespace sg {
 
         if (ast.body->return_value) {
             if (returned)
-                clr.warning(diags::dead_code(), (*ast.body->return_value)->loc);
+                warning(diags::dead_code(), (*ast.body->return_value)->loc);
             compile_return(as_optional_cref(ast.body->return_value), (*ast.body->return_value)->loc);
         } else if (!returned) {
             if (!INDEX_EQ(*func.return_tp, UNIT))
-                clr.error(diags::missing_return(), ast.body->block->end_loc);
-            add_return(unit_reg(), ast.body->block->end_loc);
+                error(diags::missing_return(), ast.body->block->end_loc);
+            add_return(new_unit_reg(), ast.body->block->end_loc);
         }
 
         for (auto& var : vars)
@@ -43,7 +43,7 @@ namespace sg {
         return ++reg_counter;
     }
 
-    prog::reg_index function_compiler::unit_reg() {
+    prog::reg_index function_compiler::new_unit_reg() {
         auto result = new_reg();
         add_instr(VARIANT(prog::instr, MAKE_UNIT, result));
         return result;
@@ -51,6 +51,11 @@ namespace sg {
 
     void function_compiler::add_instr(prog::instr&& instr) {
         frames.back().instrs.push_back(move(instr));
+    }
+
+    void function_compiler::add_instrs(prog::instr_block&& block) {
+        for (auto& instr_ptr : block.instrs)
+            add_instr(move(*instr_ptr));
     }
 
     void function_compiler::push_frame() {
@@ -128,6 +133,22 @@ namespace sg {
         return { iter->second.back() };
     }
 
+    prog::var_index function_compiler::get_var(string name, location loc) {
+        auto index = try_get_var(name);
+        if (!index)
+            error(diags::variable_not_found(name), loc);
+        return *index;
+    }
+
+    void function_compiler::move_out_var(prog::var_index index, location loc) {
+        auto& var = vars[index];
+
+        if (var.outside_loop > 0)
+            error(diags::variable_moved_inside_loop(var.name), loc);
+
+        var.state = VAR_MOVED_OUT;
+    }
+
     vector<function_compiler::var_state> function_compiler::backup_var_states() {
         vector<var_state> states;
         for (auto& var : vars)
@@ -147,45 +168,77 @@ namespace sg {
             vars[index].state |= states[index];
     }
 
-    void function_compiler::add_instrs(prog::instr_block&& block) {
-        for (auto& instr_ptr : block.instrs)
-            add_instr(move(*instr_ptr));
-    }
-
-    void function_compiler::add_copy_instrs(prog::reg_index value, const prog::type& type) {
+    void function_compiler::add_copy(prog::reg_index value, const prog::type& type) {
         // TODO
         (void)value;
         (void)type;
     }
 
-    void function_compiler::add_delete_instrs(prog::reg_index value, const prog::type& type) {
+    void function_compiler::add_deletion(prog::reg_index value, const prog::type& type) {
         // TODO
         (void)value;
         (void)type;
     }
 
-    void function_compiler::add_delete_instrs(prog::reg_index value, const prog::type_local& type) {
+    void function_compiler::add_deletion(prog::reg_index value, const prog::type_local& type) {
         if (!type.confined)
-            add_delete_instrs(value, *type.tp);
+            add_deletion(value, *type.tp);
     }
 
-    prog::var_index function_compiler::get_var(string name, location loc) {
-        auto index = try_get_var(name);
-        if (!index)
-            clr.error(diags::variable_not_found(name), loc);
-        return *index;
+    void function_compiler::defer_cleanup_action(function<void()> cleanup_action) {
+        frames.back().cleanup_actions.push_back(cleanup_action);
     }
 
-    void function_compiler::move_out_var(prog::var_index index, location loc) {
-        auto& var = vars[index];
+    void function_compiler::add_frame_cleanup(frame_index index, location loc) {
+        auto& fr = frames[frames.size() - index - 1];
 
-        if (var.outside_loop > 0)
-            clr.error(diags::variable_moved_inside_loop(var.name), loc);
+        for (auto var_index : fr.vars)
+            add_var_deletion(var_index, loc);
 
-        var.state = VAR_MOVED_OUT;
+        for (auto iter = fr.cleanup_actions.rbegin(); iter != fr.cleanup_actions.rend(); iter++)
+            (*iter)();
     }
 
-    void function_compiler::delete_var(prog::var_index index, location loc) {
+    pair<prog::reg_index, prog::type_local> function_compiler::add_var_read(prog::var_index var_index, bool confined, location loc) {
+        auto& var = vars[var_index];
+        auto& state = var.state;
+        auto& type = *var.type.tp;
+        auto var_confined = var.type.confined;
+
+        if (state != VAR_INITIALIZED)
+            error(diags::variable_not_usable(var.name, state & VAR_INITIALIZED, state & VAR_UNINITIALIZED, state & VAR_MOVED_OUT), loc);
+
+        auto result = new_reg();
+        auto instr = prog::read_var_instr { var_index, result };
+        add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(instr)));
+
+        if (!confined && !var_confined && !clr.type_trivial(type)) {
+            if (clr.type_copyable(type))
+                add_copy(result, type);
+            else
+                move_out_var(var_index, loc);
+        }
+
+        auto type_local = prog::type_local { make_ptr(copy_type(type)), var_confined || confined };
+
+        return { result, move(type_local) };
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::add_var_confinement(prog::var_index var_index, location loc) {
+        auto [value, type] = add_var_read(var_index, true, loc);
+
+        auto var_name = *vars[var_index].name;
+        auto new_var_index = add_var(var_name, copy_type_local(type));
+
+        auto write_instr = prog::write_var_instr { new_var_index, value };
+        add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
+
+        vars[new_var_index].state = VAR_INITIALIZED;
+
+        return { value, move(type) };
+    }
+
+    void function_compiler::add_var_deletion(prog::var_index index, location loc) {
         auto& var = vars[index];
 
         if (!var.type.confined && !clr.type_trivial(*var.type.tp)) {
@@ -193,31 +246,17 @@ namespace sg {
                 auto value = new_reg();
                 auto read_instr = prog::read_var_instr { index, value };
                 add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
-                add_delete_instrs(value, var.type);
+                add_deletion(value, var.type);
             } else if (var.state & VAR_INITIALIZED)
-                clr.error(diags::variable_not_deletable(var.name, var.state & VAR_UNINITIALIZED, var.state & VAR_MOVED_OUT), loc);
+                error(diags::variable_not_deletable(var.name, var.state & VAR_UNINITIALIZED, var.state & VAR_MOVED_OUT), loc);
         }
-    }
-
-    void function_compiler::add_cleanup_action(function<void()> cleanup_action) {
-        frames.back().cleanup_actions.push_back(cleanup_action);
-    }
-
-    void function_compiler::cleanup_frame(frame_index index, location loc) {
-        auto& fr = frames[frames.size() - index - 1];
-
-        for (auto var_index : fr.vars)
-            delete_var(var_index, loc);
-
-        for (auto iter = fr.cleanup_actions.rbegin(); iter != fr.cleanup_actions.rend(); iter++)
-            (*iter)();
     }
 
     void function_compiler::add_return(prog::reg_index value, location loc) {
         auto frame_count = frames.size();
 
         for (size_t index = 0; index < frame_count; index++)
-            cleanup_frame(index, loc);
+            add_frame_cleanup(index, loc);
 
         auto instr = prog::return_instr { value };
         add_instr(VARIANT(prog::instr, RETURN, into_ptr(instr)));
@@ -230,13 +269,13 @@ namespace sg {
         size_t index;
 
         for (index = 0; index < frame_count; index++) {
-            cleanup_frame(index, loc);
+            add_frame_cleanup(index, loc);
             if (frames[frame_count - index - 1].loop)
                 break;
         }
 
         if (index == frame_count)
-            clr.error(diags::break_outside_loop(), loc);
+            error(diags::break_outside_loop(), loc);
 
         add_instr(VARIANT(prog::instr, BREAK_LOOP, monostate()));
     }
@@ -248,11 +287,11 @@ namespace sg {
         for (index = 0; index < frame_count; index++) {
             if (frames[frame_count - index - 1].loop)
                 break;
-            cleanup_frame(index, loc);
+            add_frame_cleanup(index, loc);
         }
 
         if (index == frame_count)
-            clr.error(diags::continue_outside_loop(), loc);
+            error(diags::continue_outside_loop(), loc);
 
         add_instr(VARIANT(prog::instr, CONTINUE_LOOP, monostate()));
     }
@@ -319,5 +358,155 @@ namespace sg {
         merge_var_states(init_var_states);
         merge_var_states(branch_var_states);
         returned &= init_returned & branch_returned;
+    }
+
+    void function_compiler::add_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
+        switch (INDEX(lval)) {
+            case lvalue::IGNORED:
+                add_deletion(value, type);
+                break;
+
+            case lvalue::VAR: {
+                auto var_index = GET(lval, VAR);
+                auto& var = vars[var_index];
+
+                if (type.confined && !clr.type_trivial(*type.tp) && var.outside_confinement > 0)
+                    error(diags::variable_outside_confinement(var.name), loc);
+
+                add_var_deletion(var_index, loc);
+
+                value = conv_clr.convert(value, type, var.type, loc);
+
+                auto write_instr = prog::write_var_instr { var_index, value };
+                add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
+
+                var.state = VAR_INITIALIZED;
+                var.outside_loop = 0;
+            } break;
+
+            case lvalue::GLOBAL_VAR: {
+                auto var_index = GET(lval, GLOBAL_VAR);
+                auto& var_type = *clr.prog.global_vars[var_index]->tp;
+
+                if (!clr.type_trivial(var_type)) {
+                    auto old_value = new_reg();
+                    auto read_instr = prog::read_global_var_instr { var_index, old_value };
+                    add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(read_instr)));
+                    add_deletion(old_value, var_type);
+                }
+
+                value = conv_clr.convert(value, type, var_type, loc);
+
+                auto instr = prog::write_global_var_instr { var_index, value };
+                add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, into_ptr(instr)));
+            } break;
+
+            case lvalue::TUPLE: {
+                auto lvals = as_cref_vector(GET(lval, TUPLE));
+                auto count = lvals.size();
+
+                if (!INDEX_EQ(*type.tp, TUPLE))
+                    error(diags::expected_tuple_type(clr.prog, move(*type.tp)), loc);
+
+                auto field_types = as_cref_vector(GET(*type.tp, TUPLE));
+                auto confined = type.confined;
+
+                if (field_types.size() != count)
+                    error(diags::invalid_tuple_size(field_types.size(), count), loc);
+
+                for (size_t index = 0; index < count; index++) {
+                    auto extracted = new_reg();
+                    auto instr = prog::extract_field_instr { value, index, extracted };
+                    add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
+
+                    auto field_type = prog::type_local { make_ptr(copy_type(field_types[index])), confined };
+                    add_assignment(lvals[index], extracted, field_type, loc);
+                }
+            } break;
+
+            case lvalue::ARRAY: {
+                auto lvals = as_cref_vector(GET(lval, ARRAY));
+                auto count = lvals.size();
+
+                if (!INDEX_EQ(*type.tp, ARRAY))
+                    error(diags::expected_array_type(clr.prog, move(*type.tp)), loc);
+
+                auto& array_type = *GET(*type.tp, ARRAY);
+                auto item_type = prog::type_local { make_ptr(copy_type(*array_type.tp)), type.confined };
+
+                if (array_type.size != count)
+                    error(diags::invalid_array_size(array_type.size, count), loc);
+
+                for (size_t index = 0; index < count; index++) {
+                    auto extracted = new_reg();
+                    auto instr = prog::extract_item_instr { value, index, extracted };
+                    add_instr(VARIANT(prog::instr, EXTRACT_ITEM, into_ptr(instr)));
+
+                    add_assignment(lvals[index], extracted, item_type, loc);
+                }
+            } break;
+
+            case lvalue::STRUCT: {
+                auto& [struct_index, lval_ptrs] = GET(lval, STRUCT);
+                auto lvals = as_cref_vector(lval_ptrs);
+
+                if (!INDEX_EQ(*type.tp, STRUCT) || GET(*type.tp, STRUCT) != struct_index)
+                    error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, STRUCT, struct_index)), loc);
+
+                auto& st = *clr.prog.struct_types[struct_index];
+                auto count = st.fields.size();
+                auto confined = type.confined;
+
+                for (size_t index = 0; index < count; index++) {
+                    auto extracted = new_reg();
+                    auto instr = prog::extract_field_instr { value, index, extracted };
+                    add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
+
+                    auto field_type = prog::type_local { make_ptr(copy_type(*st.fields[index]->tp)), confined };
+                    add_assignment(lvals[index], extracted, field_type, loc);
+                }
+            } break;
+
+            case lvalue::ENUM_VARIANT: {
+                auto& [enum_index, variant_index, lval_ptrs] = GET(lval, ENUM_VARIANT);
+                auto variant_index_copy = variant_index;
+                auto lvals = as_cref_vector(lval_ptrs);
+
+                if (!INDEX_EQ(*type.tp, ENUM) || GET(*type.tp, ENUM) != enum_index)
+                    error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, ENUM, enum_index)), loc);
+
+                auto& en = *clr.prog.enum_types[enum_index];
+                auto& variant = *en.variants[variant_index];
+                auto count = variant.tps.size();
+                auto confined = type.confined;
+
+                auto test_result = new_reg();
+                auto test_instr = prog::test_variant_instr { value, variant_index, test_result };
+                add_instr(VARIANT(prog::instr, TEST_VARIANT, into_ptr(test_instr)));
+
+                auto true_branch = [&] () {
+                    for (size_t index = 0; index < count; index++) {
+                        auto extracted = new_reg();
+                        auto instr = prog::extract_variant_field_instr { value, variant_index_copy, index, extracted };
+                        add_instr(VARIANT(prog::instr, EXTRACT_VARIANT_FIELD, into_ptr(instr)));
+
+                        auto field_type = prog::type_local { make_ptr(copy_type(*variant.tps[index])), confined };
+                        add_assignment(lvals[index], extracted, field_type, loc);
+                    }
+                };
+
+                auto false_branch = [&] () {
+                    add_instr(VARIANT(prog::instr, ABORT, monostate()));
+                };
+
+                add_branch(test_result, true_branch, false_branch);
+            } break;
+        }
+    }
+
+    void function_compiler::add_lvalues_swap(const lvalue& lval_a, const lvalue& lval_b, location loc) {
+        (void)lval_a;
+        (void)lval_b;
+        error(diags::not_implemented(), loc); // TODO
     }
 }
