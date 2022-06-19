@@ -23,6 +23,7 @@ namespace sg {
 
         vector<llvm::Function*> functions;
         vector<llvm::GlobalVariable*> global_vars;
+        vector<llvm::StructType*> struct_types;
 
         friend class function_code_generator;
 
@@ -57,6 +58,8 @@ namespace sg {
         // top-level declarations
         llvm::Function* declare_function(const prog::global_func& func);
         llvm::GlobalVariable* define_global_variable(const prog::global_var& var);
+        llvm::StructType* declare_struct_type(const prog::struct_type& struct_type);
+        void define_struct_type(const prog::struct_type& struct_type, llvm::StructType* llvm_struct_type);
     };
 
     class function_code_generator {

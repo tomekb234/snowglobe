@@ -20,6 +20,13 @@ namespace sg {
 
     bool code_generator::generate() {
         try {
+            // prepare struct types
+            struct_types.resize(prog.struct_types.size(), nullptr);
+            for (size_t i = 0; i < prog.struct_types.size(); i++)
+                struct_types[i] = declare_struct_type(*prog.struct_types[i]);
+            for (size_t i = 0; i < prog.struct_types.size(); i++)
+                define_struct_type(*prog.struct_types[i], struct_types[i]);
+
             // declare all functions
             functions.resize(prog.global_funcs.size(), nullptr);
             for (size_t i = 0; i < prog.global_funcs.size(); i++)
@@ -59,11 +66,20 @@ namespace sg {
 
     llvm::Type* code_generator::get_llvm_type(const prog::type& type) {
         switch (INDEX(type)) {
+            case prog::type::NEVER:
             case prog::type::UNIT:
                 return llvm::Type::getInt1Ty(ctx);
 
             case prog::type::NUMBER:
                 return get_llvm_number_type(*GET(type, NUMBER));
+
+            case prog::type::STRUCT:
+                return struct_types[GET(type, STRUCT)];
+
+            case prog::type::ARRAY: {
+                auto& array_type = *GET(type, ARRAY);
+                return llvm::ArrayType::get(get_llvm_type(*array_type.tp), array_type.size);
+            }
 
             default:
                 error(diags::not_implemented()); // TODO
@@ -142,7 +158,24 @@ namespace sg {
                     case prog::number_type::F64:
                         return llvm::ConstantFP::get(llvm::Type::getDoubleTy(ctx), llvm::APFloat(decode_number<double>(value)));
                 }
-            } break;
+            }
+
+            case prog::constant::STRUCT: {
+                auto& [struct_index, fields] = GET(constant, STRUCT);
+                vector<llvm::Constant*> llvm_fields;
+                for (auto& field : fields)
+                    llvm_fields.push_back(make_constant(*field));
+                return llvm::ConstantStruct::get(struct_types[struct_index], llvm_fields);
+            }
+
+            case prog::constant::ARRAY: {
+                auto& vals = GET(constant, ARRAY);
+                vector<llvm::Constant*> llvm_vals;
+                for (auto& val : vals)
+                    llvm_vals.push_back(make_constant(*val));
+                auto type = llvm_vals.empty() ? llvm::Type::getInt1Ty(ctx) : llvm_vals.front()->getType();
+                return llvm::ConstantArray::get(llvm::ArrayType::get(type, llvm_vals.size()), llvm_vals);
+            }
 
             default:
                 error(diags::not_implemented()); // TODO
@@ -166,11 +199,21 @@ namespace sg {
     llvm::GlobalVariable* code_generator::define_global_variable(const prog::global_var& var) {
         auto value = make_constant(*var.value);
         auto type = get_llvm_type(*var.tp);
-        return new llvm::GlobalVariable(mod, type, false, llvm::GlobalVariable::ExternalLinkage, value);
+        return new llvm::GlobalVariable(mod, type, false, llvm::GlobalVariable::ExternalLinkage, value, var.name.value_or(""));
+    }
+
+    llvm::StructType* code_generator::declare_struct_type(const prog::struct_type& struct_type) {
+        return llvm::StructType::create(ctx, struct_type.name);
+    }
+
+    void code_generator::define_struct_type(const prog::struct_type& struct_type, llvm::StructType* llvm_struct_type) {
+        vector<llvm::Type*> types;
+        for (auto& field : struct_type.fields)
+            types.push_back(get_llvm_type(*field->tp));
+        llvm_struct_type->setBody(types);
     }
 
     void function_code_generator::generate() {
-
         // create entry block
         auto entry_block = llvm::BasicBlock::Create(gen.ctx, "entry", llvm_function);
         llvm::IRBuilder<> builder(entry_block);
@@ -196,37 +239,36 @@ namespace sg {
         llvm::IRBuilder<> builder(init_block);
         bool terminated = false;
 
-        for (size_t i = 0; !terminated && i < block.instrs.size(); i++) {
-            auto& instr = *block.instrs[i];
-            switch (INDEX(instr)) {
+        for (auto& instr : block.instrs) {
+            switch (INDEX(*instr)) {
                 case prog::instr::READ_VAR: {
-                    auto& rv_instr = *GET(instr, READ_VAR);
+                    auto& rv_instr = *GET(*instr, READ_VAR);
                     regs[rv_instr.result] = builder.CreateLoad(vars[rv_instr.var]->getAllocatedType(), vars[rv_instr.var]);
                 } break;
 
                 case prog::instr::READ_GLOBAL_VAR: {
-                    auto& rgv_instr = *GET(instr, READ_GLOBAL_VAR);
+                    auto& rgv_instr = *GET(*instr, READ_GLOBAL_VAR);
                     regs[rgv_instr.result] = builder.CreateLoad(gen.global_vars[rgv_instr.var]->getValueType(), gen.global_vars[rgv_instr.var]);
                 } break;
 
                 case prog::instr::WRITE_VAR: {
-                    auto& wv_instr = *GET(instr, WRITE_VAR);
+                    auto& wv_instr = *GET(*instr, WRITE_VAR);
                     builder.CreateStore(regs[wv_instr.value], vars[wv_instr.var]);
                 } break;
 
                 case prog::instr::WRITE_GLOBAL_VAR: {
-                    auto& wgv_instr = *GET(instr, WRITE_GLOBAL_VAR);
+                    auto& wgv_instr = *GET(*instr, WRITE_GLOBAL_VAR);
                     builder.CreateStore(regs[wgv_instr.value], gen.global_vars[wgv_instr.var]);
                 } break;
 
                 case prog::instr::RETURN: {
-                    auto& r_instr = *GET(instr, RETURN);
+                    auto& r_instr = *GET(*instr, RETURN);
                     builder.CreateRet(regs[r_instr.value]);
                     terminated = true;
                 } break;
 
                 case prog::instr::FUNC_CALL: {
-                    auto& fc_instr = *GET(instr, FUNC_CALL);
+                    auto& fc_instr = *GET(*instr, FUNC_CALL);
                     auto callee = llvm::FunctionCallee(gen.functions[fc_instr.func]);
                     vector<llvm::Value*> args;
                     for (auto arg : fc_instr.args)
@@ -235,47 +277,64 @@ namespace sg {
                 } break;
 
                 case prog::instr::MAKE_UNIT: {
-                    auto reg = GET(instr, MAKE_UNIT);
+                    auto reg = GET(*instr, MAKE_UNIT);
                     regs[reg] = llvm::ConstantInt::get(llvm::Type::getInt1Ty(gen.ctx), 0);
                 } break;
 
                 case prog::instr::MAKE_CONST: {
-                    auto& mc_instr = *GET(instr, MAKE_CONST);
+                    auto& mc_instr = *GET(*instr, MAKE_CONST);
                     regs[mc_instr.result] = gen.make_constant(*mc_instr.value);
                 } break;
 
+                case prog::instr::MAKE_ARRAY: {
+                    auto& ma_instr = *GET(*instr, MAKE_ARRAY);
+                    auto type = ma_instr.values.empty() ? llvm::Type::getInt1Ty(gen.ctx) : regs[ma_instr.values.front()]->getType();
+                    llvm::Value* array_value = llvm::UndefValue::get(llvm::ArrayType::get(type, ma_instr.values.size()));
+                    for (size_t i = 0; i < ma_instr.values.size(); i++)
+                        array_value = builder.CreateInsertValue(array_value, regs[ma_instr.values[i]], vector<unsigned>{(unsigned)i});
+                    regs[ma_instr.result] = array_value;
+                } break;
+
+                case prog::instr::MAKE_STRUCT: {
+                    auto& ms_instr = *GET(*instr, MAKE_STRUCT);
+                    llvm::Value* struct_value = llvm::UndefValue::get(gen.struct_types[ms_instr.st]);
+                    for (size_t i = 0; i < ms_instr.args.size(); i++)
+                        struct_value = builder.CreateInsertValue(struct_value, regs[ms_instr.args[i]], vector<unsigned>{(unsigned)i});
+                    regs[ms_instr.result] = struct_value;
+                } break;
+
                 case prog::instr::BOOL_NOT: {
-                    auto& uo_instr = *GET(instr, BOOL_NOT);
+                    auto& uo_instr = *GET(*instr, BOOL_NOT);
                     regs[uo_instr.result] = builder.CreateXor(regs[uo_instr.value], llvm::ConstantInt::get(llvm::Type::getInt1Ty(gen.ctx), 1));
                 } break;
 
                 case prog::instr::INT_NEG: {
-                    auto& uo_instr = *GET(instr, INT_NEG);
+                    auto& uo_instr = *GET(*instr, INT_NEG);
                     regs[uo_instr.result] = builder.CreateSub(llvm::ConstantInt::get(regs[uo_instr.value]->getType(), 0), regs[uo_instr.value]);
                 } break;
 
                 case prog::instr::FLOAT_NEG: {
-                    auto& uo_instr = *GET(instr, FLOAT_NEG);
+                    auto& uo_instr = *GET(*instr, FLOAT_NEG);
                     regs[uo_instr.result] = builder.CreateFNeg(regs[uo_instr.value]);
                 } break;
 
                 case prog::instr::BIT_NEG: {
-                    auto& uo_instr = *GET(instr, BIT_NEG);
+                    auto& uo_instr = *GET(*instr, BIT_NEG);
                     regs[uo_instr.result] = builder.CreateXor(regs[uo_instr.value], llvm::ConstantInt::get(regs[uo_instr.value]->getType(), -1));
                 } break;
 
                 case prog::instr::INCR: {
-                    auto& uo_instr = *GET(instr, INCR);
+                    auto& uo_instr = *GET(*instr, INCR);
                     regs[uo_instr.result] = builder.CreateAdd(regs[uo_instr.value], llvm::ConstantInt::get(regs[uo_instr.value]->getType(), 1));
                 } break;
 
                 case prog::instr::DECR: {
-                    auto& uo_instr = *GET(instr, DECR);
+                    auto& uo_instr = *GET(*instr, DECR);
                     regs[uo_instr.result] = builder.CreateSub(regs[uo_instr.value], llvm::ConstantInt::get(regs[uo_instr.value]->getType(), 1));
                 } break;
 
                 case prog::instr::ADD: {
-                    auto& nbo_instr = *GET(instr, ADD);
+                    auto& nbo_instr = *GET(*instr, ADD);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
                         regs[nbo_instr.result] = builder.CreateFAdd(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else
@@ -283,7 +342,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::SUB: {
-                    auto& nbo_instr = *GET(instr, SUB);
+                    auto& nbo_instr = *GET(*instr, SUB);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
                         regs[nbo_instr.result] = builder.CreateFSub(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else
@@ -291,7 +350,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::MUL: {
-                    auto& nbo_instr = *GET(instr, MUL);
+                    auto& nbo_instr = *GET(*instr, MUL);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
                         regs[nbo_instr.result] = builder.CreateFMul(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else
@@ -299,7 +358,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::DIV: {
-                    auto& nbo_instr = *GET(instr, DIV);
+                    auto& nbo_instr = *GET(*instr, DIV);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = builder.CreateUDiv(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
@@ -309,7 +368,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::MOD: {
-                    auto& nbo_instr = *GET(instr, MOD);
+                    auto& nbo_instr = *GET(*instr, MOD);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = builder.CreateURem(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
@@ -319,17 +378,17 @@ namespace sg {
                 } break;
 
                 case prog::instr::BIT_AND: {
-                    auto& nbo_instr = *GET(instr, BIT_AND);
+                    auto& nbo_instr = *GET(*instr, BIT_AND);
                     regs[nbo_instr.result] = builder.CreateAnd(regs[nbo_instr.left], regs[nbo_instr.right]);
                 } break;
 
                 case prog::instr::BIT_OR: {
-                    auto& nbo_instr = *GET(instr, BIT_OR);
+                    auto& nbo_instr = *GET(*instr, BIT_OR);
                     regs[nbo_instr.result] = builder.CreateOr(regs[nbo_instr.left], regs[nbo_instr.right]);
                 } break;
 
                 case prog::instr::BIT_XOR: {
-                    auto& nbo_instr = *GET(instr, BIT_XOR);
+                    auto& nbo_instr = *GET(*instr, BIT_XOR);
                     regs[nbo_instr.result] = builder.CreateXor(regs[nbo_instr.left], regs[nbo_instr.right]);
                 } break;
 
@@ -338,7 +397,7 @@ namespace sg {
                     gen.error(diags::not_implemented()); // TODO
 
                 case prog::instr::LS: {
-                    auto& nbo_instr = *GET(instr, LS);
+                    auto& nbo_instr = *GET(*instr, LS);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = builder.CreateICmpULT(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
@@ -348,7 +407,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::LSEQ: {
-                    auto& nbo_instr = *GET(instr, LSEQ);
+                    auto& nbo_instr = *GET(*instr, LSEQ);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = builder.CreateICmpULE(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
@@ -358,7 +417,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::GT: {
-                    auto& nbo_instr = *GET(instr, GT);
+                    auto& nbo_instr = *GET(*instr, GT);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = builder.CreateICmpUGT(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
@@ -368,7 +427,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::GTEQ: {
-                    auto& nbo_instr = *GET(instr, GTEQ);
+                    auto& nbo_instr = *GET(*instr, GTEQ);
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = builder.CreateICmpUGE(regs[nbo_instr.left], regs[nbo_instr.right]);
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
@@ -378,23 +437,23 @@ namespace sg {
                 } break;
 
                 case prog::instr::ZERO_EXT: {
-                    auto& nc_instr = *GET(instr, ZERO_EXT);
+                    auto& nc_instr = *GET(*instr, ZERO_EXT);
                     regs[nc_instr.result] = builder.CreateZExt(regs[nc_instr.value], gen.get_llvm_number_type(*nc_instr.new_type));
                 } break;
 
                 case prog::instr::SIGNED_EXT: {
-                    auto& nc_instr = *GET(instr, SIGNED_EXT);
+                    auto& nc_instr = *GET(*instr, SIGNED_EXT);
                     regs[nc_instr.result] = builder.CreateSExt(regs[nc_instr.value], gen.get_llvm_number_type(*nc_instr.new_type));
                 } break;
 
                 case prog::instr::FLOAT_EXT: {
-                    auto& nc_instr = *GET(instr, FLOAT_EXT);
+                    auto& nc_instr = *GET(*instr, FLOAT_EXT);
                     regs[nc_instr.result] = builder.CreateFPExt(regs[nc_instr.value], gen.get_llvm_number_type(*nc_instr.new_type));
                 } break;
 
                 case prog::instr::BRANCH:
                 case prog::instr::VALUE_BRANCH: {
-                    auto& b_instr = INDEX_EQ(instr, BRANCH) ? *GET(instr, BRANCH) : *GET(instr, VALUE_BRANCH);
+                    auto& b_instr = INDEX_EQ(*instr, BRANCH) ? *GET(*instr, BRANCH) : *GET(*instr, VALUE_BRANCH);
                     auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
 
                     auto true_init_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
@@ -405,8 +464,8 @@ namespace sg {
                     builder.CreateCondBr(regs[b_instr.cond], true_init_block, false_init_block);
                     builder.SetInsertPoint(continuation_block);
 
-                    if (INDEX_EQ(instr, VALUE_BRANCH)) {
-                        auto& vb_instr = *GET(instr, VALUE_BRANCH);
+                    if (INDEX_EQ(*instr, VALUE_BRANCH)) {
+                        auto& vb_instr = *GET(*instr, VALUE_BRANCH);
                         auto phi_node = llvm::PHINode::Create(regs[vb_instr.true_value]->getType(), 2, "", continuation_block);
                         phi_node->addIncoming(regs[vb_instr.true_value], true_return_block);
                         phi_node->addIncoming(regs[vb_instr.false_value], false_return_block);
@@ -415,7 +474,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::LOOP: {
-                    auto& l_instr = *GET(instr, LOOP);
+                    auto& l_instr = *GET(*instr, LOOP);
                     auto loop_body_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
                     auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
                     process_instr_block(l_instr, loop_body_block, loop_body_block, loop_body_block, continuation_block);
@@ -437,6 +496,8 @@ namespace sg {
                 default:
                     gen.error(diags::not_implemented()); // TODO
             }
+            if (terminated)
+                break;
         }
 
         if (!builder.GetInsertBlock()->getTerminator())
