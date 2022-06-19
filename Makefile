@@ -9,6 +9,7 @@ S = src
 I = include
 B = build
 C = build/compiler
+CG = build/codegen
 G = gen
 
 location_hpp = $I/location.hpp
@@ -23,8 +24,9 @@ diags_hpp = $I/diags.hpp $(diagcol_hpp) $(ast_hpp) $(program_hpp) $(compiler_hpp
 codegen_hpp = $I/codegen.hpp $(program_hpp) $(diagcol_hpp)
 
 compiler = $C/compiler.o $C/globals.o $C/functions.o $C/statements.o $C/expressions.o $C/constants.o $C/types.o $C/conversions.o
+codegen = $(CG)/codegen.o $(CG)/types.o
 
-$B/snowglobe: $B/input.o $B/lexer.o $B/parser.o $B/program.o $(compiler) $B/diagcol.o $B/diags.o $B/codegen.o $B/main.o | $B $C
+$B/snowglobe: $B/input.o $B/lexer.o $B/parser.o $B/program.o $(compiler) $B/diagcol.o $B/diags.o $(codegen) $B/main.o | $B $C
 	$(LINKER) $^ $(LLVM_LINKER_FLAGS) -o $@
 
 $B/main.o: $S/main.cpp $(input_hpp) $(diagcol_hpp) $(ast_hpp) $(parser_hpp) $(compiler_hpp) $(program_hpp) $(codegen_hpp) | $B
@@ -51,7 +53,7 @@ $B/diagcol.o: $S/diagcol.cpp $(diagcol_hpp) | $B
 $B/diags.o: $S/diags.cpp $(diags_hpp) | $B
 	$(CXX) $< -o $@
 
-$B/codegen.o: $S/codegen.cpp $(codegen_hpp) $(utils_hpp) $(diags_hpp) | $B
+$(codegen): $(CG)/%.o: $S/codegen/%.cpp $(codegen_hpp) $(diags_hpp) $(utils_hpp) | $(CG)
 	$(CXX) $(LLVM_CXX_FLAGS) $< -o $@
 
 $G/lexer.cpp: $S/lexer.re | $G
@@ -68,6 +70,9 @@ $B:
 
 $C: | $B
 	mkdir $C
+
+$(CG): | $B
+	mkdir $(CG)
 
 clean:
 	rm -rf $G
