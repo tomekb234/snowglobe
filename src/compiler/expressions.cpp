@@ -1044,7 +1044,7 @@ namespace sg {
             auto repeat_instr = prog::repeat_static_instr { size, new_reg(), into_ptr(block) };
             add_instr(VARIANT(prog::instr, REPEAT_STATIC, into_ptr(repeat_instr)));
 
-            add_deletion(value, type);
+            add_delete(value, type);
         }
 
         auto result = new_reg();
@@ -1081,7 +1081,7 @@ namespace sg {
             auto repeat_instr = prog::repeat_instr { size_value, new_reg(), into_ptr(block) };
             add_instr(VARIANT(prog::instr, REPEAT, into_ptr(repeat_instr)));
 
-            add_deletion(value, type);
+            add_delete(value, type);
         }
 
         auto result = new_reg();

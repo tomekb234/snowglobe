@@ -551,8 +551,8 @@ namespace sg {
                     reg_values[get_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR, get_instr.index);
                 } break;
 
-                case prog::instr::INTO_FAKE_JOINT_FUNC_PTR: {
-                    auto& into_instr = *GET(instr, INTO_FAKE_JOINT_FUNC_PTR);
+                case prog::instr::MAKE_FAKE_JOINT_FUNC_PTR: {
+                    auto& into_instr = *GET(instr, MAKE_FAKE_JOINT_FUNC_PTR);
                     auto index = GET(reg_values[into_instr.value], GLOBAL_FUNC_PTR);
                     reg_values[into_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_FAKE_JOINT_PTR, index);
                 } break;

@@ -401,7 +401,7 @@ namespace sg {
 
                     auto result = new_reg();
                     auto into_instr = prog::ptr_conversion_instr { value, result };
-                    add_instr(VARIANT(prog::instr, INTO_FAKE_JOINT_FUNC_PTR, into_ptr(into_instr)));
+                    add_instr(VARIANT(prog::instr, MAKE_FAKE_JOINT_FUNC_PTR, into_ptr(into_instr)));
 
                     return { result };
                 }
@@ -426,7 +426,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, ADD_FAKE_REF_COUNTER, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -448,7 +448,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, ADD_FAKE_REF_COUNTER, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -476,7 +476,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, FORGET_REF_COUNT, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, FORGET_REF_COUNTER, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -492,12 +492,12 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, ADD_FAKE_REF_COUNTER, into_ptr(instr)));
                             return { result };
                         } else {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, INTO_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, ALLOC_REF_COUNTER, into_ptr(instr)));
                             return { result };
                         }
                     } break;
@@ -506,7 +506,7 @@ namespace sg {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
+                            add_instr(VARIANT(prog::instr, ADD_FAKE_REF_COUNTER, into_ptr(instr)));
                             return { result };
                         }
                     } break;

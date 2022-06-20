@@ -66,6 +66,9 @@ namespace sg {
                         auto& st = *prog.struct_types[*index];
                         compile_struct_type(struct_ast, st);
                         global_names[st.name].compiled = true;
+                        auto destructor = make_struct_destructor(*index);
+                        st.destructor = prog.global_funcs.size();
+                        prog.global_funcs.push_back(into_ptr(destructor));
                     } break;
 
                     case ast::global_def::ENUM_DEF: {
@@ -77,6 +80,9 @@ namespace sg {
                         auto& en = *prog.enum_types[*index];
                         compile_enum_type(enum_ast, en);
                         global_names[en.name].compiled = true;
+                        auto destructor = make_enum_destructor(*index);
+                        en.destructor = prog.global_funcs.size();
+                        prog.global_funcs.push_back(into_ptr(destructor));
                     } break;
 
                     case ast::global_def::CONST_DEF: {
@@ -153,6 +159,10 @@ namespace sg {
             }
         }
 
+        auto cleanup = make_cleanup_func();
+        prog.cleanup_func = prog.global_funcs.size();
+        prog.global_funcs.push_back(into_ptr(cleanup));
+
         return ok;
     }
 
@@ -182,7 +192,7 @@ namespace sg {
         if (iter != func_wrappers.end())
             return iter->second;
 
-        auto wrapper = make_global_func_wrapper(func_index);
+        auto wrapper = make_func_wrapper(func_index);
         auto wrapper_index = prog.global_funcs.size();
         prog.global_funcs.push_back(into_ptr(wrapper));
 

@@ -101,7 +101,10 @@ namespace sg {
         void compile_struct_type(const ast::struct_def& ast, prog::struct_type& st);
         void compile_enum_type(const ast::enum_def& ast, prog::enum_type& en);
 
-        prog::global_func make_global_func_wrapper(prog::global_index func_index);
+        prog::global_func make_func_wrapper(prog::global_index func_index);
+        prog::global_func make_struct_destructor(prog::global_index struct_index);
+        prog::global_func make_enum_destructor(prog::global_index enum_index);
+        prog::global_func make_cleanup_func();
 
         // Constants
 
@@ -231,6 +234,11 @@ namespace sg {
 
         void compile(const ast::func_def& ast);
 
+        void make_func_wrapper(prog::global_index func_index);
+        void make_struct_destructor(prog::global_index struct_index);
+        void make_enum_destructor(prog::global_index enum_index);
+        void make_cleanup_func();
+
         private:
 
         // Utilities
@@ -277,7 +285,15 @@ namespace sg {
 
         // Deleting
 
-        void add_deletion(prog::reg_index value, const prog::type& type);
+        void add_struct_destructor(prog::reg_index value, const prog::struct_type& st);
+        void add_enum_variants_destructor(prog::reg_index value, const prog::enum_type& en, prog::variant_index variant_index);
+        void add_delete(prog::reg_index value, const prog::type& type);
+        void add_struct_delete(prog::reg_index value, const prog::struct_type& st);
+        void add_enum_delete(prog::reg_index value, const prog::enum_type& en);
+        void add_tuple_delete(prog::reg_index value, vector<cref<prog::type>> types);
+        void add_array_delete(prog::reg_index value, const prog::array_type& array_type);
+        void add_optional_delete(prog::reg_index value, const prog::type& inner_type);
+        void add_ptr_delete(prog::reg_index value, prog::ptr_type::kind_t kind, const prog::type_pointed& target_type);
 
         // Utilities
 
@@ -285,7 +301,7 @@ namespace sg {
         void add_frame_cleanup(frame_index rev_index, location loc);
         pair<prog::reg_index, prog::type_local> add_var_read(prog::var_index var_index, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> add_var_confinement(prog::var_index var_index, location loc);
-        void add_var_deletion(prog::var_index index, location loc);
+        void add_var_delete(prog::var_index index, location loc);
         pair<prog::reg_index, prog::ptr_type> add_ptr_extraction(prog::reg_index value, prog::type&& type, location loc);
         void add_return(prog::reg_index value, location loc);
         void add_break(location loc);

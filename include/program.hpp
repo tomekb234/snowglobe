@@ -78,7 +78,9 @@ namespace sg::prog {
     struct alloc_instr;
     struct alloc_slice_instr;
     struct ptr_read_instr;
+    struct ptr_read_item_instr;
     struct ptr_write_instr;
+    struct ptr_write_item_instr;
     struct get_slice_length_instr;
     struct test_ref_count_instr;
     struct branch_instr;
@@ -98,6 +100,7 @@ namespace sg::prog {
         vector<ptr<global_func>> global_funcs;
         vector<ptr<struct_type>> struct_types;
         vector<ptr<enum_type>> enum_types;
+        global_index cleanup_func;
     };
 
     struct global_var {
@@ -131,11 +134,7 @@ namespace sg::prog {
         bool trivial;
         unordered_map<string, field_index> field_names;
         vector<ptr<struct_field>> fields;
-    };
-
-    struct enum_variant {
-        string name;
-        vector<ptr<type>> tps;
+        global_index destructor;
     };
 
     struct enum_type {
@@ -144,6 +143,12 @@ namespace sg::prog {
         bool trivial;
         unordered_map<string, variant_index> variant_names;
         vector<ptr<enum_variant>> variants;
+        global_index destructor;
+    };
+
+    struct enum_variant {
+        string name;
+        vector<ptr<type>> tps;
     };
 
     struct constant {
@@ -296,6 +301,7 @@ namespace sg::prog {
             MAKE_ENUM_VARIANT,
             MAKE_INNER_PTR,
             MAKE_JOINT_FUNC_PTR,
+            MAKE_FAKE_JOINT_FUNC_PTR,
             GET_GLOBAL_VAR_PTR,
             GET_GLOBAL_FUNC_PTR,
 
@@ -346,23 +352,25 @@ namespace sg::prog {
             TRANSFORM_ARRAY,
             TRANSFORM_OPTIONAL,
 
-            ARRAY_PTR_INTO_SLICE,
-            INTO_SHARED_PTR,
-            INTO_FAKE_SHARED_PTR,
-            FORGET_REF_COUNT,
-            INTO_FAKE_JOINT_FUNC_PTR,
-
             ALLOC,
             ALLOC_SLICE,
-            PTR_READ,
-            PTR_WRITE,
+            ARRAY_PTR_INTO_SLICE,
             GET_SLICE_LENGTH,
-            DELETE,
+            ALLOC_REF_COUNTER,
+            ADD_FAKE_REF_COUNTER,
+            FORGET_REF_COUNTER,
+            PTR_READ,
+            PTR_READ_ITEM,
+            PTR_WRITE,
+            PTR_WRITE_ITEM,
             INCR_REF_COUNT,
             INCR_WEAK_REF_COUNT,
             DECR_REF_COUNT,
             DECR_WEAK_REF_COUNT,
             TEST_REF_COUNT,
+            TEST_ANY_REF_COUNT,
+            DELETE,
+            DELETE_REF_COUNTER,
 
             BRANCH,
             VALUE_BRANCH,
@@ -393,6 +401,7 @@ namespace sg::prog {
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
             ptr<make_inner_ptr_instr>, // MAKE_INNER_PTR
             ptr<make_joint_func_ptr_instr>, // MAKE_JOINT_FUNC_PTR
+            ptr<ptr_conversion_instr>, // MAKE_FAKE_JOINT_FUNC_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
 
@@ -443,23 +452,25 @@ namespace sg::prog {
             ptr<transform_instr>, // TRANSFORM_ARRAY
             ptr<transform_instr>, // TRANSFORM_OPTIONAL
 
-            ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
-            ptr<ptr_conversion_instr>, // INTO_SHARED_PTR
-            ptr<ptr_conversion_instr>, // INTO_FAKE_SHARED_PTR
-            ptr<ptr_conversion_instr>, // FORGET_REF_COUNT
-            ptr<ptr_conversion_instr>, // INTO_FAKE_JOINT_FUNC_PTR
-
             ptr<alloc_instr>, // ALLOC
             ptr<alloc_slice_instr>, // ALLOC_SLICE
-            ptr<ptr_read_instr>, // PTR_READ
-            ptr<ptr_write_instr>, // PTR_WRITE
+            ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
             ptr<get_slice_length_instr>, // GET_SLICE_LENGTH
-            reg_index, // DELETE
+            ptr<ptr_conversion_instr>, // ALLOC_REF_COUNTER
+            ptr<ptr_conversion_instr>, // ADD_FAKE_REF_COUNTER
+            ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
+            ptr<ptr_read_instr>, // PTR_READ
+            ptr<ptr_read_item_instr>, // PTR_READ_ITEM
+            ptr<ptr_write_instr>, // PTR_WRITE
+            ptr<ptr_write_item_instr>, // PTR_WRITE_ITEM
             reg_index, // INCR_REF_COUNT
             reg_index, // INCR_WEAK_REF_COUNT
             reg_index, // DECR_REF_COUNT
             reg_index, // DECR_WEAK_REF_COUNT
             ptr<test_ref_count_instr>, // TEST_REF_COUNT
+            ptr<test_ref_count_instr>, // TEST_ANY_REF_COUNT
+            reg_index, // DELETE
+            reg_index, // DELETE_REF_COUNTER
 
             ptr<branch_instr>, // BRANCH
             ptr<value_branch_instr>, // VALE_BRANCH
@@ -653,8 +664,20 @@ namespace sg::prog {
         reg_index result;
     };
 
+    struct ptr_read_item_instr {
+        reg_index ptr;
+        size_t item;
+        reg_index result;
+    };
+
     struct ptr_write_instr {
         reg_index ptr;
+        reg_index value;
+    };
+
+    struct ptr_write_item_instr {
+        reg_index ptr;
+        size_t item;
         reg_index value;
     };
 

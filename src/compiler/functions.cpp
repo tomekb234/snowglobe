@@ -39,6 +39,58 @@ namespace sg {
         func.instrs = make_ptr(pop_frame());
     }
 
+    void function_compiler::make_func_wrapper(prog::global_index func_index) {
+        push_frame();
+
+        auto param_count = func.params.size();
+
+        vector<prog::reg_index> call_args;
+        for (size_t index = 1; index < param_count; index++)
+            call_args.push_back(index);
+
+        auto result = new_reg();
+        auto call_instr = prog::func_call_instr { func_index, call_args, result };
+        add_instr(VARIANT(prog::instr, FUNC_CALL, into_ptr(call_instr)));
+
+        auto return_instr = prog::return_instr { result };
+        add_instr(VARIANT(prog::instr, RETURN, into_ptr(return_instr)));
+
+        func.instrs = make_ptr(pop_frame());
+    }
+
+    void function_compiler::make_struct_destructor(prog::global_index struct_index) {
+        push_frame();
+
+        auto& st = *clr.prog.struct_types[struct_index];
+        add_struct_destructor(0, st);
+
+        func.instrs = make_ptr(pop_frame());
+    }
+
+    void function_compiler::make_enum_destructor(prog::global_index enum_index) {
+        push_frame();
+
+        auto& en = *clr.prog.enum_types[enum_index];
+        add_enum_variants_destructor(0, en, 0);
+
+        func.instrs = make_ptr(pop_frame());
+    }
+
+    void function_compiler::make_cleanup_func() {
+        push_frame();
+
+        auto count = clr.prog.global_vars.size();
+
+        for (size_t index = 0; index < count; index++) {
+            auto value = new_reg();
+            auto instr = prog::read_global_var_instr { index, value };
+            add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(instr)));
+            add_delete(value, *clr.prog.global_vars[index]->tp);
+        }
+
+        func.instrs = make_ptr(pop_frame());
+    }
+
     prog::reg_index function_compiler::new_reg() {
         return ++reg_counter;
     }
@@ -176,7 +228,7 @@ namespace sg {
         auto& fr = frames[frames.size() - rev_index - 1];
 
         for (auto var_index : fr.vars)
-            add_var_deletion(var_index, loc);
+            add_var_delete(var_index, loc);
 
         for (auto iter = fr.cleanup_actions.rbegin(); iter != fr.cleanup_actions.rend(); iter++)
             (*iter)();
@@ -221,7 +273,7 @@ namespace sg {
         return { value, move(type) };
     }
 
-    void function_compiler::add_var_deletion(prog::var_index index, location loc) {
+    void function_compiler::add_var_delete(prog::var_index index, location loc) {
         auto& var = vars[index];
 
         if (!var.type.confined && !clr.type_trivial(*var.type.tp)) {
@@ -229,7 +281,7 @@ namespace sg {
                 auto value = new_reg();
                 auto read_instr = prog::read_var_instr { index, value };
                 add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
-                add_deletion(value, *var.type.tp);
+                add_delete(value, *var.type.tp);
             } else if (var.state & VAR_INITIALIZED)
                 error(diags::variable_not_deletable(var.name, var.state & VAR_UNINITIALIZED, var.state & VAR_MOVED_OUT), loc);
         }
@@ -367,7 +419,7 @@ namespace sg {
         switch (INDEX(lval)) {
             case lvalue::IGNORED:
                 if (!type.confined)
-                    add_deletion(value, *type.tp);
+                    add_delete(value, *type.tp);
                 break;
 
             case lvalue::VAR: {
@@ -377,7 +429,7 @@ namespace sg {
                 if (type.confined && !clr.type_trivial(*type.tp) && var.outside_confinement > 0)
                     error(diags::variable_outside_confinement(var.name), loc);
 
-                add_var_deletion(var_index, loc);
+                add_var_delete(var_index, loc);
 
                 value = conv_clr.convert(value, type, var.type, loc);
 
@@ -395,7 +447,7 @@ namespace sg {
                 auto old_value = new_reg();
                 auto read_instr = prog::read_global_var_instr { var_index, old_value };
                 add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(read_instr)));
-                add_deletion(old_value, var_type);
+                add_delete(old_value, var_type);
 
                 value = conv_clr.convert(value, type, var_type, loc);
 
@@ -475,7 +527,7 @@ namespace sg {
                 auto old_value = new_reg();
                 auto read_instr = prog::ptr_read_instr { ptr_value, old_value };
                 add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(read_instr)));
-                add_deletion(old_value, target_type);
+                add_delete(old_value, target_type);
 
                 value = conv_clr.convert(value, type, target_type, loc);
 
