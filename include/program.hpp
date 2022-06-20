@@ -170,9 +170,9 @@ namespace sg::prog {
 
         variant<
             monostate, // UNIT
-            pair<unsigned long long, ptr<number_type>>, // NUMBER
-            pair<global_index, vector<ptr<constant>>>, // STRUCT
-            tuple<global_index, variant_index, vector<ptr<constant>>>, // ENUM
+            unsigned long long, // NUMBER
+            vector<ptr<constant>>, // STRUCT
+            pair<variant_index, vector<ptr<constant>>>, // ENUM
             vector<ptr<constant>>, // TUPLE
             vector<ptr<constant>>, // ARRAY
             pair<ptr<constant>, size_t>, // SIZED_ARRAY
@@ -291,7 +291,6 @@ namespace sg::prog {
             RETURN,
             FUNC_CALL,
             FUNC_PTR_CALL,
-            FROM_NEVER,
 
             MAKE_UNIT,
             MAKE_CONST,
@@ -306,6 +305,7 @@ namespace sg::prog {
             MAKE_FAKE_JOINT_FUNC_PTR,
             GET_GLOBAL_VAR_PTR,
             GET_GLOBAL_FUNC_PTR,
+            FROM_NEVER,
 
             TEST_OPTIONAL,
             TEST_VARIANT,
@@ -392,7 +392,6 @@ namespace sg::prog {
             ptr<return_instr>, // RETURN
             ptr<func_call_instr>, // FUNC_CALL
             ptr<func_ptr_call_instr>, // FUNC_PTR_CALL
-            ptr<from_never_instr>, // FROM_NEVER
 
             reg_index, // MAKE_UNIT
             ptr<make_const_instr>, // MAKE_CONST
@@ -407,6 +406,7 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // MAKE_FAKE_JOINT_FUNC_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
+            ptr<from_never_instr>, // FROM_NEVER
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
             ptr<test_variant_instr>, // TEST_ENUM_VARIANT
@@ -522,13 +522,9 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct from_never_instr {
-        reg_index result;
-        ptr<type> tp;
-    };
-
     struct make_const_instr {
         ptr<constant> value;
+        ptr<type> tp;
         reg_index result;
     };
 
@@ -563,6 +559,11 @@ namespace sg::prog {
         global_index en;
         variant_index variant;
         vector<reg_index> args;
+        reg_index result;
+    };
+
+    struct from_never_instr {
+        ptr<type> tp;
         reg_index result;
     };
 
@@ -723,11 +724,19 @@ namespace sg::prog {
         ptr<instr_block> block;
     };
 
-    extern const type_local NEVER_TYPE;
-    extern const type_local UNIT_TYPE;
-    extern const type_local BOOL_TYPE;
-    extern const type_local SIZE_TYPE;
-    extern const type_local UNIT_PTR_TYPE;
+    extern const type NEVER_TYPE;
+    extern const type UNIT_TYPE;
+    extern const type BOOL_TYPE;
+    extern const type CHAR_TYPE;
+    extern const type SIZE_TYPE;
+    extern const type UNIT_PTR_TYPE;
+
+    extern const type_local NEVER_TYPE_LOCAL;
+    extern const type_local UNIT_TYPE_LOCAL;
+    extern const type_local BOOL_TYPE_LOCAL;
+    extern const type_local CHAR_TYPE_LOCAL;
+    extern const type_local SIZE_TYPE_LOCAL;
+    extern const type_local UNIT_PTR_TYPE_LOCAL;
 
     type make_ptr_type(type&& tp, ptr_type::kind_t kind, bool slice);
 

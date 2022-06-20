@@ -40,7 +40,7 @@ namespace sg {
                 auto [value, value_type] = clr.compile_const_literal(literal_ast);
 
                 auto result = new_reg();
-                auto instr = prog::make_const_instr { into_ptr(value), result };
+                auto instr = prog::make_const_instr { into_ptr(value), make_ptr(copy_type(value_type)), result };
                 add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
 
                 auto type = prog::type_local { into_ptr(value_type), false };
@@ -81,12 +81,12 @@ namespace sg {
 
             case ast::expr::BREAK: {
                 add_break(ast.loc);
-                return { new_unit_reg(), copy_type_local(prog::NEVER_TYPE) };
+                return { new_unit_reg(), copy_type_local(prog::NEVER_TYPE_LOCAL) };
             }
 
             case ast::expr::CONTINUE: {
                 add_continue(ast.loc);
-                return { new_unit_reg(), copy_type_local(prog::NEVER_TYPE) };
+                return { new_unit_reg(), copy_type_local(prog::NEVER_TYPE_LOCAL) };
             }
 
             case ast::expr::CONDITIONAL: {
@@ -169,18 +169,22 @@ namespace sg {
                 }
 
                 auto type = prog::type_local { make_ptr(copy_type(*var.tp)), confined };
+
                 return { result, move(type) };
             }
 
             case global_name_kind::CONST: {
-                auto& value = clr.consts[gname.index];
+                auto& var = clr.consts[gname.index];
+                auto& type = *var.tp;
+                auto& value = *var.value;
 
                 auto result = new_reg();
-                auto instr = prog::make_const_instr { make_ptr(copy_const(*value.value)), result };
+                auto instr = prog::make_const_instr { make_ptr(copy_const(value)), make_ptr(copy_type(type)), result };
                 add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
 
-                auto type = prog::type_local { make_ptr(copy_type(*value.tp)), confined };
-                return { result, move(type) };
+                auto result_type = prog::type_local { make_ptr(copy_type(type)), confined };
+
+                return { result, move(result_type) };
             }
 
             case global_name_kind::FUNC: {
@@ -233,14 +237,14 @@ namespace sg {
             tie(result, type) = compile_expr(*ast, false);
         else {
             result = new_unit_reg();
-            type = copy_type_local(prog::UNIT_TYPE);
+            type = copy_type_local(prog::UNIT_TYPE_LOCAL);
         }
 
         result = conv_clr.convert(result, type, *func.return_tp, loc);
 
         add_return(result, loc);
 
-        return { result, copy_type_local(prog::NEVER_TYPE) };
+        return { result, copy_type_local(prog::NEVER_TYPE_LOCAL) };
     }
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_tuple(vector<cref<ast::expr_marked>> asts, bool confined, location loc) {
@@ -248,7 +252,7 @@ namespace sg {
         auto count = values.size();
 
         if (count == 0)
-            return { new_unit_reg(), copy_type_local(prog::UNIT_TYPE) };
+            return { new_unit_reg(), copy_type_local(prog::UNIT_TYPE_LOCAL) };
 
         if (count == 1) {
             auto result = values[0];
@@ -408,10 +412,10 @@ namespace sg {
 
         switch (ast.operation) {
             case unop::NOT: {
-                value = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
+                value = conv_clr.convert(value, type, prog::BOOL_TYPE_LOCAL, ast.value->loc);
                 auto instr = prog::unary_operation_instr { value, result };
                 add_instr(VARIANT(prog::instr, BOOL_NOT, into_ptr(instr)));
-                return { result, copy_type_local(prog::BOOL_TYPE) };
+                return { result, copy_type_local(prog::BOOL_TYPE_LOCAL) };
             }
 
             case unop::MINUS: {
@@ -515,7 +519,7 @@ namespace sg {
             case binop::AND:
             case binop::OR: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
-                left_value = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
+                left_value = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE_LOCAL, ast.left->loc);
                 prog::reg_index right_value;
                 auto result = new_reg();
 
@@ -523,7 +527,7 @@ namespace sg {
 
                 auto long_branch = [&](){
                     auto[right_raw_value, right_type] = compile_expr(*ast.right, true);
-                    right_value = conv_clr.convert(right_raw_value, right_type, prog::BOOL_TYPE, ast.right->loc);
+                    right_value = conv_clr.convert(right_raw_value, right_type, prog::BOOL_TYPE_LOCAL, ast.right->loc);
                 };
 
                 if (ast.operation == binop::AND) {
@@ -536,7 +540,7 @@ namespace sg {
                     add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
                 }
 
-                return { result, copy_type_local(prog::BOOL_TYPE) };
+                return { result, copy_type_local(prog::BOOL_TYPE_LOCAL) };
             } break;
 
             case binop::EQ:
@@ -557,7 +561,7 @@ namespace sg {
                 else if (ast.operation == binop::NEQ)
                     add_instr(VARIANT(prog::instr, NEQ, into_ptr(instr)));
 
-                return { result, copy_type_local(prog::BOOL_TYPE) };
+                return { result, copy_type_local(prog::BOOL_TYPE_LOCAL) };
             } break;
 
             case binop::LS:
@@ -661,7 +665,7 @@ namespace sg {
                 }
 
                 if (bool_result_type)
-                    return { result, copy_type_local(prog::BOOL_TYPE) };
+                    return { result, copy_type_local(prog::BOOL_TYPE_LOCAL) };
                 else
                     return { result, prog::type_local{ into_ptr(common_type), false } };
             }
@@ -879,7 +883,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_conditional(const ast::conditional_expr& ast, bool confined) {
         auto [value, type] = compile_expr(*ast.value, true);
-        auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
+        auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE_LOCAL, ast.value->loc);
 
         prog::reg_index true_value, false_value;
         prog::type_local true_type, false_type;
@@ -1068,7 +1072,7 @@ namespace sg {
         auto& type = *type_local.tp;
 
         auto [size_value, size_type] = compile_expr(size_ast, true);
-        size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
+        size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE_LOCAL, size_ast.loc);
 
         if (!type_local.confined) {
             if (!clr.type_copyable(type))
@@ -1098,12 +1102,11 @@ namespace sg {
         auto& type = *type_local.tp;
 
         if (INDEX_EQ(type, ARRAY)) {
-            auto ntype = prog::number_type { prog::number_type::U64 };
-            auto value = VARIANT(prog::constant, NUMBER, make_pair(GET(type, ARRAY)->size, into_ptr(ntype)));
+            auto value = VARIANT(prog::constant, NUMBER, GET(type, ARRAY)->size);
             auto result = new_reg();
-            auto make_instr = prog::make_const_instr { into_ptr(value), result };
+            auto make_instr = prog::make_const_instr { into_ptr(value), make_ptr(copy_type(prog::SIZE_TYPE)), result };
             add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(make_instr)));
-            return { result, copy_type_local(prog::SIZE_TYPE) };
+            return { result, copy_type_local(prog::SIZE_TYPE_LOCAL) };
         }
 
         auto [ptr_value, ptr_type] = add_ptr_extraction(value, copy_type(type), ast.loc);
@@ -1116,7 +1119,7 @@ namespace sg {
         auto get_instr = prog::get_slice_length_instr { ptr_value, result };
         add_instr(VARIANT(prog::instr, GET_SLICE_LENGTH, into_ptr(get_instr)));
 
-        return { result, copy_type_local(prog::SIZE_TYPE) };
+        return { result, copy_type_local(prog::SIZE_TYPE_LOCAL) };
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {

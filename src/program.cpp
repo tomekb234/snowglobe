@@ -4,11 +4,19 @@
 namespace sg::prog {
     using namespace sg::utils;
 
-    const type_local NEVER_TYPE = { make_ptr(VARIANT(type, NEVER, monostate())), false };
-    const type_local UNIT_TYPE = { make_ptr(VARIANT(type, UNIT, monostate())), false };
-    const type_local BOOL_TYPE = { make_ptr(VARIANT(type, NUMBER, make_ptr(number_type { number_type::BOOL }))), false };
-    const type_local SIZE_TYPE = { make_ptr(VARIANT(type, NUMBER, make_ptr(number_type { number_type::U64 }))), false };
-    const type_local UNIT_PTR_TYPE = { make_ptr(make_ptr_type(VARIANT(type, UNIT, monostate()), ptr_type::GLOBAL, false)), false };
+    const type NEVER_TYPE = VARIANT(type, NEVER, monostate());
+    const type UNIT_TYPE = VARIANT(type, UNIT, monostate());
+    const type BOOL_TYPE = VARIANT(type, NUMBER, make_ptr(number_type { number_type::BOOL }));
+    const type CHAR_TYPE = VARIANT(type, NUMBER, make_ptr(number_type { number_type::U8 }));
+    const type SIZE_TYPE = VARIANT(type, NUMBER, make_ptr(number_type { number_type::U64 }));
+    const type UNIT_PTR_TYPE = make_ptr_type(VARIANT(type, UNIT, monostate()), ptr_type::GLOBAL, false);
+
+    const type_local NEVER_TYPE_LOCAL = { make_ptr(copy_type(NEVER_TYPE)), false };
+    const type_local UNIT_TYPE_LOCAL = { make_ptr(copy_type(UNIT_TYPE)), false };
+    const type_local BOOL_TYPE_LOCAL = { make_ptr(copy_type(BOOL_TYPE)), false };
+    const type_local CHAR_TYPE_LOCAL = { make_ptr(copy_type(CHAR_TYPE)), false };
+    const type_local SIZE_TYPE_LOCAL = { make_ptr(copy_type(SIZE_TYPE)), false };
+    const type_local UNIT_PTR_TYPE_LOCAL = { make_ptr(copy_type(UNIT_PTR_TYPE)), false };
 
     static array_type copy_array_type(const array_type& tp);
     static ptr_type copy_ptr_type(const ptr_type& tp);
@@ -36,18 +44,18 @@ namespace sg::prog {
                 return VARIANT(constant, UNIT, monostate{ });
 
             case constant::NUMBER: {
-                auto& [number, ntype_ptr] = GET(value, NUMBER);
-                return VARIANT(constant, NUMBER, make_pair(number, make_ptr(number_type { ntype_ptr->tp })));
+                auto number = GET(value, NUMBER);
+                return VARIANT(constant, NUMBER, number);
             } break;
 
             case constant::STRUCT: {
-                auto& [index, value_ptrs] = GET(value, STRUCT);
-                return VARIANT(constant, STRUCT, make_pair(index, copy_ptr_vector<constant>(value_ptrs, copy_const)));
+                auto& value_ptrs = GET(value, STRUCT);
+                return VARIANT(constant, STRUCT, copy_ptr_vector<constant>(value_ptrs, copy_const));
             }
 
             case constant::ENUM: {
-                auto& [enum_index, variant_index, value_ptrs] = GET(value, ENUM);
-                return VARIANT(constant, ENUM, make_tuple(enum_index, variant_index, copy_ptr_vector<constant>(value_ptrs, copy_const)));
+                auto& [variant_index, value_ptrs] = GET(value, ENUM);
+                return VARIANT(constant, ENUM, make_pair(variant_index, copy_ptr_vector<constant>(value_ptrs, copy_const)));
             }
 
             case constant::TUPLE: {

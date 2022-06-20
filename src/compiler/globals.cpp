@@ -137,7 +137,7 @@ namespace sg {
         auto& func = *prog.global_funcs[func_index];
 
         vector<prog::func_param> params;
-        params.push_back({ { }, make_ptr(copy_type_local(prog::UNIT_PTR_TYPE)) });
+        params.push_back({ { }, make_ptr(copy_type_local(prog::UNIT_PTR_TYPE_LOCAL)) });
         for (const prog::func_param& param : as_cref_vector(func.params))
             params.push_back({ { }, make_ptr(copy_type_local(*param.tp)) });
 

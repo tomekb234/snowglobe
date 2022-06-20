@@ -43,7 +43,7 @@ namespace sg {
         switch (INDEX(type)) {
             case prog::type::NEVER: {
                 auto result = new_reg();
-                auto instr = prog::from_never_instr { result, make_ptr(copy_type(new_type)) };
+                auto instr = prog::from_never_instr { make_ptr(copy_type(new_type)), result };
                 add_instr(VARIANT(prog::instr, FROM_NEVER, into_ptr(instr)));
                 return { result };
             }
