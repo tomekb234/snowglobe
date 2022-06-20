@@ -508,11 +508,6 @@ namespace sg {
                             auto instr = prog::ptr_conversion_instr { value, result };
                             add_instr(VARIANT(prog::instr, INTO_FAKE_SHARED_PTR, into_ptr(instr)));
                             return { result };
-                        } else {
-                            auto result = new_reg();
-                            add_instr(VARIANT(prog::instr, DELETE, value));
-                            add_instr(VARIANT(prog::instr, MAKE_EMPTY_WEAK_PTR, result));
-                            return { result };
                         }
                     } break;
 

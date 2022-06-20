@@ -972,8 +972,8 @@ namespace sg {
 
             if (clr.type_copyable(target_type))
                 add_copy(result, target_type);
-            else if (ptr_type.kind == prog::ptr_type::UNIQUE && var_index && !vars[*var_index].type.confined) {
-                add_deletion(value, type);
+            else if (ptr_type.kind == prog::ptr_type::UNIQUE && !INDEX_EQ(*type.tp, INNER_PTR) && var_index && !vars[*var_index].type.confined) {
+                add_instr(VARIANT(prog::instr, DELETE, value));
                 move_out_var(*var_index, ast.loc);
             } else
                 error(diags::type_not_copyable(clr.prog, move(target_type)), ast.loc);

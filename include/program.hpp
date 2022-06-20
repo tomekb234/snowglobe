@@ -296,7 +296,6 @@ namespace sg::prog {
             MAKE_ENUM_VARIANT,
             MAKE_INNER_PTR,
             MAKE_JOINT_FUNC_PTR,
-            MAKE_EMPTY_WEAK_PTR,
             GET_GLOBAL_VAR_PTR,
             GET_GLOBAL_FUNC_PTR,
 
@@ -394,7 +393,6 @@ namespace sg::prog {
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
             ptr<make_inner_ptr_instr>, // MAKE_INNER_PTR
             ptr<make_joint_func_ptr_instr>, // MAKE_JOINT_FUNC_PTR
-            reg_index, // MAKE_EMPTY_WEAK_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
 
