@@ -41,8 +41,12 @@ namespace sg {
             return { value };
 
         switch (INDEX(type)) {
-            case prog::type::NEVER:
-                return { value };
+            case prog::type::NEVER: {
+                auto result = new_reg();
+                auto instr = prog::from_never_instr { result, make_ptr(copy_type(new_type)) };
+                add_instr(VARIANT(prog::instr, FROM_NEVER, into_ptr(instr)));
+                return { result };
+            }
 
             case prog::type::NUMBER: {
                 if (!INDEX_EQ(new_type, NUMBER))

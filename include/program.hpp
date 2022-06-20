@@ -53,6 +53,7 @@ namespace sg::prog {
     struct return_instr;
     struct func_call_instr;
     struct func_ptr_call_instr;
+    struct from_never_instr;
     struct make_const_instr;
     struct make_tuple_instr;
     struct make_array_instr;
@@ -290,6 +291,7 @@ namespace sg::prog {
             RETURN,
             FUNC_CALL,
             FUNC_PTR_CALL,
+            FROM_NEVER,
 
             MAKE_UNIT,
             MAKE_CONST,
@@ -390,6 +392,7 @@ namespace sg::prog {
             ptr<return_instr>, // RETURN
             ptr<func_call_instr>, // FUNC_CALL
             ptr<func_ptr_call_instr>, // FUNC_PTR_CALL
+            ptr<from_never_instr>, // FROM_NEVER
 
             reg_index, // MAKE_UNIT
             ptr<make_const_instr>, // MAKE_CONST
@@ -517,6 +520,11 @@ namespace sg::prog {
         reg_index func_ptr;
         vector<reg_index> args;
         reg_index result;
+    };
+
+    struct from_never_instr {
+        reg_index result;
+        ptr<type> tp;
     };
 
     struct make_const_instr {
