@@ -587,13 +587,15 @@ namespace sg {
 
     template<typename T>
     static unsigned long long encode_number(T number) {
-        unsigned long long result;
-        reinterpret_cast<T&>(result) = number;
+        unsigned long long result = 0;
+        auto ptr = reinterpret_cast<T*>(&result);
+        *ptr = number;
         return result;
     }
 
     template<typename T>
     static T decode_number(unsigned long long number) {
-        return reinterpret_cast<T&>(number);
+        auto ptr = reinterpret_cast<T*>(&number);
+        return *ptr;
     }
 }

@@ -1,5 +1,5 @@
-CXX = c++ -std=c++17 -c -Wall -Wextra -I $I -I $G
-LINKER = c++ -std=c++17
+CXX = c++ -std=c++17 -c -Os -Wall -Wextra -I $I -I $G
+LINKER = c++ -std=c++17 -s
 RE2C = re2c
 BISON = bison
 

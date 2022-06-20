@@ -237,6 +237,9 @@ namespace sg {
                     index = GET(arg_ast, EXPR_WITH_INDEX).first;
                     value_ast_ptr = GET(arg_ast, EXPR_WITH_INDEX).second.get();
                 } break;
+
+                default:
+                    UNREACHABLE;
             }
 
             if (index >= count)

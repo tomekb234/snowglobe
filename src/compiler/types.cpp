@@ -175,6 +175,9 @@ namespace sg {
             case ast::ptr_type::UNIQUE:
                 kind = prog::ptr_type::UNIQUE;
                 break;
+
+            default:
+                UNREACHABLE;
         }
 
         auto type = compile_type_pointed(*ast.target_tp);
@@ -226,6 +229,9 @@ namespace sg {
             case ast::func_with_ptr_type::UNIQUE:
                 kind = prog::func_with_ptr_type::UNIQUE;
                 break;
+
+            default:
+                UNREACHABLE;
         }
 
         auto type = compile_type_pointed(*ast.target_tp);
