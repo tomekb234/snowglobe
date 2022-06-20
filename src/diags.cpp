@@ -321,6 +321,10 @@ namespace sg::diags {
         stream << "Use '&' instead" << endl;
     }
 
+    void invalid_parameter_order::write(ostream& stream) const {
+        stream << "All function parameters with non-confined types must be ordered after parameters with confined types" << endl;
+    }
+
     void variable_not_found::write(ostream& stream) const {
         stream << "Local variable with name '" << name << "' not found" << endl;
     }

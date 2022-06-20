@@ -37,10 +37,19 @@ namespace sg {
 
         vector<prog::func_param> params;
         unordered_map<string, prog::param_index> param_names;
+        auto confined = false;
 
         for (const ast::func_param& param_ast : as_cref_vector(ast.params)) {
             param_names[param_ast.name] = params.size();
-            params.push_back(prog::func_param { { param_ast.name }, make_ptr(compile_type_local(*param_ast.tp, true)) });
+
+            auto type = compile_type_local(*param_ast.tp, true);
+
+            if (type.confined)
+                confined = true;
+            else if (confined)
+                error(diags::invalid_parameter_order(), param_ast.loc);
+
+            params.push_back(prog::func_param { { param_ast.name }, into_ptr(type) });
         }
 
         prog::type return_type;
