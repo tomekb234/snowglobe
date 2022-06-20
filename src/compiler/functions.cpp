@@ -360,6 +360,13 @@ namespace sg {
         returned &= init_returned & branch_returned;
     }
 
+    void function_compiler::add_repeat(function<void()> action, size_t count) {
+        push_frame();
+        action();
+        auto block = pop_frame();
+        add_instr(VARIANT(prog::instr, REPEAT, make_pair(into_ptr(block), count)));
+    }
+
     void function_compiler::add_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
         switch (INDEX(lval)) {
             case lvalue::IGNORED:

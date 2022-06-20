@@ -75,8 +75,8 @@ namespace sg {
             }
 
             case ast::expr::RETURN: {
-                auto return_expr = as_optional_cref(GET(ast, RETURN));
-                return compile_return(return_expr, return_expr ? (*return_expr).get().loc : ast.loc);
+                auto return_ast = as_optional_cref(GET(ast, RETURN));
+                return compile_return(return_ast, return_ast ? (*return_ast).get().loc : ast.loc);
             }
 
             case ast::expr::BREAK: {
@@ -90,8 +90,8 @@ namespace sg {
             }
 
             case ast::expr::CONDITIONAL: {
-                auto& conditional_expr = *GET(ast, CONDITIONAL);
-                return compile_conditional(conditional_expr, confined);
+                auto& conditional_ast = *GET(ast, CONDITIONAL);
+                return compile_conditional(conditional_ast, confined);
             }
 
             case ast::expr::GLOBAL_REF: {
@@ -112,7 +112,8 @@ namespace sg {
                 if (confined)
                     error(diags::allocation_in_confined_context(), ast.loc);
 
-                auto [value, value_type] = compile_expr(*GET(ast, HEAP_ALLOC), false);
+                auto& expr_ast = *GET(ast, HEAP_ALLOC);
+                auto [value, value_type] = compile_expr(expr_ast, false);
                 auto type = prog::type_local { make_ptr(prog::make_ptr_type(move(*value_type.tp), prog::ptr_type::UNIQUE, false)), false };
 
                 auto result = new_reg();
@@ -123,16 +124,20 @@ namespace sg {
             }
 
             case ast::expr::DEREFERENCE: {
-                auto& expr = *GET(ast, DEREFERENCE);
-                return compile_dereference(expr, confined);
+                auto& expr_ast = *GET(ast, DEREFERENCE);
+                return compile_dereference(expr_ast, confined);
             }
 
             case ast::expr::WEAK_PTR_TEST: {
-                auto& expr = *GET(ast, WEAK_PTR_TEST);
-                return compile_weak_ptr_test(expr, confined);
+                auto& expr_ast = *GET(ast, WEAK_PTR_TEST);
+                return compile_weak_ptr_test(expr_ast, confined);
             }
 
-            case ast::expr::SIZED_ARRAY:
+            case ast::expr::SIZED_ARRAY: {
+                auto& array_ast = *GET(ast, SIZED_ARRAY);
+                return compile_sized_array(array_ast, confined);
+            }
+
             case ast::expr::HEAP_SLICE_ALLOC:
             case ast::expr::LENGTH:
             case ast::expr::EXTRACT:
@@ -1027,6 +1032,32 @@ namespace sg {
         return { result, move(result_type) };
     }
 
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_sized_array(const ast::sized_array_expr& ast, bool confined) {
+        auto& value_ast = *ast.value;
+        auto& size_ast = *ast.size;
+
+        prog::reg_index value;
+        prog::type_local type_local;
+        tie(value, type_local) = compile_expr(value_ast, confined);
+        auto& type = *type_local.tp;
+        auto size = clr.compile_const_size(size_ast);
+
+        if (!clr.type_trivial(type)) {
+            if (!clr.type_copyable(type))
+                error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
+            add_repeat([&] () { add_copy(value, type); }, size);
+        }
+
+        auto result = new_reg();
+        auto instr = prog::make_sized_array_instr { value, size, result };
+        add_instr(VARIANT(prog::instr, MAKE_SIZED_ARRAY, into_ptr(instr)));
+
+        auto array_type = prog::array_type { into_ptr(type), size };
+        auto result_type = prog::type_local { make_ptr(VARIANT(prog::type, ARRAY, into_ptr(array_type))), type_local.confined };
+
+        return { result, move(result_type) };
+    }
+
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {
         switch (INDEX(ast)) {
             case ast::expr::TUPLE:
@@ -1070,8 +1101,8 @@ namespace sg {
             }
 
             case ast::expr::DEREFERENCE: {
-                auto& expr = *GET(ast, DEREFERENCE);
-                auto [value, type_local] = compile_expr(expr, true);
+                auto& expr_ast = *GET(ast, DEREFERENCE);
+                auto [value, type_local] = compile_expr(expr_ast, true);
                 auto& type = *type_local.tp;
 
                 auto ptr_value = value;

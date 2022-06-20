@@ -56,6 +56,7 @@ namespace sg::prog {
     struct make_const_instr;
     struct make_tuple_instr;
     struct make_array_instr;
+    struct make_sized_array_instr;
     struct make_optional_instr;
     struct make_struct_instr;
     struct make_enum_variant_instr;
@@ -75,6 +76,7 @@ namespace sg::prog {
     struct numeric_conversion_instr;
     struct transform_instr;
     struct alloc_instr;
+    struct alloc_slice_instr;
     struct ptr_read_instr;
     struct ptr_write_instr;
     struct test_ref_count_instr;
@@ -285,6 +287,7 @@ namespace sg::prog {
             MAKE_CONST,
             MAKE_TUPLE,
             MAKE_ARRAY,
+            MAKE_SIZED_ARRAY,
             MAKE_OPTIONAL,
             MAKE_STRUCT,
             MAKE_ENUM_VARIANT,
@@ -348,6 +351,7 @@ namespace sg::prog {
             INTO_FAKE_JOINT_FUNC_PTR,
 
             ALLOC,
+            ALLOC_SLICE,
             PTR_READ,
             PTR_WRITE,
             DELETE,
@@ -360,6 +364,7 @@ namespace sg::prog {
             BRANCH,
             VALUE_BRANCH,
             LOOP,
+            REPEAT,
             CONTINUE_LOOP,
             BREAK_LOOP,
             ABORT
@@ -378,6 +383,7 @@ namespace sg::prog {
             ptr<make_const_instr>, // MAKE_CONST
             ptr<make_tuple_instr>, // MAKE_TUPLE
             ptr<make_array_instr>, // MAKE_ARRAY
+            ptr<make_sized_array_instr>, // MAKE_SIZED_ARRAY
             ptr<make_optional_instr>, // MAKE_OPTIONAL
             ptr<make_struct_instr>, // MAKE_STRUCT
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
@@ -441,6 +447,7 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // INTO_FAKE_JOINT_FUNC_PTR
 
             ptr<alloc_instr>, // ALLOC
+            ptr<alloc_slice_instr>, // ALLOC_SLICE
             ptr<ptr_read_instr>, // PTR_READ
             ptr<ptr_write_instr>, // PTR_WRITE
             reg_index, // DELETE
@@ -453,6 +460,7 @@ namespace sg::prog {
             ptr<branch_instr>, // BRANCH
             ptr<value_branch_instr>, // VALE_BRANCH
             ptr<instr_block>, // LOOP
+            pair<ptr<instr_block>, size_t>, // REPEAT
             monostate, // CONTINUE_LOOP
             monostate, // BREAK_LOOP
             monostate // ABORT
@@ -507,6 +515,12 @@ namespace sg::prog {
 
     struct make_array_instr {
         vector<reg_index> values;
+        reg_index result;
+    };
+
+    struct make_sized_array_instr {
+        reg_index value;
+        size_t size;
         reg_index result;
     };
 
@@ -620,6 +634,12 @@ namespace sg::prog {
 
     struct alloc_instr {
         reg_index value;
+        reg_index result;
+    };
+
+    struct alloc_slice_instr {
+        reg_index value;
+        reg_index size;
         reg_index result;
     };
 
