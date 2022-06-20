@@ -7,6 +7,7 @@ namespace sg::prog {
     const type_local NEVER_TYPE = { make_ptr(VARIANT(type, NEVER, monostate())), false };
     const type_local UNIT_TYPE = { make_ptr(VARIANT(type, UNIT, monostate())), false };
     const type_local BOOL_TYPE = { make_ptr(VARIANT(type, NUMBER, make_ptr(number_type { number_type::BOOL }))), false };
+    const type_local SIZE_TYPE = { make_ptr(VARIANT(type, NUMBER, make_ptr(number_type { number_type::U64 }))), false };
     const type_local UNIT_PTR_TYPE = { make_ptr(make_ptr_type(VARIANT(type, UNIT, monostate()), ptr_type::GLOBAL, false)), false };
 
     static array_type copy_array_type(const array_type& tp);

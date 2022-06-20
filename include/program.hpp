@@ -79,6 +79,7 @@ namespace sg::prog {
     struct alloc_slice_instr;
     struct ptr_read_instr;
     struct ptr_write_instr;
+    struct get_slice_length_instr;
     struct test_ref_count_instr;
     struct branch_instr;
     struct value_branch_instr;
@@ -356,6 +357,7 @@ namespace sg::prog {
             ALLOC_SLICE,
             PTR_READ,
             PTR_WRITE,
+            GET_SLICE_LENGTH,
             DELETE,
             INCR_REF_COUNT,
             INCR_WEAK_REF_COUNT,
@@ -453,6 +455,7 @@ namespace sg::prog {
             ptr<alloc_slice_instr>, // ALLOC_SLICE
             ptr<ptr_read_instr>, // PTR_READ
             ptr<ptr_write_instr>, // PTR_WRITE
+            ptr<get_slice_length_instr>, // GET_SLICE_LENGTH
             reg_index, // DELETE
             reg_index, // INCR_REF_COUNT
             reg_index, // INCR_WEAK_REF_COUNT
@@ -657,6 +660,11 @@ namespace sg::prog {
         reg_index value;
     };
 
+    struct get_slice_length_instr {
+        reg_index ptr;
+        reg_index result;
+    };
+
     struct test_ref_count_instr {
         reg_index ptr;
         reg_index result;
@@ -687,6 +695,7 @@ namespace sg::prog {
     extern const type_local NEVER_TYPE;
     extern const type_local UNIT_TYPE;
     extern const type_local BOOL_TYPE;
+    extern const type_local SIZE_TYPE;
     extern const type_local UNIT_PTR_TYPE;
 
     type make_ptr_type(type&& tp, ptr_type::kind_t kind, bool slice);

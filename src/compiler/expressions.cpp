@@ -133,7 +133,11 @@ namespace sg {
                 return compile_heap_slice_alloc(alloc_ast, confined);
             }
 
-            case ast::expr::LENGTH:
+            case ast::expr::LENGTH: {
+                auto& expr_ast = *GET(ast, LENGTH);
+                return compile_length(expr_ast);
+            }
+
             case ast::expr::EXTRACT:
             case ast::expr::PTR_EXTRACT:
             case ast::expr::LAMBDA:
@@ -943,35 +947,15 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_dereference(const ast::expr& ast, bool confined) {
         prog::reg_index value;
-        prog::type_local type_local;
+        prog::type_local type;
         optional<prog::var_index> var_index;
 
         if (INDEX_EQ(ast, NAME) && (var_index = try_get_var(GET(ast, NAME))))
-            tie(value, type_local) = add_var_read(*var_index, true, ast.loc);
+            tie(value, type) = add_var_read(*var_index, true, ast.loc);
         else
-            tie(value, type_local) = compile_expr(ast, true);
+            tie(value, type) = compile_expr(ast, true);
 
-        auto& type = *type_local.tp;
-
-        auto ptr_value = value;
-        prog::ptr_type* ptr_type_ptr;
-
-        if (INDEX_EQ(type, PTR))
-            ptr_type_ptr = GET(type, PTR).get();
-        else if (INDEX_EQ(type, INNER_PTR)) {
-            ptr_type_ptr = GET(type, INNER_PTR).get();
-            ptr_value = new_reg();
-            auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
-            add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(extract_instr)));
-        } else if (INDEX_EQ(type, FUNC_WITH_PTR)) {
-            ptr_type_ptr = GET(type, FUNC_WITH_PTR).get();
-            ptr_value = new_reg();
-            auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
-            add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
-        } else
-            error(diags::expected_pointer_type(clr.prog, move(type)), ast.loc);
-
-        auto& ptr_type = *ptr_type_ptr;
+        auto [ptr_value, ptr_type] = add_ptr_extraction(value, copy_type(*type.tp), ast.loc);
         auto& type_pointed = *ptr_type.target_tp;
         auto& target_type = *type_pointed.tp;
 
@@ -1083,23 +1067,8 @@ namespace sg {
         auto [value, type_local] = compile_expr(value_ast, false);
         auto& type = *type_local.tp;
 
-        auto [size_value, size_type_local] = compile_expr(size_ast, true);
-        auto& size_type = *size_type_local.tp;
-
-        if (!INDEX_EQ(size_type, NUMBER))
-            error(diags::expected_unsigned_integer_type(clr.prog, move(size_type)), size_ast.loc);
-
-        switch (GET(size_type, NUMBER)->tp) {
-            case prog::number_type::BOOL:
-            case prog::number_type::U8:
-            case prog::number_type::U16:
-            case prog::number_type::U32:
-            case prog::number_type::U64:
-                break;
-
-            default:
-                error(diags::expected_unsigned_integer_type(clr.prog, move(size_type)), size_ast.loc);
-        }
+        auto [size_value, size_type] = compile_expr(size_ast, true);
+        size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
 
         if (!type_local.confined && !clr.type_trivial(type)) {
             if (!clr.type_copyable(type))
@@ -1122,6 +1091,32 @@ namespace sg {
         auto result_type = prog::type_local { make_ptr(prog::make_ptr_type(move(type), prog::ptr_type::UNIQUE, true)), false };
 
         return { result, move(result_type) };
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_length(const ast::expr& ast) {
+        auto [value, type_local] = compile_expr(ast, true);
+        auto& type = *type_local.tp;
+
+        if (INDEX_EQ(type, ARRAY)) {
+            auto ntype = prog::number_type { prog::number_type::U64 };
+            auto value = VARIANT(prog::constant, NUMBER, make_pair(GET(type, ARRAY)->size, into_ptr(ntype)));
+            auto result = new_reg();
+            auto make_instr = prog::make_const_instr { into_ptr(value), result };
+            add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(make_instr)));
+            return { result, copy_type_local(prog::SIZE_TYPE) };
+        }
+
+        auto [ptr_value, ptr_type] = add_ptr_extraction(value, copy_type(type), ast.loc);
+        auto& type_pointed = *ptr_type.target_tp;
+
+        if (!type_pointed.slice)
+            error(diags::expected_slice_type(clr.prog, move(type)), ast.loc);
+
+        auto result = new_reg();
+        auto get_instr = prog::get_slice_length_instr { ptr_value, result };
+        add_instr(VARIANT(prog::instr, GET_SLICE_LENGTH, into_ptr(get_instr)));
+
+        return { result, copy_type_local(prog::SIZE_TYPE) };
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {
@@ -1168,28 +1163,8 @@ namespace sg {
 
             case ast::expr::DEREFERENCE: {
                 auto& expr_ast = *GET(ast, DEREFERENCE);
-                auto [value, type_local] = compile_expr(expr_ast, true);
-                auto& type = *type_local.tp;
-
-                auto ptr_value = value;
-                prog::ptr_type* ptr_type_ptr;
-
-                if (INDEX_EQ(type, PTR))
-                    ptr_type_ptr = GET(type, PTR).get();
-                else if (INDEX_EQ(type, INNER_PTR)) {
-                    ptr_type_ptr = GET(type, INNER_PTR).get();
-                    ptr_value = new_reg();
-                    auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
-                    add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(extract_instr)));
-                } else if (INDEX_EQ(type, FUNC_WITH_PTR)) {
-                    ptr_type_ptr = GET(type, FUNC_WITH_PTR).get();
-                    ptr_value = new_reg();
-                    auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
-                    add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
-                } else
-                    error(diags::expected_pointer_type(clr.prog, move(type)), ast.loc);
-
-                auto& ptr_type = *ptr_type_ptr;
+                auto [value, type] = compile_expr(expr_ast, true);
+                auto [ptr_value, ptr_type] = add_ptr_extraction(value, move(*type.tp), ast.loc);
                 auto& type_pointed = *ptr_type.target_tp;
                 auto& target_type = *type_pointed.tp;
 

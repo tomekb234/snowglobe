@@ -122,12 +122,12 @@ namespace sg::diags {
     DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, prog::type, expected);
     DIAG2(expected_number_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_integer_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_unsigned_integer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_optional_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_tuple_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_array_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_enum_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_pointer_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_slice_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_weak_pointer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(invalid_tuple_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);

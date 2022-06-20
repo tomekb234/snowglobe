@@ -275,6 +275,7 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> add_var_read(prog::var_index var_index, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> add_var_confinement(prog::var_index var_index, location loc);
         void add_var_deletion(prog::var_index index, location loc);
+        pair<prog::reg_index, prog::ptr_type> add_ptr_extraction(prog::reg_index value, prog::type&& type, location loc);
         void add_return(prog::reg_index value, location loc);
         void add_break(location loc);
         void add_continue(location loc);
@@ -315,6 +316,7 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> compile_weak_ptr_test(const ast::expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_sized_array(const ast::sized_array_expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_length(const ast::expr& ast);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type);
         lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);

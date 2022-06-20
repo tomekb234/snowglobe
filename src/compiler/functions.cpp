@@ -252,6 +252,26 @@ namespace sg {
         }
     }
 
+    pair<prog::reg_index, prog::ptr_type> function_compiler::add_ptr_extraction(prog::reg_index value, prog::type&& type, location loc) {
+        if (INDEX_EQ(type, PTR)) {
+            auto& ptr_type = *GET(type, PTR);
+            return { value, move(ptr_type) };
+        } else if (INDEX_EQ(type, INNER_PTR)) {
+            auto& ptr_type = *GET(type, INNER_PTR);
+            auto result = new_reg();
+            auto extract_instr = prog::ptr_conversion_instr { value, result };
+            add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(extract_instr)));
+            return { result, move(ptr_type) };
+        } else if (INDEX_EQ(type, FUNC_WITH_PTR)) {
+            auto& ptr_type = *GET(type, FUNC_WITH_PTR);
+            auto result = new_reg();
+            auto extract_instr = prog::ptr_conversion_instr { value, result };
+            add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
+            return { result, move(ptr_type) };
+        } else
+            error(diags::expected_pointer_type(clr.prog, move(type)), loc);
+    }
+
     void function_compiler::add_return(prog::reg_index value, location loc) {
         auto frame_count = frames.size();
 
