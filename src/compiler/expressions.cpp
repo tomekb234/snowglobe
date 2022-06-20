@@ -1033,7 +1033,7 @@ namespace sg {
         auto& type = *type_local.tp;
         auto size = clr.compile_const_size(size_ast);
 
-        if (!confined && !type_local.confined && !clr.type_trivial(type)) {
+        if (!confined && !type_local.confined) {
             if (!clr.type_copyable(type))
                 error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
 
@@ -1041,7 +1041,7 @@ namespace sg {
             add_copy(value, type);
             auto block = pop_frame();
 
-            auto repeat_instr = prog::repeat_static_instr { size, into_ptr(block) };
+            auto repeat_instr = prog::repeat_static_instr { size, new_reg(), into_ptr(block) };
             add_instr(VARIANT(prog::instr, REPEAT_STATIC, into_ptr(repeat_instr)));
 
             add_deletion(value, type);
@@ -1070,7 +1070,7 @@ namespace sg {
         auto [size_value, size_type] = compile_expr(size_ast, true);
         size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
 
-        if (!type_local.confined && !clr.type_trivial(type)) {
+        if (!type_local.confined) {
             if (!clr.type_copyable(type))
                 error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
 
@@ -1078,7 +1078,7 @@ namespace sg {
             add_copy(value, type);
             auto block = pop_frame();
 
-            auto repeat_instr = prog::repeat_instr { size_value, into_ptr(block) };
+            auto repeat_instr = prog::repeat_instr { size_value, new_reg(), into_ptr(block) };
             add_instr(VARIANT(prog::instr, REPEAT, into_ptr(repeat_instr)));
 
             add_deletion(value, type);

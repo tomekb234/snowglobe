@@ -168,29 +168,12 @@ namespace sg {
             vars[index].state |= states[index];
     }
 
-    void function_compiler::add_copy(prog::reg_index value, const prog::type& type) {
-        // TODO
-        (void)value;
-        (void)type;
-    }
-
-    void function_compiler::add_deletion(prog::reg_index value, const prog::type& type) {
-        // TODO
-        (void)value;
-        (void)type;
-    }
-
-    void function_compiler::add_deletion(prog::reg_index value, const prog::type_local& type) {
-        if (!type.confined)
-            add_deletion(value, *type.tp);
-    }
-
     void function_compiler::defer_cleanup_action(function<void()> cleanup_action) {
         frames.back().cleanup_actions.push_back(cleanup_action);
     }
 
-    void function_compiler::add_frame_cleanup(frame_index index, location loc) {
-        auto& fr = frames[frames.size() - index - 1];
+    void function_compiler::add_frame_cleanup(frame_index rev_index, location loc) {
+        auto& fr = frames[frames.size() - rev_index - 1];
 
         for (auto var_index : fr.vars)
             add_var_deletion(var_index, loc);
@@ -212,7 +195,7 @@ namespace sg {
         auto instr = prog::read_var_instr { var_index, result };
         add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(instr)));
 
-        if (!confined && !var_confined && !clr.type_trivial(type)) {
+        if (!confined && !var_confined) {
             if (clr.type_copyable(type))
                 add_copy(result, type);
             else
@@ -246,7 +229,7 @@ namespace sg {
                 auto value = new_reg();
                 auto read_instr = prog::read_var_instr { index, value };
                 add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
-                add_deletion(value, var.type);
+                add_deletion(value, *var.type.tp);
             } else if (var.state & VAR_INITIALIZED)
                 error(diags::variable_not_deletable(var.name, var.state & VAR_UNINITIALIZED, var.state & VAR_MOVED_OUT), loc);
         }
@@ -383,7 +366,8 @@ namespace sg {
     void function_compiler::add_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
         switch (INDEX(lval)) {
             case lvalue::IGNORED:
-                add_deletion(value, type);
+                if (!type.confined)
+                    add_deletion(value, *type.tp);
                 break;
 
             case lvalue::VAR: {
@@ -408,12 +392,10 @@ namespace sg {
                 auto var_index = GET(lval, GLOBAL_VAR);
                 auto& var_type = *clr.prog.global_vars[var_index]->tp;
 
-                if (!clr.type_trivial(var_type)) {
-                    auto old_value = new_reg();
-                    auto read_instr = prog::read_global_var_instr { var_index, old_value };
-                    add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(read_instr)));
-                    add_deletion(old_value, var_type);
-                }
+                auto old_value = new_reg();
+                auto read_instr = prog::read_global_var_instr { var_index, old_value };
+                add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(read_instr)));
+                add_deletion(old_value, var_type);
 
                 value = conv_clr.convert(value, type, var_type, loc);
 

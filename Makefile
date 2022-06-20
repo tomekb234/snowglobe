@@ -19,7 +19,7 @@ compiler_hpp = $I/compiler.hpp $(ast_hpp) $(program_hpp) $(diagcol_hpp)
 parser_hpp = $G/parser.cpp $(location_hpp) $(input_hpp) $(diagcol_hpp) $(ast_hpp)
 diags_hpp = $I/diags.hpp $(diagcol_hpp) $(ast_hpp) $(program_hpp) $(compiler_hpp)
 
-compiler = $C/compiler.o $C/globals.o $C/functions.o $C/statements.o $C/expressions.o $C/constants.o $C/types.o $C/conversions.o
+compiler = $C/compiler.o $C/globals.o $C/functions.o $C/statements.o $C/expressions.o $C/constants.o $C/types.o $C/conversions.o $C/copying.o $C/deleting.o
 
 $B/snowglobe: $B/input.o $B/lexer.o $B/parser.o $B/program.o $(compiler) $B/diagcol.o $B/diags.o $B/main.o | $B $C
 	$(LINKER) $^ -o $@

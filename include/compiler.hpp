@@ -265,13 +265,24 @@ namespace sg {
         void restore_var_states(const vector<var_state>& states);
         void merge_var_states(const vector<var_state>& states);
 
-        // Utilities
+        // Copying
 
         void add_copy(prog::reg_index value, const prog::type& type);
+        void add_struct_copy(prog::reg_index value, const prog::struct_type& st);
+        void add_enum_variants_copy(prog::reg_index value, const prog::enum_type& en, prog::variant_index variant_index);
+        void add_tuple_copy(prog::reg_index value, vector<cref<prog::type>> types);
+        void add_array_copy(prog::reg_index value, const prog::array_type& array_type);
+        void add_optional_copy(prog::reg_index value, const prog::type& inner_type);
+        void add_ptr_copy(prog::reg_index value, prog::ptr_type::kind_t kind);
+
+        // Deleting
+
         void add_deletion(prog::reg_index value, const prog::type& type);
-        void add_deletion(prog::reg_index value, const prog::type_local& type);
+
+        // Utilities
+
         void defer_cleanup_action(function<void()> cleanup_action);
-        void add_frame_cleanup(frame_index index, location loc);
+        void add_frame_cleanup(frame_index rev_index, location loc);
         pair<prog::reg_index, prog::type_local> add_var_read(prog::var_index var_index, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> add_var_confinement(prog::var_index var_index, location loc);
         void add_var_deletion(prog::var_index index, location loc);

@@ -27,7 +27,8 @@ namespace sg {
                     compile_left_expr(expr_ast, { });
                 else {
                     auto [value, type] = compile_expr(expr_ast, false);
-                    add_deletion(value, type);
+                    if (!type.confined)
+                        add_deletion(value, *type.tp);
                 }
             } break;
 
@@ -203,7 +204,8 @@ namespace sg {
             };
 
             auto false_branch = [&] () {
-                add_deletion(value, type);
+                if (!type.confined)
+                    add_deletion(value, *type.tp);
 
                 if (branch_index < branch_count - 1)
                     compile_if_stmt_branches(ast, branch_index + 1);
@@ -310,7 +312,8 @@ namespace sg {
             if (branch_index < branch_count - 1)
                 compile_match_stmt_branches(ast, value, type, branch_index + 1);
             else {
-                add_deletion(value, type);
+                if (!type.confined)
+                    add_deletion(value, *type.tp);
                 if (else_branch_ast)
                     compile_stmt_block(*else_branch_ast, true);
             }
@@ -385,7 +388,8 @@ namespace sg {
             };
 
             auto false_branch = [&] () {
-                add_deletion(value, type);
+                if (!type.confined)
+                    add_deletion(value, *type.tp);
 
                 if (else_block_ast)
                     compile_stmt_block(*else_block_ast, true);

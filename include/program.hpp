@@ -682,11 +682,13 @@ namespace sg::prog {
 
     struct repeat_instr {
         reg_index count;
+        reg_index index;
         ptr<instr_block> block;
     };
 
     struct repeat_static_instr {
         size_t count;
+        reg_index index;
         ptr<instr_block> block;
     };
 
