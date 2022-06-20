@@ -236,6 +236,10 @@ namespace sg::diags {
         stream << "Cannot allocate memory in a confined context" << endl;
     }
 
+    void dereference_in_confined_context::write(ostream& stream) const {
+        stream << "Cannot receive a dereference result with non-trivial destructor in a confined context" << endl;
+    }
+
     void no_common_supertype::write(ostream& stream) const {
         stream << "The types '";
         prog::print_type(stream, prog, type_a);

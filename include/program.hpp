@@ -75,7 +75,8 @@ namespace sg::prog {
     struct numeric_conversion_instr;
     struct transform_instr;
     struct alloc_instr;
-    struct deref_instr;
+    struct ptr_read_instr;
+    struct ptr_write_instr;
     struct branch_instr;
     struct value_branch_instr;
 
@@ -346,7 +347,8 @@ namespace sg::prog {
             INTO_FAKE_JOINT_FUNC_PTR,
 
             ALLOC,
-            DEREF,
+            PTR_READ,
+            PTR_WRITE,
             DELETE,
             INCR_REF_COUNT,
             INCR_WEAK_REF_COUNT,
@@ -437,7 +439,8 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // INTO_FAKE_JOINT_FUNC_PTR
 
             ptr<alloc_instr>, // ALLOC
-            ptr<deref_instr>, // DEREF
+            ptr<ptr_read_instr>, // PTR_READ
+            ptr<ptr_write_instr>, // PTR_WRITE
             reg_index, // DELETE
             reg_index, // INCR_REF_COUNT
             reg_index, // INCR_WEAK_REF_COUNT
@@ -617,9 +620,14 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct deref_instr {
+    struct ptr_read_instr {
         reg_index ptr;
         reg_index result;
+    };
+
+    struct ptr_write_instr {
+        reg_index ptr;
+        reg_index value;
     };
 
     struct branch_instr {

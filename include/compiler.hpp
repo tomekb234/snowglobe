@@ -188,7 +188,8 @@ namespace sg {
                 GLOBAL_VAR,
                 TUPLE,
                 ARRAY,
-                STRUCT
+                STRUCT,
+                DEREFERENCE
             };
 
             variant<
@@ -197,7 +198,8 @@ namespace sg {
                 prog::global_index, // GLOBAL_VAR
                 vector<ptr<lvalue>>, // TUPLE
                 vector<ptr<lvalue>>, // ARRAY
-                pair<prog::global_index, vector<ptr<lvalue>>> // STRUCT
+                pair<prog::global_index, vector<ptr<lvalue>>>, // STRUCT
+                pair<prog::reg_index, prog::type> // DEREFERENCE
             > value;
         };
 

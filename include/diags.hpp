@@ -115,6 +115,7 @@ namespace sg::diags {
     DIAG0(confinement_ambiguous, error);
     DIAG0(function_call_in_confined_context, error);
     DIAG0(allocation_in_confined_context, error);
+    DIAG0(dereference_in_confined_context, error);
     DIAG3(no_common_supertype, error, const prog::program&, prog, prog::type, type_a, prog::type, type_b);
     DIAG2(type_not_copyable, error, const prog::program&, prog, prog::type, type);
     DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, prog::type, expected);

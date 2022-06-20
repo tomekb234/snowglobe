@@ -940,7 +940,7 @@ namespace sg {
 
         if (INDEX_EQ(type, PTR))
             ptr_type_ptr = GET(type, PTR).get();
-        if (INDEX_EQ(type, INNER_PTR)) {
+        else if (INDEX_EQ(type, INNER_PTR)) {
             ptr_type_ptr = GET(type, INNER_PTR).get();
             ptr_value = new_reg();
             auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
@@ -961,10 +961,13 @@ namespace sg {
             error(diags::slice_dereference(), ast.loc);
 
         auto result = new_reg();
-        auto deref_instr = prog::deref_instr { ptr_value, result };
-        add_instr(VARIANT(prog::instr, DEREF, into_ptr(deref_instr)));
+        auto read_instr = prog::ptr_read_instr { ptr_value, result };
+        add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(read_instr)));
 
-        if (!confined && !clr.type_trivial(target_type)) {
+        if (!clr.type_trivial(target_type)) {
+            if (confined)
+                error(diags::dereference_in_confined_context(), ast.loc);
+
             if (clr.type_copyable(target_type))
                 add_copy(result, target_type);
             else if (ptr_type.kind == prog::ptr_type::UNIQUE && var_index && !vars[*var_index].type.confined) {
@@ -974,7 +977,7 @@ namespace sg {
                 error(diags::type_not_copyable(clr.prog, move(target_type)), ast.loc);
         }
 
-        auto target_type_local = prog::type_local { into_ptr(target_type), confined };
+        auto target_type_local = prog::type_local { into_ptr(target_type), false };
 
         return { result, move(target_type_local) };
     }
@@ -1021,7 +1024,39 @@ namespace sg {
                 return VARIANT(lvalue, VAR, var);
             }
 
-            case ast::expr::DEREFERENCE:
+            case ast::expr::DEREFERENCE: {
+                auto& expr = *GET(ast, DEREFERENCE);
+                auto [value, type_local] = compile_expr(expr, true);
+                auto& type = *type_local.tp;
+
+                auto ptr_value = value;
+                prog::ptr_type* ptr_type_ptr;
+
+                if (INDEX_EQ(type, PTR))
+                    ptr_type_ptr = GET(type, PTR).get();
+                else if (INDEX_EQ(type, INNER_PTR)) {
+                    ptr_type_ptr = GET(type, INNER_PTR).get();
+                    ptr_value = new_reg();
+                    auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
+                    add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(extract_instr)));
+                } else if (INDEX_EQ(type, FUNC_WITH_PTR)) {
+                    ptr_type_ptr = GET(type, FUNC_WITH_PTR).get();
+                    ptr_value = new_reg();
+                    auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
+                    add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
+                } else
+                    error(diags::invalid_dereference_type(clr.prog, move(type)), ast.loc);
+
+                auto& ptr_type = *ptr_type_ptr;
+                auto& type_pointed = *ptr_type.target_tp;
+                auto& target_type = *type_pointed.tp;
+
+                if (type_pointed.slice)
+                    error(diags::slice_dereference(), ast.loc);
+
+                return VARIANT(lvalue, DEREFERENCE, make_pair(ptr_value, move(target_type)));
+            }
+
             case ast::expr::EXTRACT:
                 error(diags::not_implemented(), ast.loc); // TODO
 

@@ -466,6 +466,20 @@ namespace sg {
                     add_assignment(lvals[index], extracted, field_type, loc);
                 }
             } break;
+
+            case lvalue::DEREFERENCE: {
+                auto& [ptr_value, target_type] = GET(lval, DEREFERENCE);
+
+                auto old_value = new_reg();
+                auto read_instr = prog::ptr_read_instr { ptr_value, old_value };
+                add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(read_instr)));
+                add_deletion(old_value, target_type);
+
+                value = conv_clr.convert(value, type, target_type, loc);
+
+                auto write_instr = prog::ptr_write_instr { ptr_value, value };
+                add_instr(VARIANT(prog::instr, PTR_WRITE, into_ptr(write_instr)));
+            } break;
         }
     }
 
