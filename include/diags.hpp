@@ -122,6 +122,7 @@ namespace sg::diags {
     DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, prog::type, expected);
     DIAG2(expected_number_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_integer_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_unsigned_integer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_optional_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_tuple_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_array_type, error, const prog::program&, prog, prog::type, type);

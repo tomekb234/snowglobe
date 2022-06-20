@@ -82,6 +82,8 @@ namespace sg::prog {
     struct test_ref_count_instr;
     struct branch_instr;
     struct value_branch_instr;
+    struct repeat_instr;
+    struct repeat_static_instr;
 
     typedef size_t global_index;
     typedef size_t param_index;
@@ -365,6 +367,7 @@ namespace sg::prog {
             VALUE_BRANCH,
             LOOP,
             REPEAT,
+            REPEAT_STATIC,
             CONTINUE_LOOP,
             BREAK_LOOP,
             ABORT
@@ -460,7 +463,8 @@ namespace sg::prog {
             ptr<branch_instr>, // BRANCH
             ptr<value_branch_instr>, // VALE_BRANCH
             ptr<instr_block>, // LOOP
-            pair<ptr<instr_block>, size_t>, // REPEAT
+            ptr<repeat_instr>, // REPEAT
+            ptr<repeat_static_instr>, // REPEAT_STATIC
             monostate, // CONTINUE_LOOP
             monostate, // BREAK_LOOP
             monostate // ABORT
@@ -668,6 +672,16 @@ namespace sg::prog {
         reg_index true_value;
         reg_index false_value;
         reg_index result;
+    };
+
+    struct repeat_instr {
+        reg_index count;
+        ptr<instr_block> block;
+    };
+
+    struct repeat_static_instr {
+        size_t count;
+        ptr<instr_block> block;
     };
 
     extern const type_local NEVER_TYPE;

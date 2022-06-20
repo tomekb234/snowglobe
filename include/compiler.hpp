@@ -281,7 +281,6 @@ namespace sg {
         prog::branch_instr make_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
         void add_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
         void add_loop(function<prog::reg_index()> head, function<void()> true_branch, function<void()> false_branch, function<void()> end);
-        void add_repeat(function<void()> action, size_t count);
         void add_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
         void add_lvalues_swap(const lvalue& lval_a, const lvalue& lval_b, location loc);
 
@@ -311,9 +310,11 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> compile_binary_operation(const ast::binary_operation_expr& ast);
         pair<prog::reg_index, prog::type_local> compile_numeric_cast(const ast::numeric_cast_expr& ast);
         pair<prog::reg_index, prog::type_local> compile_conditional(const ast::conditional_expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_heap_alloc(const ast::expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_dereference(const ast::expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_weak_ptr_test(const ast::expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_sized_array(const ast::sized_array_expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast, bool confined);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type);
         lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);

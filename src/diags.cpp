@@ -278,6 +278,12 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_unsigned_integer_type::write(ostream& stream) const {
+        stream << "Expected an unsigned integer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void expected_optional_type::write(ostream& stream) const {
         stream << "Expected an optional type instead of '";
         prog::print_type(stream, prog, type);

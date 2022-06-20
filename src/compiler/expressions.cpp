@@ -109,18 +109,8 @@ namespace sg {
             }
 
             case ast::expr::HEAP_ALLOC: {
-                if (confined)
-                    error(diags::allocation_in_confined_context(), ast.loc);
-
                 auto& expr_ast = *GET(ast, HEAP_ALLOC);
-                auto [value, value_type] = compile_expr(expr_ast, false);
-                auto type = prog::type_local { make_ptr(prog::make_ptr_type(move(*value_type.tp), prog::ptr_type::UNIQUE, false)), false };
-
-                auto result = new_reg();
-                auto instr = prog::alloc_instr { value, result };
-                add_instr(VARIANT(prog::instr, ALLOC, into_ptr(instr)));
-
-                return { result, move(type) };
+                return compile_heap_alloc(expr_ast, confined);
             }
 
             case ast::expr::DEREFERENCE: {
@@ -138,7 +128,11 @@ namespace sg {
                 return compile_sized_array(array_ast, confined);
             }
 
-            case ast::expr::HEAP_SLICE_ALLOC:
+            case ast::expr::HEAP_SLICE_ALLOC: {
+                auto& alloc_ast = *GET(ast, HEAP_SLICE_ALLOC);
+                return compile_heap_slice_alloc(alloc_ast, confined);
+            }
+
             case ast::expr::LENGTH:
             case ast::expr::EXTRACT:
             case ast::expr::PTR_EXTRACT:
@@ -932,6 +926,21 @@ namespace sg {
         return { conv_result, move(common_type_local) };
     }
 
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_heap_alloc(const ast::expr& ast, bool confined) {
+        if (confined)
+            error(diags::allocation_in_confined_context(), ast.loc);
+
+        auto [value, value_type] = compile_expr(ast, false);
+
+        auto result = new_reg();
+        auto instr = prog::alloc_instr { value, result };
+        add_instr(VARIANT(prog::instr, ALLOC, into_ptr(instr)));
+
+        auto result_type = prog::type_local { make_ptr(prog::make_ptr_type(move(*value_type.tp), prog::ptr_type::UNIQUE, false)), false };
+
+        return { result, move(result_type) };
+    }
+
     pair<prog::reg_index, prog::type_local> function_compiler::compile_dereference(const ast::expr& ast, bool confined) {
         prog::reg_index value;
         prog::type_local type_local;
@@ -1036,16 +1045,22 @@ namespace sg {
         auto& value_ast = *ast.value;
         auto& size_ast = *ast.size;
 
-        prog::reg_index value;
-        prog::type_local type_local;
-        tie(value, type_local) = compile_expr(value_ast, confined);
+        auto [value, type_local] = compile_expr(value_ast, confined);
         auto& type = *type_local.tp;
         auto size = clr.compile_const_size(size_ast);
 
-        if (!clr.type_trivial(type)) {
+        if (!confined && !type_local.confined && !clr.type_trivial(type)) {
             if (!clr.type_copyable(type))
                 error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
-            add_repeat([&] () { add_copy(value, type); }, size);
+
+            push_frame();
+            add_copy(value, type);
+            auto block = pop_frame();
+
+            auto repeat_instr = prog::repeat_static_instr { size, into_ptr(block) };
+            add_instr(VARIANT(prog::instr, REPEAT_STATIC, into_ptr(repeat_instr)));
+
+            add_deletion(value, type);
         }
 
         auto result = new_reg();
@@ -1054,6 +1069,57 @@ namespace sg {
 
         auto array_type = prog::array_type { into_ptr(type), size };
         auto result_type = prog::type_local { make_ptr(VARIANT(prog::type, ARRAY, into_ptr(array_type))), type_local.confined };
+
+        return { result, move(result_type) };
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast, bool confined) {
+        if (confined)
+            error(diags::allocation_in_confined_context(), ast.loc);
+
+        auto& value_ast = *ast.value;
+        auto& size_ast = *ast.size;
+
+        auto [value, type_local] = compile_expr(value_ast, false);
+        auto& type = *type_local.tp;
+
+        auto [size_value, size_type_local] = compile_expr(size_ast, true);
+        auto& size_type = *size_type_local.tp;
+
+        if (!INDEX_EQ(size_type, NUMBER))
+            error(diags::expected_unsigned_integer_type(clr.prog, move(size_type)), size_ast.loc);
+
+        switch (GET(size_type, NUMBER)->tp) {
+            case prog::number_type::BOOL:
+            case prog::number_type::U8:
+            case prog::number_type::U16:
+            case prog::number_type::U32:
+            case prog::number_type::U64:
+                break;
+
+            default:
+                error(diags::expected_unsigned_integer_type(clr.prog, move(size_type)), size_ast.loc);
+        }
+
+        if (!type_local.confined && !clr.type_trivial(type)) {
+            if (!clr.type_copyable(type))
+                error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
+
+            push_frame();
+            add_copy(value, type);
+            auto block = pop_frame();
+
+            auto repeat_instr = prog::repeat_instr { size_value, into_ptr(block) };
+            add_instr(VARIANT(prog::instr, REPEAT, into_ptr(repeat_instr)));
+
+            add_deletion(value, type);
+        }
+
+        auto result = new_reg();
+        auto instr = prog::alloc_slice_instr { value, size_value, result };
+        add_instr(VARIANT(prog::instr, ALLOC_SLICE, into_ptr(instr)));
+
+        auto result_type = prog::type_local { make_ptr(prog::make_ptr_type(move(type), prog::ptr_type::UNIQUE, true)), false };
 
         return { result, move(result_type) };
     }
