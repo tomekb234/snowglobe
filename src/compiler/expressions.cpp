@@ -127,7 +127,11 @@ namespace sg {
                 return compile_dereference(expr, confined);
             }
 
-            case ast::expr::TEST_WEAK_REF:
+            case ast::expr::WEAK_PTR_TEST: {
+                auto& expr = *GET(ast, WEAK_PTR_TEST);
+                return compile_weak_ptr_test(expr, confined);
+            }
+
             case ast::expr::SIZED_ARRAY:
             case ast::expr::HEAP_SLICE_ALLOC:
             case ast::expr::LENGTH:
@@ -951,7 +955,7 @@ namespace sg {
             auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
             add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
         } else
-            error(diags::invalid_dereference_type(clr.prog, move(type)), ast.loc);
+            error(diags::expected_pointer_type(clr.prog, move(type)), ast.loc);
 
         auto& ptr_type = *ptr_type_ptr;
         auto& type_pointed = *ptr_type.target_tp;
@@ -980,6 +984,47 @@ namespace sg {
         auto target_type_local = prog::type_local { into_ptr(target_type), false };
 
         return { result, move(target_type_local) };
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_weak_ptr_test(const ast::expr& ast, bool confined) {
+        if (confined)
+            error(diags::weak_pointer_test_in_confined_context(), ast.loc);
+
+        prog::reg_index value;
+        prog::type_local type_local;
+        tie(value, type_local) = compile_expr(ast, true);
+        auto& type = *type_local.tp;
+
+        if (!INDEX_EQ(type, PTR) || GET(type, PTR)->kind != prog::ptr_type::WEAK)
+            error(diags::expected_weak_pointer_type(clr.prog, move(type)), ast.loc);
+
+        auto test_result = new_reg();
+        auto test_instr = prog::test_ref_count_instr { value, test_result };
+        add_instr(VARIANT(prog::instr, TEST_REF_COUNT, into_ptr(test_instr)));
+
+        auto true_result = new_reg();
+        auto false_result = new_reg();
+
+        auto true_branch = [&] () {
+            auto make_instr = prog::make_optional_instr { { value }, true_result };
+            add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(make_instr)));
+            add_instr(VARIANT(prog::instr, INCR_REF_COUNT, value));
+        };
+
+        auto false_branch = [&] () {
+            auto make_instr = prog::make_optional_instr { { }, false_result };
+            add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(make_instr)));
+        };
+
+        auto result = new_reg();
+        auto branch_instr = make_branch(test_result, true_branch, false_branch);
+        auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_result, false_result, result };
+        add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
+
+        GET(type, PTR)->kind = prog::ptr_type::SHARED;
+        auto result_type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, into_ptr(type))), false };
+
+        return { result, move(result_type) };
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {
@@ -1045,7 +1090,7 @@ namespace sg {
                     auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
                     add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
                 } else
-                    error(diags::invalid_dereference_type(clr.prog, move(type)), ast.loc);
+                    error(diags::expected_pointer_type(clr.prog, move(type)), ast.loc);
 
                 auto& ptr_type = *ptr_type_ptr;
                 auto& type_pointed = *ptr_type.target_tp;

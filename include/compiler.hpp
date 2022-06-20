@@ -311,6 +311,7 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> compile_numeric_cast(const ast::numeric_cast_expr& ast);
         pair<prog::reg_index, prog::type_local> compile_conditional(const ast::conditional_expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_dereference(const ast::expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_weak_ptr_test(const ast::expr& ast, bool confined);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type);
         lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);

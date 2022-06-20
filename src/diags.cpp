@@ -240,6 +240,10 @@ namespace sg::diags {
         stream << "Cannot receive a dereference result with non-trivial destructor in a confined context" << endl;
     }
 
+    void weak_pointer_test_in_confined_context::write(ostream& stream) const {
+        stream << "Cannot test a weak pointer in a confined context" << endl;
+    }
+
     void no_common_supertype::write(ostream& stream) const {
         stream << "The types '";
         prog::print_type(stream, prog, type_a);
@@ -298,6 +302,18 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_pointer_type::write(ostream& stream) const {
+        stream << "Expected a pointer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_weak_pointer_type::write(ostream& stream) const {
+        stream << "Expected a weak pointer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void invalid_tuple_size::write(ostream& stream) const {
         stream << "Expected tuple type with size " << expected << " instead of " << size << endl;
     }
@@ -308,12 +324,6 @@ namespace sg::diags {
 
     void invalid_size_constant_type::write(ostream& stream) const {
         stream << "A size constant must have an unsigned integer type" << endl;
-    }
-
-    void invalid_dereference_type::write(ostream& stream) const {
-        stream << "Expected a pointer type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
     }
 
     void restrictive_pointer_type::write(ostream& stream) const {

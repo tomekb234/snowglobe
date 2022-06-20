@@ -77,6 +77,7 @@ namespace sg::prog {
     struct alloc_instr;
     struct ptr_read_instr;
     struct ptr_write_instr;
+    struct test_ref_count_instr;
     struct branch_instr;
     struct value_branch_instr;
 
@@ -354,6 +355,7 @@ namespace sg::prog {
             INCR_WEAK_REF_COUNT,
             DECR_REF_COUNT,
             DECR_WEAK_REF_COUNT,
+            TEST_REF_COUNT,
 
             BRANCH,
             VALUE_BRANCH,
@@ -446,6 +448,7 @@ namespace sg::prog {
             reg_index, // INCR_WEAK_REF_COUNT
             reg_index, // DECR_REF_COUNT
             reg_index, // DECR_WEAK_REF_COUNT
+            ptr<test_ref_count_instr>, // TEST_REF_COUNT
 
             ptr<branch_instr>, // BRANCH
             ptr<value_branch_instr>, // VALE_BRANCH
@@ -628,6 +631,11 @@ namespace sg::prog {
     struct ptr_write_instr {
         reg_index ptr;
         reg_index value;
+    };
+
+    struct test_ref_count_instr {
+        reg_index ptr;
+        reg_index result;
     };
 
     struct branch_instr {
