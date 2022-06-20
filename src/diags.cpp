@@ -307,7 +307,7 @@ namespace sg::diags {
     }
 
     void invalid_dereference_type::write(ostream& stream) const {
-        stream << "Expected an optional or pointer type instead of '";
+        stream << "Expected a pointer type instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
     }

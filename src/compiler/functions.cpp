@@ -466,41 +466,6 @@ namespace sg {
                     add_assignment(lvals[index], extracted, field_type, loc);
                 }
             } break;
-
-            case lvalue::ENUM_VARIANT: {
-                auto& [enum_index, variant_index, lval_ptrs] = GET(lval, ENUM_VARIANT);
-                auto variant_index_copy = variant_index;
-                auto lvals = as_cref_vector(lval_ptrs);
-
-                if (!INDEX_EQ(*type.tp, ENUM) || GET(*type.tp, ENUM) != enum_index)
-                    error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, ENUM, enum_index)), loc);
-
-                auto& en = *clr.prog.enum_types[enum_index];
-                auto& variant = *en.variants[variant_index];
-                auto count = variant.tps.size();
-                auto confined = type.confined;
-
-                auto test_result = new_reg();
-                auto test_instr = prog::test_variant_instr { value, variant_index, test_result };
-                add_instr(VARIANT(prog::instr, TEST_VARIANT, into_ptr(test_instr)));
-
-                auto true_branch = [&] () {
-                    for (size_t index = 0; index < count; index++) {
-                        auto extracted = new_reg();
-                        auto instr = prog::extract_variant_field_instr { value, variant_index_copy, index, extracted };
-                        add_instr(VARIANT(prog::instr, EXTRACT_VARIANT_FIELD, into_ptr(instr)));
-
-                        auto field_type = prog::type_local { make_ptr(copy_type(*variant.tps[index])), confined };
-                        add_assignment(lvals[index], extracted, field_type, loc);
-                    }
-                };
-
-                auto false_branch = [&] () {
-                    add_instr(VARIANT(prog::instr, ABORT, monostate()));
-                };
-
-                add_branch(test_result, true_branch, false_branch);
-            } break;
         }
     }
 

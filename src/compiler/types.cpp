@@ -292,7 +292,7 @@ namespace sg {
                 return prog.struct_types[GET(type, STRUCT)]->trivial;
 
             case prog::type::ENUM:
-                return prog.struct_types[GET(type, ENUM)]->trivial;
+                return prog.enum_types[GET(type, ENUM)]->trivial;
 
             case prog::type::TUPLE: {
                 for (const prog::type& type : as_cref_vector(GET(type, TUPLE)))

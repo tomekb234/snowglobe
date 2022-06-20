@@ -252,24 +252,40 @@ namespace sg {
         auto else_branch_ast = as_optional_cref(ast.else_branch);
         auto branch_count = ast.branches.size();
 
-        push_frame();
-
-        auto lval = compile_left_expr(lval_ast, { type });
-
-        if (!INDEX_EQ(lval, ENUM_VARIANT))
-            error(diags::expected_enum_variant(), lval_ast.loc);
-
-        auto& [enum_index, variant_index, lval_ptrs] = GET(lval, ENUM_VARIANT);
-        auto variant_index_copy = variant_index;
-        auto lvals = as_cref_vector(lval_ptrs);
-
-        if (enum_index != GET(*type.tp, ENUM))
-            error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, ENUM, enum_index)), value_ast.loc);
-
+        auto enum_index = GET(*type.tp, ENUM);
         auto& en = *clr.prog.enum_types[enum_index];
+
+        string variant_name;
+        optional<vector<cref<ast::expr_marked>>> arg_marked_asts;
+        vector<cref<ast::expr>> arg_asts;
+
+        if (INDEX_EQ(lval_ast, NAME))
+            variant_name = GET(lval_ast, NAME);
+        else if (INDEX_EQ(lval_ast, APPLICATION)) {
+            auto& [receiver_ast_ptr, arg_marked_ast_ptrs] = GET(lval_ast, APPLICATION);
+            auto& receiver_ast = *receiver_ast_ptr;
+            if (!INDEX_EQ(receiver_ast, NAME))
+                error(diags::invalid_expression(), lval_ast.loc);
+            variant_name = GET(receiver_ast, NAME);
+            arg_marked_asts = { as_cref_vector(arg_marked_ast_ptrs) };
+        } else
+            error(diags::invalid_expression(), lval_ast.loc);
+
+        auto iter = en.variant_names.find(variant_name);
+        if (iter == en.variant_names.end())
+            error(diags::unknown_enum_variant(en, variant_name), lval_ast.loc);
+
+        auto variant_index = iter->second;
         auto& variant = *en.variants[variant_index];
         auto count = variant.tps.size();
         auto confined = type.confined;
+
+        if ((count > 0) != arg_marked_asts.has_value())
+            error(diags::invalid_expression(), lval_ast.loc);
+        if (count > 0)
+            arg_asts = clr.order_args(*arg_marked_asts, { }, { count }, lval_ast.loc);
+
+        push_frame();
 
         auto test_result = new_reg();
         auto test_instr = prog::test_variant_instr { value, variant_index, test_result };
@@ -278,11 +294,12 @@ namespace sg {
         auto true_branch = [&] () {
             for (size_t index = 0; index < count; index++) {
                 auto extracted = new_reg();
-                auto instr = prog::extract_variant_field_instr { value, variant_index_copy, index, extracted };
+                auto instr = prog::extract_variant_field_instr { value, variant_index, index, extracted };
                 add_instr(VARIANT(prog::instr, EXTRACT_VARIANT_FIELD, into_ptr(instr)));
 
                 auto field_type = prog::type_local { make_ptr(copy_type(*variant.tps[index])), confined };
-                add_assignment(lvals[index], extracted, field_type, value_ast.loc);
+                auto lval = compile_left_expr(arg_asts[index], { field_type });
+                add_assignment(lval, extracted, field_type, value_ast.loc);
             }
 
             compile_stmt_block(block_ast, true);

@@ -127,7 +127,7 @@ namespace sg {
                 return compile_dereference(expr, confined);
             }
 
-            case ast::expr::TEST:
+            case ast::expr::TEST_WEAK_REF:
             case ast::expr::SIZED_ARRAY:
             case ast::expr::HEAP_SLICE_ALLOC:
             case ast::expr::LENGTH:
@@ -410,6 +410,7 @@ namespace sg {
             case unop::MINUS: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
                     error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
+
                 switch (GET(*type.tp, NUMBER)->tp) {
                     case num::I8:
                     case num::I16:
@@ -428,12 +429,14 @@ namespace sg {
                     default:
                         error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
                 }
+
                 return { result, move(type) };
             }
 
             case unop::BIT_NEG: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
                     error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
+
                 switch (GET(*type.tp, NUMBER)->tp) {
                     case num::I8:
                     case num::I16:
@@ -932,83 +935,48 @@ namespace sg {
 
         auto& type = *type_local.tp;
 
-        switch (INDEX(type)) {
-            case prog::type::OPTIONAL: {
-                auto inner_type = prog::type_local { make_ptr(copy_type(*GET(type, OPTIONAL))), type_local.confined };
+        auto ptr_value = value;
+        prog::ptr_type* ptr_type_ptr;
 
-                auto test_result = new_reg();
-                auto test_instr = prog::test_optional_instr { value, test_result };
-                add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
+        if (INDEX_EQ(type, PTR))
+            ptr_type_ptr = GET(type, PTR).get();
+        if (INDEX_EQ(type, INNER_PTR)) {
+            ptr_type_ptr = GET(type, INNER_PTR).get();
+            ptr_value = new_reg();
+            auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
+            add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(extract_instr)));
+        } else if (INDEX_EQ(type, FUNC_WITH_PTR)) {
+            ptr_type_ptr = GET(type, FUNC_WITH_PTR).get();
+            ptr_value = new_reg();
+            auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
+            add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
+        } else
+            error(diags::invalid_dereference_type(clr.prog, move(type)), ast.loc);
 
-                auto true_result = new_reg();
-                auto false_result = new_unit_reg();
+        auto& ptr_type = *ptr_type_ptr;
+        auto& type_pointed = *ptr_type.target_tp;
+        auto& target_type = *type_pointed.tp;
 
-                auto true_branch = [&] () {
-                    auto extract_instr = prog::extract_optional_value_instr { value, true_result };
-                    add_instr(VARIANT(prog::instr, EXTRACT_OPTIONAL_VALUE, into_ptr(extract_instr)));
-                };
+        if (type_pointed.slice)
+            error(diags::slice_dereference(), ast.loc);
 
-                auto false_branch = [&] () {
-                    add_instr(VARIANT(prog::instr, ABORT, monostate()));
-                };
+        auto result = new_reg();
+        auto deref_instr = prog::deref_instr { ptr_value, result };
+        add_instr(VARIANT(prog::instr, DEREF, into_ptr(deref_instr)));
 
-                auto result = new_reg();
-                auto branch_instr = make_branch(test_result, true_branch, false_branch);
-                auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_result, false_result, result };
-                add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
-
-                return { result, move(inner_type) };
-            }
-
-            case prog::type::PTR:
-            case prog::type::INNER_PTR:
-            case prog::type::FUNC_WITH_PTR: {
-                auto ptr_value = value;
-                prog::ptr_type* ptr_type_ptr;
-
-                if (INDEX_EQ(type, PTR))
-                    ptr_type_ptr = GET(type, PTR).get();
-                if (INDEX_EQ(type, INNER_PTR)) {
-                    ptr_type_ptr = GET(type, INNER_PTR).get();
-                    ptr_value = new_reg();
-                    auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
-                    add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(extract_instr)));
-                } else if (INDEX_EQ(type, FUNC_WITH_PTR)) {
-                    ptr_type_ptr = GET(type, FUNC_WITH_PTR).get();
-                    ptr_value = new_reg();
-                    auto extract_instr = prog::ptr_conversion_instr { value, ptr_value };
-                    add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
-                }
-
-                auto& ptr_type = *ptr_type_ptr;
-                auto& type_pointed = *ptr_type.target_tp;
-                auto& target_type = *type_pointed.tp;
-
-                if (type_pointed.slice)
-                    error(diags::slice_dereference(), ast.loc);
-
-                auto result = new_reg();
-                auto deref_instr = prog::deref_instr { ptr_value, result };
-                add_instr(VARIANT(prog::instr, DEREF, into_ptr(deref_instr)));
-
-                if (!confined && !clr.type_trivial(target_type)) {
-                    if (clr.type_copyable(target_type))
-                        add_copy(result, target_type);
-                    else if (ptr_type.kind == prog::ptr_type::UNIQUE && var_index && !vars[*var_index].type.confined) {
-                        add_deletion(value, type);
-                        move_out_var(*var_index, ast.loc);
-                    } else
-                        error(diags::type_not_copyable(clr.prog, move(target_type)), ast.loc);
-                }
-
-                auto target_type_local = prog::type_local { into_ptr(target_type), confined };
-
-                return { result, move(target_type_local) };
-            }
-
-            default:
-                error(diags::invalid_dereference_type(clr.prog, move(type)), ast.loc);
+        if (!confined && !clr.type_trivial(target_type)) {
+            if (clr.type_copyable(target_type))
+                add_copy(result, target_type);
+            else if (ptr_type.kind == prog::ptr_type::UNIQUE && var_index && !vars[*var_index].type.confined) {
+                add_deletion(value, type);
+                move_out_var(*var_index, ast.loc);
+            } else
+                error(diags::type_not_copyable(clr.prog, move(target_type)), ast.loc);
         }
+
+        auto target_type_local = prog::type_local { into_ptr(target_type), confined };
+
+        return { result, move(target_type_local) };
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {
@@ -1036,23 +1004,6 @@ namespace sg {
 
                 auto index = clr.get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
                 return VARIANT(lvalue, GLOBAL_VAR, index);
-            }
-
-            case ast::expr::VARIANT_NAME: {
-                auto [name, variant_name] = GET(ast, VARIANT_NAME);
-                auto enum_index = clr.get_global_name(name, { global_name_kind::ENUM }, ast.loc).index;
-                auto& en = *clr.prog.enum_types[enum_index];
-
-                auto iter = en.variant_names.find(variant_name);
-                if (iter == en.variant_names.end())
-                    error(diags::unknown_enum_variant(en, variant_name), ast.loc);
-
-                auto variant_index = iter->second;
-
-                if (!en.variants[variant_index]->tps.empty())
-                    error(diags::invalid_expression(), ast.loc);
-
-                return VARIANT(lvalue, ENUM_VARIANT, make_tuple(enum_index, variant_index, vector<ptr<lvalue>>()));
             }
 
             case ast::expr::VAR_DECL: {
@@ -1126,73 +1077,36 @@ namespace sg {
     }
 
     function_compiler::lvalue function_compiler::compile_left_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, optional<cref<prog::type_local>> implicit_type, location loc) {
-        switch (INDEX(receiver_ast)) {
-            case ast::expr::NAME: {
-                auto name = GET(receiver_ast, NAME);
-                auto struct_index = clr.get_global_name(name, { global_name_kind::STRUCT }, receiver_ast.loc).index;
-                auto& st = *clr.prog.struct_types[struct_index];
-                auto count = st.fields.size();
+        if (!INDEX_EQ(receiver_ast, NAME))
+            error(diags::expression_not_assignable(), receiver_ast.loc);
 
-                auto arg_with_name = [&] (string name, location loc) -> size_t {
-                    auto iter = st.field_names.find(name);
-                    if (iter == st.field_names.end())
-                        error(diags::unknown_struct_field(st, name), loc);
-                    return iter->second;
-                };
+        auto name = GET(receiver_ast, NAME);
+        auto struct_index = clr.get_global_name(name, { global_name_kind::STRUCT }, receiver_ast.loc).index;
+        auto& st = *clr.prog.struct_types[struct_index];
+        auto count = st.fields.size();
 
-                auto value_asts = clr.order_args(arg_asts, arg_with_name, { count }, loc);
-                vector<lvalue> lvals;
+        auto arg_with_name = [&] (string name, location loc) -> size_t {
+            auto iter = st.field_names.find(name);
+            if (iter == st.field_names.end())
+                error(diags::unknown_struct_field(st, name), loc);
+            return iter->second;
+        };
 
-                for (size_t index = 0; index < count; index++) {
-                    auto& value_ast = value_asts[index].get();
-                    if (implicit_type && INDEX_EQ(*implicit_type->get().tp, STRUCT) && GET(*implicit_type->get().tp, STRUCT) == struct_index) {
-                        auto& type = *st.fields[index]->tp;
-                        auto confined = implicit_type->get().confined;
-                        auto type_local = prog::type_local { make_ptr(copy_type(type)), confined };
-                        lvals.push_back(compile_left_expr(value_ast, { type_local }));
-                    } else
-                        lvals.push_back(compile_left_expr(value_ast, { }));
-                }
+        auto value_asts = clr.order_args(arg_asts, arg_with_name, { count }, loc);
+        vector<lvalue> lvals;
 
-                return VARIANT(lvalue, STRUCT, make_pair(struct_index, into_ptr_vector(lvals)));
-            }
-
-            case ast::expr::VARIANT_NAME: {
-                auto [name, variant_name] = GET(receiver_ast, VARIANT_NAME);
-                auto enum_index = clr.get_global_name(name, { global_name_kind::ENUM }, receiver_ast.loc).index;
-                auto& en = *clr.prog.enum_types[enum_index];
-
-                auto iter = en.variant_names.find(variant_name);
-                if (iter == en.variant_names.end())
-                    error(diags::unknown_enum_variant(en, variant_name), loc);
-
-                auto variant_index = iter->second;
-                auto& variant = *en.variants[variant_index];
-                auto count = variant.tps.size();
-
-                if (count == 0)
-                    error(diags::invalid_expression(), loc);
-
-                auto value_asts = clr.order_args(arg_asts, { }, { count }, loc);
-                vector<lvalue> lvals;
-
-                for (size_t index = 0; index < count; index++) {
-                    auto& value_ast = value_asts[index].get();
-                    if (implicit_type && INDEX_EQ(*implicit_type->get().tp, ENUM) && GET(*implicit_type->get().tp, ENUM) == enum_index) {
-                        auto& type = *variant.tps[index];
-                        auto confined = implicit_type->get().confined;
-                        auto type_local = prog::type_local { make_ptr(copy_type(type)), confined };
-                        lvals.push_back(compile_left_expr(value_ast, { type_local }));
-                    } else
-                        lvals.push_back(compile_left_expr(value_ast, { }));
-                }
-
-                return VARIANT(lvalue, ENUM_VARIANT, make_tuple(enum_index, variant_index, into_ptr_vector(lvals)));
-            }
-
-            default:
-                error(diags::expression_not_assignable(), receiver_ast.loc);
+        for (size_t index = 0; index < count; index++) {
+            auto& value_ast = value_asts[index].get();
+            if (implicit_type && INDEX_EQ(*implicit_type->get().tp, STRUCT) && GET(*implicit_type->get().tp, STRUCT) == struct_index) {
+                auto& type = *st.fields[index]->tp;
+                auto confined = implicit_type->get().confined;
+                auto type_local = prog::type_local { make_ptr(copy_type(type)), confined };
+                lvals.push_back(compile_left_expr(value_ast, { type_local }));
+            } else
+                lvals.push_back(compile_left_expr(value_ast, { }));
         }
+
+        return VARIANT(lvalue, STRUCT, make_pair(struct_index, into_ptr_vector(lvals)));
     }
 
     tuple<vector<cref<ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_args(
