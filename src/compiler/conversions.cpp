@@ -428,9 +428,10 @@ namespace sg {
             case prog::ptr_type::SHARED: {
                 switch (new_kind) {
                     case prog::ptr_type::WEAK: {
-                        if (!confined)
+                        if (!confined) {
+                            add_instr(VARIANT(prog::instr, DECR_REF_COUNT, value));
                             add_instr(VARIANT(prog::instr, INCR_WEAK_REF_COUNT, value));
-                        return { value };
+                        } return { value };
                     }
 
                     case prog::ptr_type::BASIC: {
