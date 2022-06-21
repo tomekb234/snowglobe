@@ -573,10 +573,10 @@ namespace sg {
                     reg_values[get_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR, get_instr.index);
                 } break;
 
-                case prog::instr::MAKE_FAKE_JOINT_FUNC_PTR: {
-                    auto& into_instr = *GET(instr, MAKE_FAKE_JOINT_FUNC_PTR);
-                    auto index = GET(reg_values[into_instr.value], GLOBAL_FUNC_PTR);
-                    reg_values[into_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_FAKE_JOINT_PTR, index);
+                case prog::instr::MAKE_JOINT_FUNC_PTR: {
+                    auto& make_instr = *GET(instr, MAKE_JOINT_FUNC_PTR);
+                    auto index = GET(reg_values[make_instr.func_ptr], GLOBAL_FUNC_PTR);
+                    reg_values[make_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_WRAPPER_PTR, index);
                 } break;
 
                 case prog::instr::ARRAY_PTR_INTO_SLICE: {

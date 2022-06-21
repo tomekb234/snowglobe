@@ -350,7 +350,7 @@ namespace sg {
 
                 auto ptr = new_reg();
                 auto extract_ptr_instr = prog::ptr_conversion_instr { receiver, ptr };
-                add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_ptr_instr)));
+                add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(extract_ptr_instr)));
                 args.insert(args.begin(), ptr);
 
                 auto func = new_reg();

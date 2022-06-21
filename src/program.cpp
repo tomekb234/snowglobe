@@ -87,8 +87,8 @@ namespace sg::prog {
             case constant::GLOBAL_FUNC_PTR:
                 return VARIANT(constant, GLOBAL_FUNC_PTR, GET(value, GLOBAL_FUNC_PTR));
 
-            case constant::GLOBAL_FUNC_FAKE_JOINT_PTR:
-                return VARIANT(constant, GLOBAL_FUNC_FAKE_JOINT_PTR, GET(value, GLOBAL_FUNC_FAKE_JOINT_PTR));
+            case constant::GLOBAL_FUNC_WRAPPER_PTR:
+                return VARIANT(constant, GLOBAL_FUNC_WRAPPER_PTR, GET(value, GLOBAL_FUNC_WRAPPER_PTR));
         }
 
         UNREACHABLE;

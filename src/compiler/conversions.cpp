@@ -318,8 +318,8 @@ namespace sg {
                         break;
 
                     auto result = new_reg();
-                    auto instr = prog::make_inner_ptr_instr { *outer_result, *inner_result, result };
-                    add_instr(VARIANT(prog::instr, MAKE_INNER_PTR, into_ptr(instr)));
+                    auto instr = prog::make_joint_inner_ptr_instr { *inner_result, *outer_result, result };
+                    add_instr(VARIANT(prog::instr, MAKE_JOINT_INNER_PTR, into_ptr(instr)));
                     return { result };
                 }
             } break;
@@ -335,7 +335,7 @@ namespace sg {
 
                     auto ptr_value = new_reg();
                     auto extract_ptr_instr = prog::ptr_conversion_instr { value, ptr_value };
-                    add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_ptr_instr)));
+                    add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(extract_ptr_instr)));
 
                     auto func_value = new_reg();
                     auto extract_func_instr = prog::ptr_conversion_instr { value, func_value };
@@ -364,7 +364,7 @@ namespace sg {
 
                     auto extracted = new_reg();
                     auto instr = prog::ptr_conversion_instr { value, extracted };
-                    add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(instr)));
+                    add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(instr)));
 
                     auto result = try_convert_ptr_kind(extracted, fptr.kind, new_ptr.kind, confined);
                     if (!result)
@@ -404,8 +404,8 @@ namespace sg {
                     add_instr(VARIANT(prog::instr, GET_GLOBAL_FUNC_PTR, into_ptr(get_instr)));
 
                     auto result = new_reg();
-                    auto into_instr = prog::ptr_conversion_instr { value, result };
-                    add_instr(VARIANT(prog::instr, MAKE_FAKE_JOINT_FUNC_PTR, into_ptr(into_instr)));
+                    auto into_instr = prog::make_joint_func_ptr_instr { value, { }, result };
+                    add_instr(VARIANT(prog::instr, MAKE_JOINT_FUNC_PTR, into_ptr(into_instr)));
 
                     return { result };
                 }
@@ -421,50 +421,8 @@ namespace sg {
 
         switch (kind) {
             case prog::ptr_type::GLOBAL: {
-                switch (new_kind) {
-                    case prog::ptr_type::BASIC:
-                        return { value };
-
-                    case prog::ptr_type::SHARED:
-                    case prog::ptr_type::WEAK: {
-                        if (confined) {
-                            auto result = new_reg();
-                            auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, ADD_FAKE_REF_COUNTER, into_ptr(instr)));
-                            return { result };
-                        }
-                    } break;
-
-                    case prog::ptr_type::UNIQUE: {
-                        if (confined)
-                            return { value };
-                    } break;
-
-                    default:
-                        break;
-                }
-            } break;
-
-            case prog::ptr_type::BASIC: {
-                switch (new_kind) {
-                    case prog::ptr_type::SHARED:
-                    case prog::ptr_type::WEAK: {
-                        if (confined) {
-                            auto result = new_reg();
-                            auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, ADD_FAKE_REF_COUNTER, into_ptr(instr)));
-                            return { result };
-                        }
-                    } break;
-
-                    case prog::ptr_type::UNIQUE: {
-                        if (confined)
-                            return { value };
-                    } break;
-
-                    default:
-                        break;
-                }
+                if (new_kind == prog::ptr_type::BASIC)
+                    return { value };
             } break;
 
             case prog::ptr_type::SHARED: {
@@ -473,10 +431,9 @@ namespace sg {
                         if (!confined)
                             add_instr(VARIANT(prog::instr, INCR_WEAK_REF_COUNT, value));
                         return { value };
-                    } break;
+                    }
 
-                    case prog::ptr_type::BASIC:
-                    case prog::ptr_type::UNIQUE: {
+                    case prog::ptr_type::BASIC: {
                         if (confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
@@ -493,24 +450,10 @@ namespace sg {
             case prog::ptr_type::UNIQUE: {
                 switch (new_kind) {
                     case prog::ptr_type::SHARED: {
-                        if (confined) {
-                            auto result = new_reg();
-                            auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, ADD_FAKE_REF_COUNTER, into_ptr(instr)));
-                            return { result };
-                        } else {
+                        if (!confined) {
                             auto result = new_reg();
                             auto instr = prog::ptr_conversion_instr { value, result };
                             add_instr(VARIANT(prog::instr, ALLOC_REF_COUNTER, into_ptr(instr)));
-                            return { result };
-                        }
-                    } break;
-
-                    case prog::ptr_type::WEAK: {
-                        if (confined) {
-                            auto result = new_reg();
-                            auto instr = prog::ptr_conversion_instr { value, result };
-                            add_instr(VARIANT(prog::instr, ADD_FAKE_REF_COUNTER, into_ptr(instr)));
                             return { result };
                         }
                     } break;

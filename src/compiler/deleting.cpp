@@ -91,7 +91,7 @@ namespace sg {
                 auto& func_with_ptr_type = *GET(type, FUNC_WITH_PTR);
                 auto extracted = new_reg();
                 auto extract_instr = prog::ptr_conversion_instr { value, extracted };
-                add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
+                add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(extract_instr)));
                 add_ptr_delete(extracted, func_with_ptr_type.kind, *func_with_ptr_type.target_tp);
             } break;
 

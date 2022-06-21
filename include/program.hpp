@@ -66,7 +66,7 @@ namespace sg::prog {
     struct unary_operation_instr;
     struct binary_operation_instr;
     struct numeric_binary_operation_instr;
-    struct make_inner_ptr_instr;
+    struct make_joint_inner_ptr_instr;
     struct make_joint_func_ptr_instr;
     struct test_optional_instr;
     struct test_variant_instr;
@@ -165,7 +165,7 @@ namespace sg::prog {
             GLOBAL_VAR_PTR,
             GLOBAL_VAR_SLICE,
             GLOBAL_FUNC_PTR,
-            GLOBAL_FUNC_FAKE_JOINT_PTR
+            GLOBAL_FUNC_WRAPPER_PTR
         };
 
         variant<
@@ -180,7 +180,7 @@ namespace sg::prog {
             global_index, // GLOBAL_VAR_PTR
             global_index, // GLOBAL_VAR_SLICE
             global_index, // GLOBAL_FUNC_PTR
-            global_index // GLOBAL_FUNC_FAKE_JOINT_PTR
+            global_index // GLOBAL_FUNC_WRAPPER_PTR
         > value;
     };
 
@@ -300,9 +300,8 @@ namespace sg::prog {
             MAKE_OPTIONAL,
             MAKE_STRUCT,
             MAKE_ENUM_VARIANT,
-            MAKE_INNER_PTR,
+            MAKE_JOINT_INNER_PTR,
             MAKE_JOINT_FUNC_PTR,
-            MAKE_FAKE_JOINT_FUNC_PTR,
             GET_GLOBAL_VAR_PTR,
             GET_GLOBAL_FUNC_PTR,
             FROM_NEVER,
@@ -315,8 +314,8 @@ namespace sg::prog {
             EXTRACT_VARIANT_FIELD,
             EXTRACT_INNER_PTR,
             EXTRACT_OUTER_PTR,
-            EXTRACT_PTR,
             EXTRACT_FUNC_PTR,
+            EXTRACT_VALUE_PTR,
 
             BOOL_NOT,
             INT_NEG,
@@ -359,7 +358,6 @@ namespace sg::prog {
             ARRAY_PTR_INTO_SLICE,
             GET_SLICE_LENGTH,
             ALLOC_REF_COUNTER,
-            ADD_FAKE_REF_COUNTER,
             FORGET_REF_COUNTER,
             PTR_READ,
             PTR_READ_ITEM,
@@ -401,9 +399,8 @@ namespace sg::prog {
             ptr<make_optional_instr>, // MAKE_OPTIONAL
             ptr<make_struct_instr>, // MAKE_STRUCT
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
-            ptr<make_inner_ptr_instr>, // MAKE_INNER_PTR
+            ptr<make_joint_inner_ptr_instr>, // MAKE_JOINT_INNER_PTR
             ptr<make_joint_func_ptr_instr>, // MAKE_JOINT_FUNC_PTR
-            ptr<ptr_conversion_instr>, // MAKE_FAKE_JOINT_FUNC_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
             ptr<from_never_instr>, // FROM_NEVER
@@ -416,8 +413,8 @@ namespace sg::prog {
             ptr<extract_variant_field_instr>, // EXTRACT_VARIANT_FIELD
             ptr<ptr_conversion_instr>, // EXTRACT_INNER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
-            ptr<ptr_conversion_instr>, // EXTRACT_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_FUNC_PTR
+            ptr<ptr_conversion_instr>, // EXTRACT_VALUE_PTR
 
             ptr<unary_operation_instr>, // BOOL_NOT
             ptr<unary_operation_instr>, // INT_NEG
@@ -460,7 +457,6 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
             ptr<get_slice_length_instr>, // GET_SLICE_LENGTH
             ptr<ptr_conversion_instr>, // ALLOC_REF_COUNTER
-            ptr<ptr_conversion_instr>, // ADD_FAKE_REF_COUNTER
             ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
             ptr<ptr_read_instr>, // PTR_READ
             ptr<ptr_read_item_instr>, // PTR_READ_ITEM
@@ -596,15 +592,15 @@ namespace sg::prog {
         } kind;
     };
 
-    struct make_inner_ptr_instr {
-        reg_index outer;
-        reg_index inner;
+    struct make_joint_inner_ptr_instr {
+        reg_index inner_ptr;
+        reg_index outer_ptr;
         reg_index result;
     };
 
     struct make_joint_func_ptr_instr {
-        reg_index ptr;
         reg_index func_ptr;
+        optional<reg_index> value_ptr;
         reg_index result;
     };
 

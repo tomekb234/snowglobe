@@ -301,7 +301,7 @@ namespace sg {
             auto& ptr_type = *GET(type, FUNC_WITH_PTR);
             auto result = new_reg();
             auto extract_instr = prog::ptr_conversion_instr { value, result };
-            add_instr(VARIANT(prog::instr, EXTRACT_PTR, into_ptr(extract_instr)));
+            add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(extract_instr)));
             return { result, move(ptr_type) };
         } else
             error(diags::expected_pointer_type(clr.prog, move(type)), loc);
