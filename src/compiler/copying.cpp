@@ -112,18 +112,15 @@ namespace sg {
     }
 
     void function_compiler::add_array_copy(prog::reg_index value, const prog::array_type& array_type) {
-        push_frame();
+        auto count = array_type.size;
+        auto& type = *array_type.tp;
 
-        auto index = new_reg();
-        auto extracted = new_reg();
-        auto extract_instr = prog::extract_item_instr { value, index, extracted };
-        add_instr(VARIANT(prog::instr, EXTRACT_ITEM, into_ptr(extract_instr)));
-        add_copy(extracted, *array_type.tp);
-
-        auto block = pop_frame();
-
-        auto repeat_instr = prog::repeat_static_instr { array_type.size, index, into_ptr(block) };
-        add_instr(VARIANT(prog::instr, REPEAT_STATIC, into_ptr(repeat_instr)));
+        for (size_t index = 0; index < count; index++) {
+            auto extracted = new_reg();
+            auto extract_instr = prog::extract_field_instr { value, index, extracted };
+            add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
+            add_copy(extracted, type);
+        }
     }
 
     void function_compiler::add_optional_copy(prog::reg_index value, const prog::type& inner_type) {

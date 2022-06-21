@@ -311,7 +311,8 @@ namespace sg {
         void add_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
         void add_loop(function<prog::reg_index()> head, function<void()> true_branch, function<void()> false_branch, function<void()> end);
         void add_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
-        void add_lvalues_swap(const lvalue& lval_a, const lvalue& lval_b, location loc);
+        pair<prog::reg_index, prog::type_local> add_read_for_swap(const lvalue& lval, location loc);
+        void add_write_from_swap(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
 
         // Statements
 

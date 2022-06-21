@@ -428,6 +428,10 @@ namespace sg::diags {
         stream << "The name '" << name << "' cannot be used as a variable" << endl;
     }
 
+    void expression_not_swappable::write(ostream& stream) const {
+        stream << "Expression not swappable" << endl;
+    }
+
     void break_outside_loop::write(ostream& stream) const {
         stream << "Cannot use 'break' statement outside a loop" << endl;
     }

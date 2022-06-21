@@ -68,7 +68,6 @@ namespace sg::prog {
     struct make_joint_func_ptr_instr;
     struct test_optional_instr;
     struct test_variant_instr;
-    struct extract_item_instr;
     struct extract_field_instr;
     struct extract_optional_value_instr;
     struct extract_variant_field_instr;
@@ -89,7 +88,6 @@ namespace sg::prog {
     struct branch_instr;
     struct value_branch_instr;
     struct repeat_instr;
-    struct repeat_static_instr;
 
     typedef size_t global_index;
     typedef size_t param_index;
@@ -307,7 +305,6 @@ namespace sg::prog {
 
             TEST_OPTIONAL,
             TEST_VARIANT,
-            EXTRACT_ITEM,
             EXTRACT_FIELD,
             EXTRACT_OPTIONAL_VALUE,
             EXTRACT_VARIANT_FIELD,
@@ -380,7 +377,6 @@ namespace sg::prog {
             VALUE_BRANCH,
             LOOP,
             REPEAT,
-            REPEAT_STATIC,
             CONTINUE_LOOP,
             BREAK_LOOP,
             ABORT
@@ -410,7 +406,6 @@ namespace sg::prog {
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
             ptr<test_variant_instr>, // TEST_ENUM_VARIANT
-            ptr<extract_item_instr>, // EXTRACT_ITEM
             ptr<extract_field_instr>, // EXTRACT_FIELD
             ptr<extract_optional_value_instr>, // EXTRACT_OPTIONAL_VALUE
             ptr<extract_variant_field_instr>, // EXTRACT_VARIANT_FIELD
@@ -483,7 +478,6 @@ namespace sg::prog {
             ptr<value_branch_instr>, // VALE_BRANCH
             ptr<instr_block>, // LOOP
             ptr<repeat_instr>, // REPEAT
-            ptr<repeat_static_instr>, // REPEAT_STATIC
             monostate, // CONTINUE_LOOP
             monostate, // BREAK_LOOP
             monostate // ABORT
@@ -617,12 +611,6 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct extract_item_instr {
-        reg_index value;
-        reg_index index;
-        reg_index result;
-    };
-
     struct extract_field_instr {
         reg_index value;
         field_index field;
@@ -737,12 +725,6 @@ namespace sg::prog {
 
     struct repeat_instr {
         reg_index count;
-        reg_index index;
-        ptr<instr_block> block;
-    };
-
-    struct repeat_static_instr {
-        size_t count;
         reg_index index;
         ptr<instr_block> block;
     };

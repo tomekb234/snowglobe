@@ -713,7 +713,7 @@ namespace sg {
             error(diags::expected_number_type(clr.prog, move(*new_type.tp)), ast.loc);
 
         auto& ntype = *GET(*type.tp, NUMBER);
-        auto& new_ntype = *GET(*type.tp, NUMBER);
+        auto& new_ntype = *GET(*new_type.tp, NUMBER);
 
         #define PASS { \
             return { value, move(type) }; \

@@ -108,6 +108,7 @@ namespace sg::diags {
     DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
     DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
     DIAG0(slice_dereference, error);
+    DIAG0(expression_not_swappable, error);
 
     // Typing related
 
