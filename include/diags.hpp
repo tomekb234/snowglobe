@@ -130,7 +130,9 @@ namespace sg::diags {
     DIAG2(expected_enum_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_pointer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_slice_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_inner_pointer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_weak_pointer_type, error, const prog::program&, prog, prog::type, type);
+    DIAG0(slice_not_allowed, error);
     DIAG2(invalid_tuple_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);
     DIAG0(invalid_size_constant_type, error);

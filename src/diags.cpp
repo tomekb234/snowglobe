@@ -324,10 +324,20 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_inner_pointer_type::write(ostream& stream) const {
+        stream << "Expected an inner pointer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void expected_weak_pointer_type::write(ostream& stream) const {
         stream << "Expected a weak pointer type instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
+    }
+
+    void slice_not_allowed::write(ostream& stream) const {
+        stream << "Slice type not allowed" << endl;
     }
 
     void invalid_tuple_size::write(ostream& stream) const {
