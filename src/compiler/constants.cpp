@@ -416,6 +416,7 @@ namespace sg {
         prog::reg_index reg_counter = 0;
 
         reg_values.push_back(move(value));
+        reg_types.push_back(copy_type(type));
 
         auto new_reg = [&] () -> prog::reg_index {
             reg_values.emplace_back();
