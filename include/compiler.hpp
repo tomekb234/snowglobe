@@ -192,7 +192,9 @@ namespace sg {
                 TUPLE,
                 ARRAY,
                 STRUCT,
-                DEREFERENCE
+                DEREFERENCE,
+                FIELD,
+                ITEM
             };
 
             variant<
@@ -202,7 +204,9 @@ namespace sg {
                 vector<ptr<lvalue>>, // TUPLE
                 vector<ptr<lvalue>>, // ARRAY
                 pair<prog::global_index, vector<ptr<lvalue>>>, // STRUCT
-                pair<prog::reg_index, prog::type> // DEREFERENCE
+                pair<prog::reg_index, prog::type>, // DEREFERENCE
+                tuple<prog::reg_index, prog::field_index, prog::type>, // FIELD
+                tuple<prog::reg_index, prog::reg_index, prog::type> // ITEM
             > value;
         };
 
@@ -350,6 +354,7 @@ namespace sg {
         lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);
         lvalue compile_left_array(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);
         lvalue compile_left_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, optional<cref<prog::type_local>> implicit_type, location loc);
+        lvalue compile_left_extraction(const ast::extract_expr& ast);
 
         tuple<vector<cref<ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> compile_args(
                 vector<cref<ast::expr_marked>> asts,
