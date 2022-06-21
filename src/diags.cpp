@@ -148,6 +148,10 @@ namespace sg::diags {
         stream << "has no parameter named '" << name << "'" << endl;
     }
 
+    void invalid_tuple_field::write(ostream& stream) const {
+        stream << "Invalid field with index " << index << " for tuple with " << count << " fields" << endl;
+    }
+
     void expected_enum_name::write(ostream& stream) const {
         stream << "Expected enum name" << endl;
     };
@@ -229,7 +233,7 @@ namespace sg::diags {
     }
 
     void function_call_in_confined_context::write(ostream& stream) const {
-        stream << "Cannot receive a function result with non-trivial destructor in a confined context" << endl;
+        stream << "Cannot receive a non-trivial function result in a confined context" << endl;
     }
 
     void allocation_in_confined_context::write(ostream& stream) const {
@@ -237,7 +241,7 @@ namespace sg::diags {
     }
 
     void dereference_in_confined_context::write(ostream& stream) const {
-        stream << "Cannot receive a dereference result with non-trivial destructor in a confined context" << endl;
+        stream << "Cannot receive a non-trivial dereference result in a confined context" << endl;
     }
 
     void weak_pointer_test_in_confined_context::write(ostream& stream) const {
@@ -292,6 +296,12 @@ namespace sg::diags {
 
     void expected_array_type::write(ostream& stream) const {
         stream << "Expected an array type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_struct_type::write(ostream& stream) const {
+        stream << "Expected a struct type instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
     }

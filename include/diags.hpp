@@ -101,6 +101,7 @@ namespace sg::diags {
     DIAG2(unknown_struct_field, error, const prog::struct_type&, st, string, name);
     DIAG2(unknown_enum_variant, error, const prog::enum_type&, en, string, name);
     DIAG2(unknown_function_parameter, error, const prog::global_func&, func, string, name);
+    DIAG2(invalid_tuple_field, error, size_t, index, size_t, count);
     DIAG0(expected_enum_name, error);
     DIAG0(expected_enum_variant, error);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
@@ -125,6 +126,7 @@ namespace sg::diags {
     DIAG2(expected_optional_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_tuple_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_array_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_struct_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_enum_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_pointer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_slice_type, error, const prog::program&, prog, prog::type, type);

@@ -151,7 +151,7 @@ namespace sg {
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
             auto [value, type] = compile_expr(expr_ast, true);
-            auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE_LOCAL, expr_ast.loc);
+            auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
 
             auto true_branch = [&] () {
                 compile_stmt_block(block_ast, true);
@@ -333,7 +333,7 @@ namespace sg {
             auto head = [&] () -> prog::reg_index {
                 auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
                 auto [value, type] = compile_expr(expr_ast, true);
-                return conv_clr.convert(value, type, prog::BOOL_TYPE_LOCAL, expr_ast.loc);
+                return conv_clr.convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
             };
 
             auto true_branch = [&] () {
@@ -420,7 +420,7 @@ namespace sg {
             tie(end_value, end_type) = compile_expr(end_ast, true);
             auto incr = !range_ast.reversed;
 
-            auto type = clr.common_supertype(*begin_type.tp, *end_type.tp, ast.loc);
+            auto type = clr.common_supertype(*begin_type.tp, *end_type.tp, begin_ast.loc);
             auto type_local = prog::type_local { make_ptr(copy_type(type)), false };
 
             if (!INDEX_EQ(type, NUMBER))

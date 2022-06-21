@@ -161,8 +161,8 @@ namespace sg {
                 push_frame();
                 auto index = new_reg();
                 auto result = new_reg();
-                auto read_instr = prog::ptr_read_item_instr { value, index, result };
-                add_instr(VARIANT(prog::instr, PTR_READ_ITEM, into_ptr(read_instr)));
+                auto read_instr = prog::slice_read_instr { value, index, result };
+                add_instr(VARIANT(prog::instr, SLICE_READ, into_ptr(read_instr)));
                 add_delete(result, *target_type.tp);
                 auto block = pop_frame();
 

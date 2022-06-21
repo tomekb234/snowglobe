@@ -138,7 +138,11 @@ namespace sg {
                 return compile_length(expr_ast);
             }
 
-            case ast::expr::EXTRACT:
+            case ast::expr::EXTRACT: {
+                auto& extraction_ast = *GET(ast, EXTRACT);
+                return compile_extraction(extraction_ast, confined);
+            }
+
             case ast::expr::PTR_EXTRACT:
             case ast::expr::LAMBDA:
                 error(diags::not_implemented(), ast.loc); // TODO
@@ -412,7 +416,7 @@ namespace sg {
 
         switch (ast.operation) {
             case unop::NOT: {
-                value = conv_clr.convert(value, type, prog::BOOL_TYPE_LOCAL, ast.value->loc);
+                value = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
                 auto instr = prog::unary_operation_instr { value, result };
                 add_instr(VARIANT(prog::instr, BOOL_NOT, into_ptr(instr)));
                 return { result, copy_type_local(prog::BOOL_TYPE_LOCAL) };
@@ -519,7 +523,7 @@ namespace sg {
             case binop::AND:
             case binop::OR: {
                 auto[left_value, left_type] = compile_expr(*ast.left, true);
-                left_value = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE_LOCAL, ast.left->loc);
+                left_value = conv_clr.convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
                 prog::reg_index right_value;
                 auto result = new_reg();
 
@@ -527,7 +531,7 @@ namespace sg {
 
                 auto long_branch = [&](){
                     auto[right_raw_value, right_type] = compile_expr(*ast.right, true);
-                    right_value = conv_clr.convert(right_raw_value, right_type, prog::BOOL_TYPE_LOCAL, ast.right->loc);
+                    right_value = conv_clr.convert(right_raw_value, right_type, prog::BOOL_TYPE, ast.right->loc);
                 };
 
                 if (ast.operation == binop::AND) {
@@ -883,7 +887,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_conditional(const ast::conditional_expr& ast, bool confined) {
         auto [value, type] = compile_expr(*ast.value, true);
-        auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE_LOCAL, ast.value->loc);
+        auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE, ast.value->loc);
 
         prog::reg_index true_value, false_value;
         prog::type_local true_type, false_type;
@@ -1072,7 +1076,7 @@ namespace sg {
         auto& type = *type_local.tp;
 
         auto [size_value, size_type] = compile_expr(size_ast, true);
-        size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE_LOCAL, size_ast.loc);
+        size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
 
         if (!type_local.confined) {
             if (!clr.type_copyable(type))
@@ -1120,6 +1124,130 @@ namespace sg {
         add_instr(VARIANT(prog::instr, GET_SLICE_LENGTH, into_ptr(get_instr)));
 
         return { result, copy_type_local(prog::SIZE_TYPE_LOCAL) };
+    }
+
+    pair<prog::reg_index, prog::type_local> function_compiler::compile_extraction(const ast::extract_expr& ast, bool confined) {
+        ast::expr* expr_ast_ptr;
+
+        switch (INDEX(ast)) {
+            case ast::extract_expr::NAME:
+                expr_ast_ptr = GET(ast, NAME).first.get();
+                break;
+
+            case ast::extract_expr::INDEX:
+                expr_ast_ptr = GET(ast, INDEX).first.get();
+                break;
+
+            case ast::extract_expr::ITEM:
+                expr_ast_ptr = GET(ast, ITEM).first.get();
+                break;
+
+            default:
+                UNREACHABLE;
+        }
+
+        auto& expr_ast = *expr_ast_ptr;
+
+        prog::reg_index value;
+        prog::type_local type_local;
+        tie(value, type_local) = compile_expr(expr_ast, true);
+        auto& type = *type_local.tp;
+
+        if (INDEX_EQ(type, PTR) || INDEX_EQ(type, INNER_PTR) || INDEX_EQ(type, FUNC_WITH_PTR)) {
+            error(diags::not_implemented(), ast.loc); // TODO
+        }
+
+        prog::reg_index extracted;
+        prog::type extracted_type;
+
+        switch (INDEX(ast)) {
+            case ast::extract_expr::NAME: {
+                auto name = GET(ast, NAME).second;
+
+                if (!INDEX_EQ(type, STRUCT))
+                    error(diags::expected_struct_type(clr.prog, move(type)), expr_ast.loc);
+
+                auto struct_index = GET(type, STRUCT);
+                auto& st = *clr.prog.struct_types[struct_index];
+
+                auto iter = st.field_names.find(name);
+                if (iter == st.field_names.end())
+                    error(diags::unknown_struct_field(st, name), ast.loc);
+
+                auto field = iter->second;
+
+                extracted = new_reg();
+                extracted_type = copy_type(*st.fields[field]->tp);
+
+                auto extract_instr = prog::extract_field_instr { value, field, extracted };
+                add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
+            } break;
+
+            case ast::extract_expr::INDEX: {
+                auto index = GET(ast, INDEX).second;
+
+                if (!INDEX_EQ(type, TUPLE))
+                    error(diags::expected_tuple_type(clr.prog, move(type)), expr_ast.loc);
+
+                auto types = as_cref_vector(GET(type, TUPLE));
+
+                if (index >= types.size())
+                    error(diags::invalid_tuple_field(index, types.size()), ast.loc);
+
+                extracted = new_reg();
+                extracted_type = copy_type(types[index]);
+
+                auto extract_instr = prog::extract_field_instr { value, index, extracted };
+                add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
+            } break;
+
+            case ast::extract_expr::ITEM: {
+                auto& item_expr = *GET(ast, ITEM).second;
+                prog::reg_index item_value;
+                prog::type_local item_type;
+                tie(item_value, item_type) = compile_expr(item_expr, true);
+
+                item_value = conv_clr.convert(item_value, item_type, prog::SIZE_TYPE, item_expr.loc);
+
+                if (!INDEX_EQ(type, ARRAY))
+                    error(diags::expected_array_type(clr.prog, move(type)), expr_ast.loc);
+
+                auto check_result = new_reg();
+                auto check_instr = prog::check_item_instr { value, item_value, check_result };
+                add_instr(VARIANT(prog::instr, CHECK_ARRAY_ITEM, into_ptr(check_instr)));
+
+                auto true_result = new_reg();
+                auto false_result = new_unit_reg();
+
+                auto true_branch = [&] () {
+                    auto extract_instr = prog::extract_item_instr { value, item_value, true_result };
+                    add_instr(VARIANT(prog::instr, EXTRACT_ITEM, into_ptr(extract_instr)));
+                };
+
+                auto false_branch = [&] () {
+                    add_instr(VARIANT(prog::instr, ABORT, monostate()));
+                    returned = true;
+                };
+
+                extracted = new_reg();
+                extracted_type = copy_type(*GET(type, ARRAY)->tp);
+
+                auto branch = make_branch(check_result, true_branch, false_branch);
+                auto value_branch = prog::value_branch_instr { move(branch), true_result, false_result, extracted };
+                add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch)));
+            } break;
+        }
+
+        if (!confined) {
+            if (clr.type_copyable(extracted_type))
+                add_copy(extracted, extracted_type);
+            else
+                error(diags::type_not_copyable(clr.prog, move(extracted_type)), ast.loc);
+        }
+
+        auto extracted_type_local = prog::type_local { into_ptr(extracted_type), confined };
+
+        return { extracted, move(extracted_type_local) };
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {

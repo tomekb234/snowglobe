@@ -344,6 +344,7 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> compile_sized_array(const ast::sized_array_expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast, bool confined);
         pair<prog::reg_index, prog::type_local> compile_length(const ast::expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_extraction(const ast::extract_expr& ast, bool confined);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type);
         lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);

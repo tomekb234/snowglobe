@@ -74,14 +74,15 @@ namespace sg::prog {
     struct extract_field_instr;
     struct extract_optional_value_instr;
     struct extract_variant_field_instr;
+    struct check_item_instr;
     struct numeric_conversion_instr;
     struct transform_instr;
     struct alloc_instr;
     struct alloc_slice_instr;
     struct ptr_read_instr;
-    struct ptr_read_item_instr;
     struct ptr_write_instr;
-    struct ptr_write_item_instr;
+    struct slice_read_instr;
+    struct slice_write_instr;
     struct get_slice_length_instr;
     struct test_ref_count_instr;
     struct branch_instr;
@@ -316,6 +317,8 @@ namespace sg::prog {
             EXTRACT_OUTER_PTR,
             EXTRACT_FUNC_PTR,
             EXTRACT_VALUE_PTR,
+            CHECK_ARRAY_ITEM,
+            CHECK_SLICE_ITEM,
 
             BOOL_NOT,
             INT_NEG,
@@ -360,9 +363,9 @@ namespace sg::prog {
             ALLOC_REF_COUNTER,
             FORGET_REF_COUNTER,
             PTR_READ,
-            PTR_READ_ITEM,
             PTR_WRITE,
-            PTR_WRITE_ITEM,
+            SLICE_READ,
+            SLICE_WRITE,
             INCR_REF_COUNT,
             INCR_WEAK_REF_COUNT,
             DECR_REF_COUNT,
@@ -415,6 +418,8 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_FUNC_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_VALUE_PTR
+            ptr<check_item_instr>, // CHECK_ARRAY_ITEM
+            ptr<check_item_instr>, // CHECK_SLICE_ITEM
 
             ptr<unary_operation_instr>, // BOOL_NOT
             ptr<unary_operation_instr>, // INT_NEG
@@ -459,9 +464,9 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // ALLOC_REF_COUNTER
             ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
             ptr<ptr_read_instr>, // PTR_READ
-            ptr<ptr_read_item_instr>, // PTR_READ_ITEM
             ptr<ptr_write_instr>, // PTR_WRITE
-            ptr<ptr_write_item_instr>, // PTR_WRITE_ITEM
+            ptr<slice_read_instr>, // SLICE_READ
+            ptr<slice_write_instr>, // SLICE_WRITE
             reg_index, // INCR_REF_COUNT
             reg_index, // INCR_WEAK_REF_COUNT
             reg_index, // DECR_REF_COUNT
@@ -639,6 +644,12 @@ namespace sg::prog {
         reg_index result;
     };
 
+    struct check_item_instr {
+        reg_index value;
+        reg_index item;
+        reg_index result;
+    };
+
     struct numeric_conversion_instr {
         reg_index value;
         ptr<number_type> new_type;
@@ -669,18 +680,18 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct ptr_read_item_instr {
-        reg_index ptr;
-        size_t item;
-        reg_index result;
-    };
-
     struct ptr_write_instr {
         reg_index ptr;
         reg_index value;
     };
 
-    struct ptr_write_item_instr {
+    struct slice_read_instr {
+        reg_index ptr;
+        size_t item;
+        reg_index result;
+    };
+
+    struct slice_write_instr {
         reg_index ptr;
         size_t item;
         reg_index value;
