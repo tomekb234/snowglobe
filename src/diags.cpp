@@ -148,6 +148,10 @@ namespace sg::diags {
         stream << "has no parameter named '" << name << "'" << endl;
     }
 
+    void invalid_tuple_field::write(ostream& stream) const {
+        stream << "Invalid field with index " << index << " for tuple with " << count << " fields" << endl;
+    }
+
     void expected_enum_name::write(ostream& stream) const {
         stream << "Expected enum name" << endl;
     };
@@ -205,6 +209,10 @@ namespace sg::diags {
         stream << endl;
     }
 
+    void slice_dereference::write(ostream& stream) const {
+        stream << "Cannot dereference a slice" << endl;
+    }
+
     void not_convertible::write(ostream& stream) const {
         stream << "A value with type '";
         prog::print_type(stream, prog, type);
@@ -225,7 +233,19 @@ namespace sg::diags {
     }
 
     void function_call_in_confined_context::write(ostream& stream) const {
-        stream << "Cannot receive a function result with non-trivial destructor in a confined context" << endl;
+        stream << "Cannot receive a non-trivial function result in a confined context" << endl;
+    }
+
+    void allocation_in_confined_context::write(ostream& stream) const {
+        stream << "Cannot allocate memory in a confined context" << endl;
+    }
+
+    void dereference_in_confined_context::write(ostream& stream) const {
+        stream << "Cannot receive a non-trivial dereference result in a confined context" << endl;
+    }
+
+    void weak_pointer_test_in_confined_context::write(ostream& stream) const {
+        stream << "Cannot test a weak pointer in a confined context" << endl;
     }
 
     void no_common_supertype::write(ostream& stream) const {
@@ -250,8 +270,20 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_number_type::write(ostream& stream) const {
+        stream << "Expected a number type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void expected_integer_type::write(ostream& stream) const {
         stream << "Expected an integer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_optional_type::write(ostream& stream) const {
+        stream << "Expected an optional type instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
     }
@@ -268,8 +300,32 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_struct_type::write(ostream& stream) const {
+        stream << "Expected a struct type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void expected_enum_type::write(ostream& stream) const {
         stream << "Expected an enum type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_pointer_type::write(ostream& stream) const {
+        stream << "Expected a pointer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_slice_type::write(ostream& stream) const {
+        stream << "Expected a slice type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void expected_weak_pointer_type::write(ostream& stream) const {
+        stream << "Expected a weak pointer type instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
     }
@@ -291,8 +347,8 @@ namespace sg::diags {
         stream << "Use '&' instead" << endl;
     }
 
-    void global_function_copyable::write(ostream& stream) const {
-        stream << "A global function cannot be marked as copyable" << endl;
+    void invalid_parameter_order::write(ostream& stream) const {
+        stream << "All function parameters with non-confined types must be ordered after parameters with confined types" << endl;
     }
 
     void variable_not_found::write(ostream& stream) const {
@@ -352,10 +408,6 @@ namespace sg::diags {
         else
             stream << "an internal variable ";
        stream << "from outside of current 'locally' block" << endl;
-    }
-
-    void variable_already_confined::write(ostream& stream) const {
-        stream << "The variable '" << name << "' was already confined" << endl;
     }
 
     void global_variable_moved::write(ostream& stream) const {

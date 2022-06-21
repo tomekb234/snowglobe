@@ -101,11 +101,13 @@ namespace sg::diags {
     DIAG2(unknown_struct_field, error, const prog::struct_type&, st, string, name);
     DIAG2(unknown_enum_variant, error, const prog::enum_type&, en, string, name);
     DIAG2(unknown_function_parameter, error, const prog::global_func&, func, string, name);
+    DIAG2(invalid_tuple_field, error, size_t, index, size_t, count);
     DIAG0(expected_enum_name, error);
     DIAG0(expected_enum_variant, error);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
     DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
     DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
+    DIAG0(slice_dereference, error);
 
     // Typing related
 
@@ -113,13 +115,22 @@ namespace sg::diags {
     DIAG1(confinement_mismatch, error, bool, confined);
     DIAG0(confinement_ambiguous, error);
     DIAG0(function_call_in_confined_context, error);
+    DIAG0(allocation_in_confined_context, error);
+    DIAG0(dereference_in_confined_context, error);
+    DIAG0(weak_pointer_test_in_confined_context, error);
     DIAG3(no_common_supertype, error, const prog::program&, prog, prog::type, type_a, prog::type, type_b);
     DIAG2(type_not_copyable, error, const prog::program&, prog, prog::type, type);
     DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, prog::type, expected);
+    DIAG2(expected_number_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_integer_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_optional_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_tuple_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_array_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_struct_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_enum_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_pointer_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_slice_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_weak_pointer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(invalid_tuple_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);
     DIAG0(invalid_size_constant_type, error);
@@ -127,7 +138,7 @@ namespace sg::diags {
 
     // Function compilation related
 
-    DIAG0(global_function_copyable, error);
+    DIAG0(invalid_parameter_order, error);
     DIAG1(variable_not_found, error, string, name);
     DIAG0(variable_without_type, error);
     DIAG4(variable_not_usable, error, optional<string>, name, bool, initialized, bool, uninitialized, bool, moved_out);
@@ -139,7 +150,6 @@ namespace sg::diags {
     DIAG0(break_outside_loop, error);
     DIAG0(continue_outside_loop, error);
     DIAG0(missing_return, error);
-    DIAG1(variable_already_confined, warning, string, name);
     DIAG0(dead_code, warning);
 
     // Code generator diagnostics

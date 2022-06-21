@@ -45,38 +45,38 @@ namespace sg {
     };
 
     struct ll_struct_type {
-        const prog::global_index index;
+        prog::global_index index;
         vector<ll_type*> fields;
         llvm::StructType* tp;
     };
 
     struct ll_enum_type {
-        const prog::global_index index;
+        prog::global_index index;
         ll_array_type* placeholder;
         llvm::StructType* tp;
     };
 
     struct ll_enum_variant_type {
-        const prog::global_index enum_index;
-        const prog::variant_index variant_index;
+        prog::global_index enum_index;
+        prog::variant_index variant_index;
         vector<ll_type*> fields;
         ll_array_type* placeholder;
         llvm::StructType* tp;
     };
 
     struct ll_tuple_type {
-        const vector<ll_type*> fields;
+        vector<ll_type*> fields;
         llvm::StructType* tp;
     };
 
     struct ll_array_type {
-        const ll_type* value;
-        const size_t size;
+        ll_type* value;
+        size_t size;
         llvm::ArrayType* tp;
     };
 
     struct ll_optional_type {
-        const ll_type* value;
+        ll_type* value;
         llvm::StructType* tp;
     };
 
@@ -176,7 +176,7 @@ namespace sg {
         void define_enum_type_with_variants(const prog::enum_type& prog_enum_type, ll_enum_type* llvm_enum_type, vector<ll_enum_variant_type*> llvm_variant_types);
 
         // values
-        typed_llvm_value<> make_constant(const prog::constant& constant, llvm::IRBuilderBase& builder);
+        typed_llvm_value<> make_constant(const prog::constant& constant, const prog::type& type, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_struct_value(prog::global_index struct_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_enum_variant_value(prog::global_index enum_index, prog::variant_index variant_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_tuple_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);

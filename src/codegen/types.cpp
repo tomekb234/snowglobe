@@ -36,6 +36,7 @@ namespace sg {
                     case ll_number_type::FLOAT: return "float";
                     case ll_number_type::DOUBLE: return "double";
                 }
+                UNREACHABLE;
             }
 
             case ll_type::STRUCT:

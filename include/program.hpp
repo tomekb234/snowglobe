@@ -18,7 +18,6 @@ namespace sg::prog {
     using std::monostate;
     using std::string;
     using std::pair;
-    using std::tuple;
     using std::ostream;
     using std::unordered_map;
 
@@ -53,6 +52,7 @@ namespace sg::prog {
     struct return_instr;
     struct func_call_instr;
     struct func_ptr_call_instr;
+    struct from_never_instr;
     struct make_const_instr;
     struct make_tuple_instr;
     struct make_array_instr;
@@ -64,17 +64,29 @@ namespace sg::prog {
     struct unary_operation_instr;
     struct binary_operation_instr;
     struct numeric_binary_operation_instr;
-    struct make_inner_ptr_instr;
+    struct make_joint_inner_ptr_instr;
+    struct make_joint_func_ptr_instr;
     struct test_optional_instr;
     struct test_variant_instr;
     struct extract_item_instr;
     struct extract_field_instr;
     struct extract_optional_value_instr;
     struct extract_variant_field_instr;
+    struct check_index_instr;
     struct numeric_conversion_instr;
     struct transform_instr;
+    struct alloc_instr;
+    struct alloc_slice_instr;
+    struct ptr_read_instr;
+    struct ptr_write_instr;
+    struct slice_read_instr;
+    struct slice_write_instr;
+    struct get_slice_length_instr;
+    struct test_ref_count_instr;
     struct branch_instr;
     struct value_branch_instr;
+    struct repeat_instr;
+    struct repeat_static_instr;
 
     typedef size_t global_index;
     typedef size_t param_index;
@@ -88,6 +100,7 @@ namespace sg::prog {
         vector<ptr<global_func>> global_funcs;
         vector<ptr<struct_type>> struct_types;
         vector<ptr<enum_type>> enum_types;
+        global_index cleanup_func;
     };
 
     struct global_var {
@@ -121,11 +134,7 @@ namespace sg::prog {
         bool trivial;
         unordered_map<string, field_index> field_names;
         vector<ptr<struct_field>> fields;
-    };
-
-    struct enum_variant {
-        string name;
-        vector<ptr<type>> tps;
+        global_index destructor;
     };
 
     struct enum_type {
@@ -134,6 +143,12 @@ namespace sg::prog {
         bool trivial;
         unordered_map<string, variant_index> variant_names;
         vector<ptr<enum_variant>> variants;
+        global_index destructor;
+    };
+
+    struct enum_variant {
+        string name;
+        vector<ptr<type>> tps;
     };
 
     struct constant {
@@ -144,27 +159,25 @@ namespace sg::prog {
             ENUM,
             TUPLE,
             ARRAY,
-            SIZED_ARRAY,
             OPTIONAL,
             GLOBAL_VAR_PTR,
             GLOBAL_VAR_SLICE,
             GLOBAL_FUNC_PTR,
-            GLOBAL_FUNC_PTR_WRAPPED
+            GLOBAL_FUNC_WRAPPER_PTR
         };
 
         variant<
             monostate, // UNIT
-            pair<unsigned long long, ptr<number_type>>, // NUMBER
-            pair<global_index, vector<ptr<constant>>>, // STRUCT
-            tuple<global_index, variant_index, vector<ptr<constant>>>, // ENUM
+            unsigned long long, // NUMBER
+            vector<ptr<constant>>, // STRUCT
+            pair<variant_index, vector<ptr<constant>>>, // ENUM
             vector<ptr<constant>>, // TUPLE
             vector<ptr<constant>>, // ARRAY
-            pair<ptr<constant>, size_t>, // SIZED_ARRAY
             optional<ptr<constant>>, // OPTIONAL
             global_index, // GLOBAL_VAR_PTR
             global_index, // GLOBAL_VAR_SLICE
             global_index, // GLOBAL_FUNC_PTR
-            global_index // GLOBAL_FUNC_PTR_WRAPPED
+            global_index // GLOBAL_FUNC_WRAPPER_PTR
         > value;
     };
 
@@ -283,11 +296,11 @@ namespace sg::prog {
             MAKE_OPTIONAL,
             MAKE_STRUCT,
             MAKE_ENUM_VARIANT,
-            MAKE_INNER_PTR,
-            MAKE_EMPTY_WEAK_PTR,
+            MAKE_JOINT_INNER_PTR,
+            MAKE_JOINT_FUNC_PTR,
             GET_GLOBAL_VAR_PTR,
             GET_GLOBAL_FUNC_PTR,
-            GET_GLOBAL_FUNC_PTR_WRAPPED,
+            FROM_NEVER,
 
             TEST_OPTIONAL,
             TEST_VARIANT,
@@ -297,8 +310,10 @@ namespace sg::prog {
             EXTRACT_VARIANT_FIELD,
             EXTRACT_INNER_PTR,
             EXTRACT_OUTER_PTR,
-            EXTRACT_PTR,
-            EXTRACT_FUNC,
+            EXTRACT_FUNC_PTR,
+            EXTRACT_VALUE_PTR,
+            CHECK_ARRAY_INDEX,
+            CHECK_SLICE_INDEX,
 
             BOOL_NOT,
             INT_NEG,
@@ -306,6 +321,8 @@ namespace sg::prog {
             BIT_NEG,
             INCR,
             DECR,
+            EQ,
+            NEQ,
             ADD,
             SUB,
             MUL,
@@ -321,25 +338,43 @@ namespace sg::prog {
             GT,
             GTEQ,
 
+            TRUNC,
             ZERO_EXT,
             SIGNED_EXT,
+            UINT_TO_FLOAT,
+            SINT_TO_FLOAT,
+            FLOAT_TRUNC,
             FLOAT_EXT,
+            FLOAT_TO_UINT,
+            FLOAT_TO_SINT,
+
             TRANSFORM_ARRAY,
             TRANSFORM_OPTIONAL,
-            ARRAY_PTR_INTO_SLICE,
-            INTO_SHARED_PTR,
-            INTO_FAKE_SHARED_PTR,
-            FORGET_REF_COUNT,
 
-            DELETE,
+            ALLOC,
+            ALLOC_SLICE,
+            ARRAY_PTR_INTO_SLICE,
+            GET_SLICE_LENGTH,
+            ALLOC_REF_COUNTER,
+            FORGET_REF_COUNTER,
+            PTR_READ,
+            PTR_WRITE,
+            SLICE_READ,
+            SLICE_WRITE,
             INCR_REF_COUNT,
             INCR_WEAK_REF_COUNT,
             DECR_REF_COUNT,
             DECR_WEAK_REF_COUNT,
+            TEST_REF_COUNT,
+            TEST_ANY_REF_COUNT,
+            DELETE,
+            DELETE_REF_COUNTER,
 
             BRANCH,
             VALUE_BRANCH,
             LOOP,
+            REPEAT,
+            REPEAT_STATIC,
             CONTINUE_LOOP,
             BREAK_LOOP,
             ABORT
@@ -361,22 +396,24 @@ namespace sg::prog {
             ptr<make_optional_instr>, // MAKE_OPTIONAL
             ptr<make_struct_instr>, // MAKE_STRUCT
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
-            ptr<make_inner_ptr_instr>, // MAKE_INNER_PTR
-            reg_index, // MAKE_EMPTY_WEAK_PTR
+            ptr<make_joint_inner_ptr_instr>, // MAKE_JOINT_INNER_PTR
+            ptr<make_joint_func_ptr_instr>, // MAKE_JOINT_FUNC_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
             ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
-            ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR_WRAPPED
+            ptr<from_never_instr>, // FROM_NEVER
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
-            ptr<test_variant_instr>, // TEST_ENUM_VARIANT
+            ptr<test_variant_instr>, // TEST_VARIANT
             ptr<extract_item_instr>, // EXTRACT_ITEM
             ptr<extract_field_instr>, // EXTRACT_FIELD
             ptr<extract_optional_value_instr>, // EXTRACT_OPTIONAL_VALUE
             ptr<extract_variant_field_instr>, // EXTRACT_VARIANT_FIELD
             ptr<ptr_conversion_instr>, // EXTRACT_INNER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
-            ptr<ptr_conversion_instr>, // EXTRACT_PTR
-            ptr<ptr_conversion_instr>, // EXTRACT_FUNC
+            ptr<ptr_conversion_instr>, // EXTRACT_FUNC_PTR
+            ptr<ptr_conversion_instr>, // EXTRACT_VALUE_PTR
+            ptr<check_index_instr>, // CHECK_ARRAY_INDEX
+            ptr<check_index_instr>, // CHECK_SLICE_INDEX
 
             ptr<unary_operation_instr>, // BOOL_NOT
             ptr<unary_operation_instr>, // INT_NEG
@@ -384,6 +421,8 @@ namespace sg::prog {
             ptr<unary_operation_instr>, // BIT_NEG
             ptr<unary_operation_instr>, // INCR
             ptr<unary_operation_instr>, // DECR
+            ptr<binary_operation_instr>, // EQ
+            ptr<binary_operation_instr>, // NEQ
             ptr<numeric_binary_operation_instr>, // ADD
             ptr<numeric_binary_operation_instr>, // SUB
             ptr<numeric_binary_operation_instr>, // MUL
@@ -399,25 +438,43 @@ namespace sg::prog {
             ptr<numeric_binary_operation_instr>, // GT
             ptr<numeric_binary_operation_instr>, // GTEQ
 
+            ptr<numeric_conversion_instr>, // TRUNC
             ptr<numeric_conversion_instr>, // ZERO_EXT
             ptr<numeric_conversion_instr>, // SIGNED_EXT
+            ptr<numeric_conversion_instr>, // UINT_TO_FLOAT
+            ptr<numeric_conversion_instr>, // SINT_TO_FLOAT
+            ptr<numeric_conversion_instr>, // FLOAT_TRUNC
             ptr<numeric_conversion_instr>, // FLOAT_EXT
+            ptr<numeric_conversion_instr>, // FLOAT_TO_UINT
+            ptr<numeric_conversion_instr>, // FLOAT_TO_SINT
+
             ptr<transform_instr>, // TRANSFORM_ARRAY
             ptr<transform_instr>, // TRANSFORM_OPTIONAL
-            ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
-            ptr<ptr_conversion_instr>, // INTO_SHARED_PTR
-            ptr<ptr_conversion_instr>, // INTO_FAKE_SHARED_PTR
-            ptr<ptr_conversion_instr>, // FORGET_REF_COUNT
 
-            reg_index, // DELETE
+            ptr<alloc_instr>, // ALLOC
+            ptr<alloc_slice_instr>, // ALLOC_SLICE
+            ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
+            ptr<get_slice_length_instr>, // GET_SLICE_LENGTH
+            ptr<ptr_conversion_instr>, // ALLOC_REF_COUNTER
+            ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
+            ptr<ptr_read_instr>, // PTR_READ
+            ptr<ptr_write_instr>, // PTR_WRITE
+            ptr<slice_read_instr>, // SLICE_READ
+            ptr<slice_write_instr>, // SLICE_WRITE
             reg_index, // INCR_REF_COUNT
             reg_index, // INCR_WEAK_REF_COUNT
             reg_index, // DECR_REF_COUNT
             reg_index, // DECR_WEAK_REF_COUNT
+            ptr<test_ref_count_instr>, // TEST_REF_COUNT
+            ptr<test_ref_count_instr>, // TEST_ANY_REF_COUNT
+            reg_index, // DELETE
+            reg_index, // DELETE_REF_COUNTER
 
             ptr<branch_instr>, // BRANCH
             ptr<value_branch_instr>, // VALE_BRANCH
             ptr<instr_block>, // LOOP
+            ptr<repeat_instr>, // REPEAT
+            ptr<repeat_static_instr>, // REPEAT_STATIC
             monostate, // CONTINUE_LOOP
             monostate, // BREAK_LOOP
             monostate // ABORT
@@ -462,6 +519,7 @@ namespace sg::prog {
 
     struct make_const_instr {
         ptr<constant> value;
+        ptr<type> tp;
         reg_index result;
     };
 
@@ -490,6 +548,11 @@ namespace sg::prog {
         global_index en;
         variant_index variant;
         vector<reg_index> args;
+        reg_index result;
+    };
+
+    struct from_never_instr {
+        ptr<type> tp;
         reg_index result;
     };
 
@@ -522,9 +585,15 @@ namespace sg::prog {
         } kind;
     };
 
-    struct make_inner_ptr_instr {
-        reg_index outer;
-        reg_index inner;
+    struct make_joint_inner_ptr_instr {
+        reg_index inner_ptr;
+        reg_index outer_ptr;
+        reg_index result;
+    };
+
+    struct make_joint_func_ptr_instr {
+        reg_index func_ptr;
+        optional<reg_index> value_ptr;
         reg_index result;
     };
 
@@ -541,7 +610,7 @@ namespace sg::prog {
 
     struct extract_item_instr {
         reg_index value;
-        size_t item;
+        reg_index index;
         reg_index result;
     };
 
@@ -563,6 +632,12 @@ namespace sg::prog {
         reg_index result;
     };
 
+    struct check_index_instr {
+        reg_index value;
+        reg_index index;
+        reg_index result;
+    };
+
     struct numeric_conversion_instr {
         reg_index value;
         ptr<number_type> new_type;
@@ -574,6 +649,49 @@ namespace sg::prog {
         reg_index extracted;
         ptr<instr_block> block;
         reg_index transformed;
+        reg_index result;
+    };
+
+    struct alloc_instr {
+        reg_index value;
+        reg_index result;
+    };
+
+    struct alloc_slice_instr {
+        reg_index value;
+        reg_index size;
+        reg_index result;
+    };
+
+    struct ptr_read_instr {
+        reg_index ptr;
+        reg_index result;
+    };
+
+    struct ptr_write_instr {
+        reg_index ptr;
+        reg_index value;
+    };
+
+    struct slice_read_instr {
+        reg_index ptr;
+        size_t index;
+        reg_index result;
+    };
+
+    struct slice_write_instr {
+        reg_index ptr;
+        size_t index;
+        reg_index value;
+    };
+
+    struct get_slice_length_instr {
+        reg_index ptr;
+        reg_index result;
+    };
+
+    struct test_ref_count_instr {
+        reg_index ptr;
         reg_index result;
     };
 
@@ -589,10 +707,33 @@ namespace sg::prog {
         reg_index result;
     };
 
-    extern const type_local NEVER_TYPE;
-    extern const type_local UNIT_TYPE;
-    extern const type_local BOOL_TYPE;
-    extern const type_local UNIT_PTR_TYPE;
+    struct repeat_instr {
+        reg_index count;
+        reg_index index;
+        ptr<instr_block> block;
+    };
+
+    struct repeat_static_instr {
+        size_t count;
+        reg_index index;
+        ptr<instr_block> block;
+    };
+
+    extern const type NEVER_TYPE;
+    extern const type UNIT_TYPE;
+    extern const type BOOL_TYPE;
+    extern const type CHAR_TYPE;
+    extern const type SIZE_TYPE;
+    extern const type UNIT_PTR_TYPE;
+
+    extern const type_local NEVER_TYPE_LOCAL;
+    extern const type_local UNIT_TYPE_LOCAL;
+    extern const type_local BOOL_TYPE_LOCAL;
+    extern const type_local CHAR_TYPE_LOCAL;
+    extern const type_local SIZE_TYPE_LOCAL;
+    extern const type_local UNIT_PTR_TYPE_LOCAL;
+
+    type make_ptr_type(type&& tp, ptr_type::kind_t kind, bool slice);
 
     constant copy_const(const constant& con);
     type copy_type(const type& tp);

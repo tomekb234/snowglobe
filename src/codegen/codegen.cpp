@@ -10,11 +10,12 @@ namespace sg {
     using namespace sg::utils;
 
     const string internal_func_prefix = "if.";
-    const string internal_var_prefix = "if.";
+    const string internal_var_prefix = "iv.";
 
     template<typename T>
     static T decode_number(unsigned long long number) {
-        return reinterpret_cast<T&>(number);
+        auto ptr = reinterpret_cast<T*>(&number);
+        return *ptr;
     }
 
     bool code_generator::generate() {
@@ -83,79 +84,90 @@ namespace sg {
             error(diags::code_generator_fail(error_msg));
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_constant(const prog::constant& constant, llvm::IRBuilderBase& builder) {
+    code_generator::typed_llvm_value<> code_generator::make_constant(const prog::constant& constant, const prog::type& type, llvm::IRBuilderBase& builder) {
         switch (INDEX(constant)) {
             case prog::constant::UNIT:
-                return { llvm::ConstantInt::getFalse(ctx), get_unit_type() };
+                return { builder.getFalse(), get_unit_type() };
 
             case prog::constant::NUMBER: {
-                auto& [value, number_type] = GET(constant, NUMBER);
-                auto type = get_number_type(number_type->tp);
-                switch (number_type->tp) {
+                auto value = GET(constant, NUMBER);
+                auto number_type = GET(type, NUMBER)->tp;
+                auto ll_num_type = get_number_type(number_type);
+                switch (number_type) {
                     case prog::number_type::BOOL:
-                        return { llvm::ConstantInt::getBool(ctx, decode_number<bool>(value)), type };
+                        return { builder.getInt1(decode_number<bool>(value)), ll_num_type };
 
                     case prog::number_type::I8:
-                        return { llvm::ConstantInt::getSigned(type->get_type(), decode_number<int8_t>(value)), type };
+                        return { builder.getInt8(decode_number<int8_t>(value)), ll_num_type };
 
                     case prog::number_type::I16:
-                        return { llvm::ConstantInt::getSigned(type->get_type(), decode_number<int16_t>(value)), type };
+                        return { builder.getInt16(decode_number<int16_t>(value)), ll_num_type };
 
                     case prog::number_type::I32:
-                        return { llvm::ConstantInt::getSigned(type->get_type(), decode_number<int32_t>(value)), type };
+                        return { builder.getInt32(decode_number<int32_t>(value)), ll_num_type };
 
                     case prog::number_type::I64:
-                        return { llvm::ConstantInt::getSigned(type->get_type(), decode_number<int64_t>(value)), type };
+                        return { builder.getInt64(decode_number<int64_t>(value)), ll_num_type };
 
                     case prog::number_type::U8:
-                        return { llvm::ConstantInt::get(type->get_type(), decode_number<uint8_t>(value)), type };
+                        return { builder.getInt8(decode_number<uint8_t>(value)), ll_num_type };
 
                     case prog::number_type::U16:
-                        return { llvm::ConstantInt::get(type->get_type(), decode_number<uint16_t>(value)), type };
+                        return { builder.getInt16(decode_number<uint16_t>(value)), ll_num_type };
 
                     case prog::number_type::U32:
-                        return { llvm::ConstantInt::get(type->get_type(), decode_number<uint32_t>(value)), type };
+                        return { builder.getInt32(decode_number<uint32_t>(value)), ll_num_type };
 
                     case prog::number_type::U64:
-                        return { llvm::ConstantInt::get(type->get_type(), decode_number<uint64_t>(value)), type };
+                        return { builder.getInt64(decode_number<uint64_t>(value)), ll_num_type };
 
                     case prog::number_type::F32:
-                        return { llvm::ConstantFP::get(type->get_type(), llvm::APFloat(decode_number<float>(value))), type };
+                        return { llvm::ConstantFP::get(ll_num_type->get_type(), llvm::APFloat(decode_number<float>(value))), ll_num_type };
 
                     case prog::number_type::F64:
-                        return { llvm::ConstantFP::get(type->get_type(), llvm::APFloat(decode_number<double>(value))), type };
+                        return { llvm::ConstantFP::get(ll_num_type->get_type(), llvm::APFloat(decode_number<double>(value))), ll_num_type };
                 }
+
+                UNREACHABLE;
             }
 
             case prog::constant::STRUCT: {
-                auto& [struct_index, fields] = GET(constant, STRUCT);
+                auto struct_index = GET(type, STRUCT);
+                auto& fields = GET(constant, STRUCT);
                 vector<typed_llvm_value<>> field_values;
-                for (auto& value : fields)
-                    field_values.push_back(make_constant(*value, builder));
+                for (size_t i = 0; i < fields.size(); i++) {
+                    auto& field_type = *prog.struct_types[struct_index]->fields[i]->tp;
+                    field_values.push_back(make_constant(*fields[i], field_type, builder));
+                }
                 return make_struct_value(struct_index, field_values, builder);
             }
 
             case prog::constant::ENUM: {
-                auto& [enum_index, variant_index, fields] = GET(constant, ENUM);
+                auto enum_index = GET(type, ENUM);
+                auto& [variant_index, fields] = GET(constant, ENUM);
                 vector<typed_llvm_value<>> field_values;
-                for (auto& field : fields)
-                    field_values.push_back(make_constant(*field, builder));
+                for (size_t i = 0; i < fields.size(); i++) {
+                    auto& field_type = *prog.enum_types[enum_index]->variants[variant_index]->tps[i];
+                    field_values.push_back(make_constant(*fields[i], field_type, builder));
+                }
                 return make_enum_variant_value(enum_index, variant_index, field_values, builder);
             }
 
             case prog::constant::TUPLE: {
+                auto& field_types = GET(type, TUPLE);
                 auto& vals = GET(constant, TUPLE);
                 vector<typed_llvm_value<>> fields;
-                for (auto& val : vals)
-                    fields.push_back(make_constant(*val, builder));
+                for (size_t i = 0; i < vals.size(); i++)
+                    fields.push_back(make_constant(*vals[i], *field_types[i], builder));
                 return make_tuple_value(fields, builder);
             }
 
             case prog::constant::ARRAY: {
+                auto& value_type = *GET(type, ARRAY)->tp;
                 auto& vals = GET(constant, ARRAY);
                 vector<typed_llvm_value<>> values;
                 for (auto& val : vals)
-                    values.push_back(make_constant(*val, builder));
+                    values.push_back(make_constant(*val, value_type, builder));
                 return make_array_value(values, builder);
             }
 
@@ -178,7 +190,7 @@ namespace sg {
         // make variant
         auto variant_type = variant_types[enum_index][variant_index];
         llvm::Value* variant_value = llvm::UndefValue::get(variant_type->get_type());
-        variant_value = builder.CreateInsertValue(variant_value, llvm::ConstantInt::get(llvm::Type::getInt64Ty(ctx), variant_index), vector<unsigned>{0});
+        variant_value = builder.CreateInsertValue(variant_value, builder.getInt64(variant_index), vector<unsigned>{0});
         for (size_t i = 0; i < fields.size(); i++)
             variant_value = builder.CreateInsertValue(variant_value, fields[i].value, vector<unsigned>{(unsigned)i + 1});
 
@@ -239,8 +251,10 @@ namespace sg {
         // init block
         auto init_block = llvm::BasicBlock::Create(ctx, "init", func);
         llvm::IRBuilder<> builder(init_block);
-        for (size_t i = 0; i < prog.global_vars.size(); i++)
-            builder.CreateStore(make_constant(*prog.global_vars[i]->value, builder).value, global_vars[i].value);
+        for (size_t i = 0; i < prog.global_vars.size(); i++) {
+            auto& global_var = *prog.global_vars[i];
+            builder.CreateStore(make_constant(*global_var.value, *global_var.tp, builder).value, global_vars[i].value);
+        }
         builder.CreateStore(llvm::ConstantInt::getTrue(ctx), init_var);
         builder.CreateRetVoid();
 
@@ -337,12 +351,12 @@ namespace sg {
 
                 case prog::instr::MAKE_UNIT: {
                     auto reg = GET(*instr, MAKE_UNIT);
-                    regs[reg] = { llvm::ConstantInt::getFalse(gen.ctx), gen.get_unit_type() };
+                    regs[reg] = { builder.getFalse(), gen.get_unit_type() };
                 } break;
 
                 case prog::instr::MAKE_CONST: {
                     auto& mc_instr = *GET(*instr, MAKE_CONST);
-                    auto constant = gen.make_constant(*mc_instr.value, builder);
+                    auto constant = gen.make_constant(*mc_instr.value, *mc_instr.tp, builder);
                     regs[mc_instr.result] = { constant.value, constant.type };
                 } break;
 
@@ -384,9 +398,54 @@ namespace sg {
                     regs[to_instr.result] = { builder.CreateExtractValue(regs[to_instr.value].value, vector<unsigned>{0}), gen.get_number_type(prog::number_type::BOOL) };
                 } break;
 
+                case prog::instr::TEST_VARIANT: {
+                    auto& tv_instr = *GET(*instr, TEST_VARIANT);
+                    auto real_variant_field = builder.CreateExtractValue(regs[tv_instr.value].value, vector<unsigned>{0});
+                    auto result = builder.CreateICmpEQ(real_variant_field, builder.getInt64(tv_instr.variant));
+                    regs[tv_instr.result] = { result, gen.get_number_type(prog::number_type::BOOL) };
+                } break;
+
+                case prog::instr::EXTRACT_ITEM: {
+                    auto& ei_instr = *GET(*instr, EXTRACT_ITEM);
+                    auto& array_value = regs[ei_instr.value];
+                    auto value_type = GET(*array_value.type, ARRAY).value;
+
+                    auto buffer_ptr = builder.CreateAlloca(array_value.type->get_type());
+                    builder.CreateStore(array_value.value, buffer_ptr);
+                    auto item_adr = builder.CreateGEP(array_value.type->get_type(), buffer_ptr, vector<llvm::Value*>{regs[ei_instr.index].value});
+                    regs[ei_instr.result] = { builder.CreateLoad(value_type->get_type(), item_adr), value_type };
+                } break;
+
+                case prog::instr::EXTRACT_FIELD: {
+                    auto& ef_instr = *GET(*instr, EXTRACT_FIELD);
+                    auto& value = regs[ef_instr.value];
+                    ll_type* field_type;
+                    if (INDEX_EQ(*value.type, STRUCT))
+                        field_type = GET(*value.type, STRUCT).fields[ef_instr.field];
+                    else if (INDEX_EQ(*value.type, TUPLE))
+                        field_type = GET(*value.type, TUPLE).fields[ef_instr.field];
+                    else
+                        UNREACHABLE;
+                    regs[ef_instr.result] = { builder.CreateExtractValue(regs[ef_instr.value].value, vector<unsigned>{(unsigned)ef_instr.field}), field_type };
+                } break;
+
+                case prog::instr::EXTRACT_VARIANT_FIELD: {
+                    auto& evf_instr = *GET(*instr, EXTRACT_VARIANT_FIELD);
+                    auto value = regs[evf_instr.value];
+                    auto enum_index = GET(*value.type, ENUM).index;
+                    auto variant_type = GET(*gen.variant_types[enum_index][evf_instr.variant], ENUM_VARIANT);
+
+                    auto buffer_ptr = builder.CreateAlloca(value.type->get_type());
+                    builder.CreateStore(value.value, buffer_ptr);
+                    auto buffer_ptr_casted = builder.CreateBitCast(buffer_ptr, llvm::PointerType::getUnqual(variant_type.tp));
+                    auto value_casted = builder.CreateLoad(variant_type.tp, buffer_ptr_casted);
+                    auto field_value = builder.CreateExtractValue(value_casted, vector<unsigned>{(unsigned)evf_instr.field});
+                    regs[evf_instr.result] = { field_value, variant_type.fields[evf_instr.field] };
+                } break;
+
                 case prog::instr::BOOL_NOT: {
                     auto& uo_instr = *GET(*instr, BOOL_NOT);
-                    regs[uo_instr.result] = { builder.CreateXor(regs[uo_instr.value].value, llvm::ConstantInt::getTrue(gen.ctx)), regs[uo_instr.value].type };
+                    regs[uo_instr.result] = { builder.CreateXor(regs[uo_instr.value].value, builder.getTrue()), regs[uo_instr.value].type };
                 } break;
 
                 case prog::instr::INT_NEG: {

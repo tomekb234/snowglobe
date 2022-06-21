@@ -58,7 +58,7 @@ namespace sg::ast {
     struct unary_operation_expr;
     struct binary_operation_expr;
     struct numeric_cast_expr;
-    struct sized_array_expr;
+    struct conditional_expr;
     struct heap_slice_alloc_expr;
     struct extract_expr;
     struct ptr_extract_expr;
@@ -120,7 +120,6 @@ namespace sg::ast {
 
     struct func_def : node {
         string name;
-        bool copying;
         vector<ptr<func_param>> params;
         optional<ptr<type>> return_tp;
         ptr<func_body> body;
@@ -201,19 +200,8 @@ namespace sg::ast {
         ptr<expr> value;
     };
 
-    struct compound_assignment_stmt : assignment_stmt {
-        enum {
-            ADD,
-            SUB,
-            MUL,
-            DIV,
-            MOD,
-            BIT_AND,
-            BIT_OR,
-            BIT_XOR,
-            BIT_LSH,
-            BIT_RSH
-        } operation;
+    struct compound_assignment_stmt : node {
+        ptr<binary_operation_expr> expr;
     };
 
     struct locally_block_stmt : node {
@@ -331,11 +319,11 @@ namespace sg::ast {
             RETURN,
             BREAK,
             CONTINUE,
-            REFERENCE,
+            CONDITIONAL,
+            GLOBAL_REF,
             HEAP_ALLOC,
             DEREFERENCE,
-            TEST,
-            SIZED_ARRAY,
+            WEAK_PTR_TEST,
             HEAP_SLICE_ALLOC,
             LENGTH,
             EXTRACT,
@@ -359,11 +347,11 @@ namespace sg::ast {
             optional<ptr<expr>>, // RETURN
             monostate, // BREAK
             monostate, // CONTINUE
-            string, // REFERENCE
+            ptr<conditional_expr>, // CONDITIONAL
+            string, // GLOBAL_REF
             ptr<expr>, // HEAP_ALLOC
             ptr<expr>, // DEREFERENCE
-            ptr<expr>, // TEST
-            ptr<sized_array_expr>, // SIZED_ARRAY
+            ptr<expr>, // WEAK_PTR_TEST
             ptr<heap_slice_alloc_expr>, // HEAP_SLICE_ALLOC
             ptr<expr>, // LENGTH
             ptr<extract_expr>, // EXTRACT
@@ -471,9 +459,10 @@ namespace sg::ast {
         ptr<type_local> tp;
     };
 
-    struct sized_array_expr : node {
+    struct conditional_expr : node {
         ptr<expr> value;
-        ptr<const_int> size;
+        ptr<expr> true_result;
+        ptr<expr> false_result;
     };
 
     struct heap_slice_alloc_expr : node {
@@ -514,10 +503,8 @@ namespace sg::ast {
     };
 
     struct lambda_expr : node {
-        bool copying;
         vector<ptr<func_param>> params;
-        optional<ptr<type>> return_tp;
-        ptr<func_body> body;
+        ptr<expr> result;
     };
 
     struct type : node {

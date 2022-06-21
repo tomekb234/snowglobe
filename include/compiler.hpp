@@ -101,7 +101,10 @@ namespace sg {
         void compile_struct_type(const ast::struct_def& ast, prog::struct_type& st);
         void compile_enum_type(const ast::enum_def& ast, prog::enum_type& en);
 
-        prog::global_func make_global_func_wrapper(prog::global_index func_index);
+        prog::global_func make_func_wrapper(prog::global_index func_index);
+        prog::global_func make_struct_destructor(prog::global_index struct_index);
+        prog::global_func make_enum_destructor(prog::global_index enum_index);
+        prog::global_func make_cleanup_func();
 
         // Constants
 
@@ -189,7 +192,7 @@ namespace sg {
                 TUPLE,
                 ARRAY,
                 STRUCT,
-                ENUM_VARIANT
+                DEREFERENCE
             };
 
             variant<
@@ -199,7 +202,7 @@ namespace sg {
                 vector<ptr<lvalue>>, // TUPLE
                 vector<ptr<lvalue>>, // ARRAY
                 pair<prog::global_index, vector<ptr<lvalue>>>, // STRUCT
-                tuple<prog::global_index, prog::variant_index, vector<ptr<lvalue>>> // ENUM_VARIANT
+                pair<prog::reg_index, prog::type> // DEREFERENCE
             > value;
         };
 
@@ -216,9 +219,12 @@ namespace sg {
         unordered_map<string, vector<prog::var_index>> var_names;
         bool returned = false;
 
+        // Registers and instructions
+
         prog::reg_index new_reg();
-        prog::reg_index unit_reg();
+        prog::reg_index new_unit_reg();
         void add_instr(prog::instr&& instr);
+        void add_instrs(prog::instr_block&& block);
 
         public:
 
@@ -228,7 +234,24 @@ namespace sg {
 
         void compile(const ast::func_def& ast);
 
+        void make_func_wrapper(prog::global_index func_index);
+        void make_struct_destructor(prog::global_index struct_index);
+        void make_enum_destructor(prog::global_index enum_index);
+        void make_cleanup_func();
+
         private:
+
+        // Utilities
+
+        template<typename T>
+        [[noreturn]] void error(T&& diag, location loc) {
+            clr.error(move(diag), loc);
+        }
+
+        template<typename T>
+        void warning(T&& diag, location loc) {
+            clr.warning(move(diag), loc);
+        }
 
         // Frames
 
@@ -244,29 +267,50 @@ namespace sg {
         prog::var_index add_var(prog::type_local&& type);
         prog::var_index add_var(string name, prog::type_local&& type);
         optional<prog::var_index> try_get_var(string name);
+        prog::var_index get_var(string name, location loc);
+        void move_out_var(prog::var_index index, location loc);
         vector<var_state> backup_var_states();
         void restore_var_states(const vector<var_state>& states);
         void merge_var_states(const vector<var_state>& states);
 
-        // Instructions
+        // Copying
 
-        void add_instrs(prog::instr_block&& block);
-        void add_copy_instrs(prog::reg_index value, const prog::type& type);
-        void add_delete_instrs(prog::reg_index value, const prog::type& type);
-        void add_delete_instrs(prog::reg_index value, const prog::type_local& type);
+        void add_copy(prog::reg_index value, const prog::type& type);
+        void add_struct_copy(prog::reg_index value, const prog::struct_type& st);
+        void add_enum_variants_copy(prog::reg_index value, const prog::enum_type& en, prog::variant_index variant_index);
+        void add_tuple_copy(prog::reg_index value, vector<cref<prog::type>> types);
+        void add_array_copy(prog::reg_index value, const prog::array_type& array_type);
+        void add_optional_copy(prog::reg_index value, const prog::type& inner_type);
+        void add_ptr_copy(prog::reg_index value, prog::ptr_type::kind_t kind);
+
+        // Deleting
+
+        void add_struct_destructor(prog::reg_index value, const prog::struct_type& st);
+        void add_enum_variants_destructor(prog::reg_index value, const prog::enum_type& en, prog::variant_index variant_index);
+        void add_delete(prog::reg_index value, const prog::type& type);
+        void add_struct_delete(prog::reg_index value, const prog::struct_type& st);
+        void add_enum_delete(prog::reg_index value, const prog::enum_type& en);
+        void add_tuple_delete(prog::reg_index value, vector<cref<prog::type>> types);
+        void add_array_delete(prog::reg_index value, const prog::array_type& array_type);
+        void add_optional_delete(prog::reg_index value, const prog::type& inner_type);
+        void add_ptr_delete(prog::reg_index value, prog::ptr_type::kind_t kind, const prog::type_pointed& target_type);
 
         // Utilities
 
-        prog::var_index get_var(string name, location loc);
-        void delete_var(prog::var_index index, location loc);
-        void add_cleanup_action(function<void()> cleanup_action);
-        void cleanup_frame(frame_index index, location loc);
+        void defer_cleanup_action(function<void()> cleanup_action);
+        void add_frame_cleanup(frame_index rev_index, location loc);
+        pair<prog::reg_index, prog::type_local> add_var_read(prog::var_index var_index, bool confined, location loc);
+        pair<prog::reg_index, prog::type_local> add_var_confinement(prog::var_index var_index, location loc);
+        void add_var_delete(prog::var_index index, location loc);
+        pair<prog::reg_index, prog::ptr_type> add_ptr_extraction(prog::reg_index value, prog::type&& type, location loc);
         void add_return(prog::reg_index value, location loc);
         void add_break(location loc);
         void add_continue(location loc);
         prog::branch_instr make_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
         void add_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
-        void add_loop(function<prog::reg_index()> head, function<void()> body, function<void()> end);
+        void add_loop(function<prog::reg_index()> head, function<void()> true_branch, function<void()> false_branch, function<void()> end);
+        void add_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
+        void add_lvalues_swap(const lvalue& lval_a, const lvalue& lval_b, location loc);
 
         // Statements
 
@@ -280,13 +324,10 @@ namespace sg {
         void compile_match_stmt_branches(const ast::match_stmt& ast, prog::reg_index value, const prog::type_local& type, size_t branch_index);
         void compile_while_stmt(const ast::while_stmt& ast);
         void compile_for_stmt(const ast::for_stmt& ast);
-        void compile_assignment(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
 
         // Expressions
 
         pair<prog::reg_index, prog::type_local> compile_expr(const ast::expr& ast, bool confined);
-        pair<prog::reg_index, prog::type_local> compile_var_read(prog::var_index var_index, bool confined, location loc);
-        pair<prog::reg_index, prog::type_local> compile_confinement(prog::var_index var_index, location loc);
         pair<prog::reg_index, prog::type_local> compile_global_name(string name, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_variant_name(string name, string variant_name, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_return(optional<cref<ast::expr>> ast, location loc);
@@ -295,11 +336,20 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, bool confined, location loc);
         pair<prog::reg_index, prog::type_local> compile_unary_operation(const ast::unary_operation_expr& ast);
         pair<prog::reg_index, prog::type_local> compile_binary_operation(const ast::binary_operation_expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_numeric_cast(const ast::numeric_cast_expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_conditional(const ast::conditional_expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_heap_alloc(const ast::expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_dereference(const ast::expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_weak_ptr_test(const ast::expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast, bool confined);
+        pair<prog::reg_index, prog::type_local> compile_length(const ast::expr& ast);
+        pair<prog::reg_index, prog::type_local> compile_extraction(const ast::extract_expr& ast, bool confined);
 
         lvalue compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type);
         lvalue compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);
         lvalue compile_left_array(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc);
         lvalue compile_left_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, optional<cref<prog::type_local>> implicit_type, location loc);
+        lvalue compile_left_extraction(const ast::extract_expr& ast);
 
         tuple<vector<cref<ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> compile_args(
                 vector<cref<ast::expr_marked>> asts,
