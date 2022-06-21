@@ -62,16 +62,6 @@ namespace sg {
                 return { move(value), move(type) };
             }
 
-            case ast::expr::SIZED_ARRAY: {
-                auto& array_ast = *GET(ast, SIZED_ARRAY);
-                auto [inner_value, inner_type] = compile_const(*array_ast.value);
-                auto size = compile_const_size(*array_ast.size);
-                auto array_type = prog::array_type { into_ptr(inner_type), size };
-                auto value = VARIANT(prog::constant, SIZED_ARRAY, make_pair(into_ptr(inner_value), size));
-                auto type = VARIANT(prog::type, ARRAY, into_ptr(array_type));
-                return { move(value), move(type) };
-            }
-
             case ast::expr::LENGTH: {
                 auto& target_ast = *GET(ast, LENGTH);
                 auto target_type = compile_const(target_ast).second;

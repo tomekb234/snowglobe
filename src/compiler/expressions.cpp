@@ -123,11 +123,6 @@ namespace sg {
                 return compile_weak_ptr_test(expr_ast, confined);
             }
 
-            case ast::expr::SIZED_ARRAY: {
-                auto& array_ast = *GET(ast, SIZED_ARRAY);
-                return compile_sized_array(array_ast, confined);
-            }
-
             case ast::expr::HEAP_SLICE_ALLOC: {
                 auto& alloc_ast = *GET(ast, HEAP_SLICE_ALLOC);
                 return compile_heap_slice_alloc(alloc_ast, confined);
@@ -1033,38 +1028,6 @@ namespace sg {
         return { result, move(result_type) };
     }
 
-    pair<prog::reg_index, prog::type_local> function_compiler::compile_sized_array(const ast::sized_array_expr& ast, bool confined) {
-        auto& value_ast = *ast.value;
-        auto& size_ast = *ast.size;
-
-        auto [value, type_local] = compile_expr(value_ast, confined);
-        auto& type = *type_local.tp;
-        auto size = clr.compile_const_size(size_ast);
-
-        if (!confined && !type_local.confined) {
-            if (!clr.type_copyable(type))
-                error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
-
-            push_frame();
-            add_copy(value, type);
-            auto block = pop_frame();
-
-            auto repeat_instr = prog::repeat_static_instr { size, new_reg(), into_ptr(block) };
-            add_instr(VARIANT(prog::instr, REPEAT_STATIC, into_ptr(repeat_instr)));
-
-            add_delete(value, type);
-        }
-
-        auto result = new_reg();
-        auto instr = prog::make_sized_array_instr { value, size, result };
-        add_instr(VARIANT(prog::instr, MAKE_SIZED_ARRAY, into_ptr(instr)));
-
-        auto array_type = prog::array_type { into_ptr(type), size };
-        auto result_type = prog::type_local { make_ptr(VARIANT(prog::type, ARRAY, into_ptr(array_type))), type_local.confined };
-
-        return { result, move(result_type) };
-    }
-
     pair<prog::reg_index, prog::type_local> function_compiler::compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast, bool confined) {
         if (confined)
             error(diags::allocation_in_confined_context(), ast.loc);
@@ -1133,32 +1096,27 @@ namespace sg {
             case ast::extract_expr::NAME:
                 expr_ast_ptr = GET(ast, NAME).first.get();
                 break;
-
             case ast::extract_expr::INDEX:
                 expr_ast_ptr = GET(ast, INDEX).first.get();
                 break;
-
             case ast::extract_expr::ITEM:
                 expr_ast_ptr = GET(ast, ITEM).first.get();
                 break;
-
             default:
                 UNREACHABLE;
         }
 
         auto& expr_ast = *expr_ast_ptr;
 
-        prog::reg_index value;
-        prog::type_local type_local;
-        tie(value, type_local) = compile_expr(expr_ast, true);
+        auto [value, type_local] = compile_expr(expr_ast, true);
         auto& type = *type_local.tp;
 
         if (INDEX_EQ(type, PTR) || INDEX_EQ(type, INNER_PTR) || INDEX_EQ(type, FUNC_WITH_PTR)) {
             error(diags::not_implemented(), ast.loc); // TODO
         }
 
-        prog::reg_index extracted;
-        prog::type extracted_type;
+        prog::reg_index result;
+        prog::type result_type;
 
         switch (INDEX(ast)) {
             case ast::extract_expr::NAME: {
@@ -1176,10 +1134,10 @@ namespace sg {
 
                 auto field = iter->second;
 
-                extracted = new_reg();
-                extracted_type = copy_type(*st.fields[field]->tp);
+                result = new_reg();
+                result_type = copy_type(*st.fields[field]->tp);
 
-                auto extract_instr = prog::extract_field_instr { value, field, extracted };
+                auto extract_instr = prog::extract_field_instr { value, field, result };
                 add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
             } break;
 
@@ -1194,60 +1152,51 @@ namespace sg {
                 if (index >= types.size())
                     error(diags::invalid_tuple_field(index, types.size()), ast.loc);
 
-                extracted = new_reg();
-                extracted_type = copy_type(types[index]);
+                result = new_reg();
+                result_type = copy_type(types[index]);
 
-                auto extract_instr = prog::extract_field_instr { value, index, extracted };
+                auto extract_instr = prog::extract_field_instr { value, index, result };
                 add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
             } break;
 
             case ast::extract_expr::ITEM: {
                 auto& item_expr = *GET(ast, ITEM).second;
-                prog::reg_index item_value;
-                prog::type_local item_type;
-                tie(item_value, item_type) = compile_expr(item_expr, true);
+                auto [index_value, index_type] = compile_expr(item_expr, true);
 
-                item_value = conv_clr.convert(item_value, item_type, prog::SIZE_TYPE, item_expr.loc);
+                index_value = conv_clr.convert(index_value, index_type, prog::SIZE_TYPE, item_expr.loc);
 
                 if (!INDEX_EQ(type, ARRAY))
                     error(diags::expected_array_type(clr.prog, move(type)), expr_ast.loc);
 
                 auto check_result = new_reg();
-                auto check_instr = prog::check_item_instr { value, item_value, check_result };
-                add_instr(VARIANT(prog::instr, CHECK_ARRAY_ITEM, into_ptr(check_instr)));
-
-                auto true_result = new_reg();
-                auto false_result = new_unit_reg();
-
-                auto true_branch = [&] () {
-                    auto extract_instr = prog::extract_item_instr { value, item_value, true_result };
-                    add_instr(VARIANT(prog::instr, EXTRACT_ITEM, into_ptr(extract_instr)));
-                };
+                auto check_instr = prog::check_index_instr { value, index_value, check_result };
+                add_instr(VARIANT(prog::instr, CHECK_ARRAY_INDEX, into_ptr(check_instr)));
 
                 auto false_branch = [&] () {
                     add_instr(VARIANT(prog::instr, ABORT, monostate()));
                     returned = true;
                 };
 
-                extracted = new_reg();
-                extracted_type = copy_type(*GET(type, ARRAY)->tp);
+                add_branch(check_result, [] { }, false_branch);
 
-                auto branch = make_branch(check_result, true_branch, false_branch);
-                auto value_branch = prog::value_branch_instr { move(branch), true_result, false_result, extracted };
-                add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch)));
+                result = new_reg();
+                result_type = copy_type(*GET(type, ARRAY)->tp);
+
+                auto extract_instr = prog::extract_item_instr { value, index_value, result };
+                add_instr(VARIANT(prog::instr, EXTRACT_ITEM, into_ptr(extract_instr)));
             } break;
         }
 
         if (!confined) {
-            if (clr.type_copyable(extracted_type))
-                add_copy(extracted, extracted_type);
+            if (clr.type_copyable(result_type))
+                add_copy(result, result_type);
             else
-                error(diags::type_not_copyable(clr.prog, move(extracted_type)), ast.loc);
+                error(diags::type_not_copyable(clr.prog, move(result_type)), ast.loc);
         }
 
-        auto extracted_type_local = prog::type_local { into_ptr(extracted_type), confined };
+        auto result_type_local = prog::type_local { into_ptr(result_type), confined };
 
-        return { extracted, move(extracted_type_local) };
+        return { result, move(result_type_local) };
     }
 
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {
@@ -1306,7 +1255,7 @@ namespace sg {
             }
 
             case ast::expr::EXTRACT:
-                error(diags::not_implemented(), ast.loc); // TODO
+                return compile_left_extraction(*GET(ast, EXTRACT));
 
             default:
                 error(diags::expression_not_assignable(), ast.loc);
@@ -1390,6 +1339,35 @@ namespace sg {
         }
 
         return VARIANT(lvalue, STRUCT, make_pair(struct_index, into_ptr_vector(lvals)));
+    }
+
+    function_compiler::lvalue function_compiler::compile_left_extraction(const ast::extract_expr& ast) {
+        ast::expr* expr_ast_ptr;
+
+        switch (INDEX(ast)) {
+            case ast::extract_expr::NAME:
+                expr_ast_ptr = GET(ast, NAME).first.get();
+                break;
+            case ast::extract_expr::INDEX:
+                expr_ast_ptr = GET(ast, INDEX).first.get();
+                break;
+            case ast::extract_expr::ITEM:
+                expr_ast_ptr = GET(ast, ITEM).first.get();
+                break;
+            default:
+                UNREACHABLE;
+        }
+
+        auto& expr_ast = *expr_ast_ptr;
+
+        auto [value, type_local] = compile_expr(expr_ast, true);
+        auto& type = *type_local.tp;
+
+        if (INDEX_EQ(type, PTR) || INDEX_EQ(type, INNER_PTR) || INDEX_EQ(type, FUNC_WITH_PTR)) {
+            error(diags::not_implemented(), ast.loc); // TODO
+        }
+
+        error(diags::expected_pointer_type(clr.prog, move(type)), expr_ast.loc);
     }
 
     tuple<vector<cref<ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_args(

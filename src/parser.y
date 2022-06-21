@@ -864,11 +864,7 @@ expr:
         $$ = AST_VARIANT(expr, WEAK_PTR_TEST, @$, into_ptr($inner));
     }
 
-    | "[" expr[inner] ";" const_int "]" {
-        $$ = AST_VARIANT(expr, SIZED_ARRAY, @$, make_ptr(sized_array_expr { { @$ }, into_ptr($inner), into_ptr($const_int) }));
-    }
-
-    | "@" "[" expr[value] "#" expr[size] "]" {
+    | "@" "[" expr[value] ";" expr[size] "]" {
         $$ = AST_VARIANT(expr, HEAP_SLICE_ALLOC, @$, make_ptr(heap_slice_alloc_expr { { @$ }, into_ptr($value), into_ptr($size) }));
     }
 

@@ -68,11 +68,6 @@ namespace sg::prog {
                 return VARIANT(constant, ARRAY, copy_ptr_vector<constant>(value_ptrs, copy_const));
             }
 
-            case constant::SIZED_ARRAY: {
-                auto& [value_ptr, size] = GET(value, SIZED_ARRAY);
-                return VARIANT(constant, SIZED_ARRAY, make_pair(make_ptr(copy_const(*value_ptr)), size));
-            }
-
             case constant::OPTIONAL: {
                 auto& value_ptr = GET(value, OPTIONAL);
                 return VARIANT(constant, OPTIONAL, value_ptr ? optional<ptr<constant>>(make_ptr(copy_const(**value_ptr))) : optional<ptr<constant>>());

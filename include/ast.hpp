@@ -59,7 +59,6 @@ namespace sg::ast {
     struct binary_operation_expr;
     struct numeric_cast_expr;
     struct conditional_expr;
-    struct sized_array_expr;
     struct heap_slice_alloc_expr;
     struct extract_expr;
     struct ptr_extract_expr;
@@ -325,7 +324,6 @@ namespace sg::ast {
             HEAP_ALLOC,
             DEREFERENCE,
             WEAK_PTR_TEST,
-            SIZED_ARRAY,
             HEAP_SLICE_ALLOC,
             LENGTH,
             EXTRACT,
@@ -354,7 +352,6 @@ namespace sg::ast {
             ptr<expr>, // HEAP_ALLOC
             ptr<expr>, // DEREFERENCE
             ptr<expr>, // WEAK_PTR_TEST
-            ptr<sized_array_expr>, // SIZED_ARRAY
             ptr<heap_slice_alloc_expr>, // HEAP_SLICE_ALLOC
             ptr<expr>, // LENGTH
             ptr<extract_expr>, // EXTRACT
@@ -466,11 +463,6 @@ namespace sg::ast {
         ptr<expr> value;
         ptr<expr> true_result;
         ptr<expr> false_result;
-    };
-
-    struct sized_array_expr : node {
-        ptr<expr> value;
-        ptr<const_int> size;
     };
 
     struct heap_slice_alloc_expr : node {

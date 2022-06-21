@@ -18,7 +18,6 @@ namespace sg::prog {
     using std::monostate;
     using std::string;
     using std::pair;
-    using std::tuple;
     using std::ostream;
     using std::unordered_map;
 
@@ -57,7 +56,6 @@ namespace sg::prog {
     struct make_const_instr;
     struct make_tuple_instr;
     struct make_array_instr;
-    struct make_sized_array_instr;
     struct make_optional_instr;
     struct make_struct_instr;
     struct make_enum_variant_instr;
@@ -74,7 +72,7 @@ namespace sg::prog {
     struct extract_field_instr;
     struct extract_optional_value_instr;
     struct extract_variant_field_instr;
-    struct check_item_instr;
+    struct check_index_instr;
     struct numeric_conversion_instr;
     struct transform_instr;
     struct alloc_instr;
@@ -161,7 +159,6 @@ namespace sg::prog {
             ENUM,
             TUPLE,
             ARRAY,
-            SIZED_ARRAY,
             OPTIONAL,
             GLOBAL_VAR_PTR,
             GLOBAL_VAR_SLICE,
@@ -176,7 +173,6 @@ namespace sg::prog {
             pair<variant_index, vector<ptr<constant>>>, // ENUM
             vector<ptr<constant>>, // TUPLE
             vector<ptr<constant>>, // ARRAY
-            pair<ptr<constant>, size_t>, // SIZED_ARRAY
             optional<ptr<constant>>, // OPTIONAL
             global_index, // GLOBAL_VAR_PTR
             global_index, // GLOBAL_VAR_SLICE
@@ -297,7 +293,6 @@ namespace sg::prog {
             MAKE_CONST,
             MAKE_TUPLE,
             MAKE_ARRAY,
-            MAKE_SIZED_ARRAY,
             MAKE_OPTIONAL,
             MAKE_STRUCT,
             MAKE_ENUM_VARIANT,
@@ -317,8 +312,8 @@ namespace sg::prog {
             EXTRACT_OUTER_PTR,
             EXTRACT_FUNC_PTR,
             EXTRACT_VALUE_PTR,
-            CHECK_ARRAY_ITEM,
-            CHECK_SLICE_ITEM,
+            CHECK_ARRAY_INDEX,
+            CHECK_SLICE_INDEX,
 
             BOOL_NOT,
             INT_NEG,
@@ -398,7 +393,6 @@ namespace sg::prog {
             ptr<make_const_instr>, // MAKE_CONST
             ptr<make_tuple_instr>, // MAKE_TUPLE
             ptr<make_array_instr>, // MAKE_ARRAY
-            ptr<make_sized_array_instr>, // MAKE_SIZED_ARRAY
             ptr<make_optional_instr>, // MAKE_OPTIONAL
             ptr<make_struct_instr>, // MAKE_STRUCT
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
@@ -418,8 +412,8 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_FUNC_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_VALUE_PTR
-            ptr<check_item_instr>, // CHECK_ARRAY_ITEM
-            ptr<check_item_instr>, // CHECK_SLICE_ITEM
+            ptr<check_index_instr>, // CHECK_ARRAY_INDEX
+            ptr<check_index_instr>, // CHECK_SLICE_INDEX
 
             ptr<unary_operation_instr>, // BOOL_NOT
             ptr<unary_operation_instr>, // INT_NEG
@@ -539,12 +533,6 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct make_sized_array_instr {
-        reg_index value;
-        size_t size;
-        reg_index result;
-    };
-
     struct make_optional_instr {
         optional<reg_index> value;
         reg_index result;
@@ -622,7 +610,7 @@ namespace sg::prog {
 
     struct extract_item_instr {
         reg_index value;
-        size_t item;
+        reg_index index;
         reg_index result;
     };
 
@@ -644,9 +632,9 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct check_item_instr {
+    struct check_index_instr {
         reg_index value;
-        reg_index item;
+        reg_index index;
         reg_index result;
     };
 
@@ -687,13 +675,13 @@ namespace sg::prog {
 
     struct slice_read_instr {
         reg_index ptr;
-        size_t item;
+        size_t index;
         reg_index result;
     };
 
     struct slice_write_instr {
         reg_index ptr;
-        size_t item;
+        size_t index;
         reg_index value;
     };
 
