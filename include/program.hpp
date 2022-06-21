@@ -18,6 +18,7 @@ namespace sg::prog {
     using std::monostate;
     using std::string;
     using std::pair;
+    using std::tuple;
     using std::ostream;
     using std::unordered_map;
 
@@ -73,9 +74,7 @@ namespace sg::prog {
     struct extract_field_instr;
     struct extract_optional_value_instr;
     struct extract_variant_field_instr;
-    struct check_index_instr;
-    struct write_item_instr;
-    struct write_field_instr;
+    struct check_item_instr;
     struct numeric_conversion_instr;
     struct transform_instr;
     struct alloc_instr;
@@ -318,11 +317,8 @@ namespace sg::prog {
             EXTRACT_OUTER_PTR,
             EXTRACT_FUNC_PTR,
             EXTRACT_VALUE_PTR,
-            CHECK_ARRAY_INDEX,
-            CHECK_SLICE_INDEX,
-
-            WRITE_ITEM,
-            WRITE_FIELD,
+            CHECK_ARRAY_ITEM,
+            CHECK_SLICE_ITEM,
 
             BOOL_NOT,
             INT_NEG,
@@ -422,11 +418,8 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_FUNC_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_VALUE_PTR
-            ptr<check_index_instr>, // CHECK_ARRAY_INDEX
-            ptr<check_index_instr>, // CHECK_SLICE_INDEX
-
-            ptr<write_item_instr>, // WRITE_ITEM
-            ptr<write_field_instr>, // WRITE_FIELD
+            ptr<check_item_instr>, // CHECK_ARRAY_ITEM
+            ptr<check_item_instr>, // CHECK_SLICE_ITEM
 
             ptr<unary_operation_instr>, // BOOL_NOT
             ptr<unary_operation_instr>, // INT_NEG
@@ -629,7 +622,7 @@ namespace sg::prog {
 
     struct extract_item_instr {
         reg_index value;
-        reg_index index;
+        size_t item;
         reg_index result;
     };
 
@@ -651,22 +644,10 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct check_index_instr {
+    struct check_item_instr {
         reg_index value;
-        reg_index index;
+        reg_index item;
         reg_index result;
-    };
-
-    struct write_item_instr {
-        reg_index target;
-        reg_index index;
-        reg_index value;
-    };
-
-    struct write_field_instr {
-        reg_index target;
-        field_index field;
-        reg_index value;
     };
 
     struct numeric_conversion_instr {
@@ -706,13 +687,13 @@ namespace sg::prog {
 
     struct slice_read_instr {
         reg_index ptr;
-        size_t index;
+        size_t item;
         reg_index result;
     };
 
     struct slice_write_instr {
         reg_index ptr;
-        size_t index;
+        size_t item;
         reg_index value;
     };
 

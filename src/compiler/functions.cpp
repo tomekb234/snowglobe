@@ -534,34 +534,6 @@ namespace sg {
                 auto write_instr = prog::ptr_write_instr { ptr_value, value };
                 add_instr(VARIANT(prog::instr, PTR_WRITE, into_ptr(write_instr)));
             } break;
-
-            case lvalue::FIELD: {
-                auto& [owner_value, field, field_type] = GET(lval, FIELD);
-
-                auto old_value = new_reg();
-                auto extract_instr = prog::extract_field_instr { owner_value, field, old_value };
-                add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
-                add_delete(old_value, field_type);
-
-                value = conv_clr.convert(value, type, field_type, loc);
-
-                auto write_instr = prog::write_field_instr { owner_value, field, value };
-                add_instr(VARIANT(prog::instr, WRITE_FIELD, into_ptr(write_instr)));
-            } break;
-
-            case lvalue::ITEM: {
-                auto& [owner_value, index_value, item_type] = GET(lval, ITEM);
-
-                auto old_value = new_reg();
-                auto extract_instr = prog::extract_item_instr { owner_value, index_value, old_value };
-                add_instr(VARIANT(prog::instr, EXTRACT_ITEM, into_ptr(extract_instr)));
-                add_delete(old_value, item_type);
-
-                value = conv_clr.convert(value, type, item_type, loc);
-
-                auto write_instr = prog::write_item_instr { owner_value, index_value, value };
-                add_instr(VARIANT(prog::instr, WRITE_ITEM, into_ptr(write_instr)));
-            } break;
         }
     }
 
