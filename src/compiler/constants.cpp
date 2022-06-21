@@ -53,8 +53,8 @@ namespace sg {
                 return { move(value), move(type) };
             }
 
-            case ast::expr::GLOBAL_REF: {
-                auto& name = GET(ast, GLOBAL_REF);
+            case ast::expr::GLOBAL_VAR_REF: {
+                auto& name = GET(ast, GLOBAL_VAR_REF);
                 auto index = get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
                 auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, index);
                 auto& var_type = *prog.global_vars[index]->tp;

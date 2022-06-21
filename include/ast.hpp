@@ -60,7 +60,7 @@ namespace sg::ast {
     struct numeric_cast_expr;
     struct conditional_expr;
     struct heap_slice_alloc_expr;
-    struct extract_expr;
+    struct extraction_expr;
     struct ptr_extract_expr;
     struct lambda_expr;
     struct type;
@@ -320,14 +320,13 @@ namespace sg::ast {
             BREAK,
             CONTINUE,
             CONDITIONAL,
-            GLOBAL_REF,
+            GLOBAL_VAR_REF,
             HEAP_ALLOC,
             DEREFERENCE,
             WEAK_PTR_TEST,
             HEAP_SLICE_ALLOC,
             LENGTH,
-            EXTRACT,
-            PTR_EXTRACT,
+            EXTRACTION,
             LAMBDA
         };
 
@@ -348,14 +347,13 @@ namespace sg::ast {
             monostate, // BREAK
             monostate, // CONTINUE
             ptr<conditional_expr>, // CONDITIONAL
-            string, // GLOBAL_REF
+            string, // GLOBAL_VAR_REF
             ptr<expr>, // HEAP_ALLOC
             ptr<expr>, // DEREFERENCE
             ptr<expr>, // WEAK_PTR_TEST
             ptr<heap_slice_alloc_expr>, // HEAP_SLICE_ALLOC
             ptr<expr>, // LENGTH
-            ptr<extract_expr>, // EXTRACT
-            ptr<ptr_extract_expr>, // PTR_EXTRACT
+            pair<ptr<expr>, ptr<extraction_expr>>, // EXTRACTION
             ptr<lambda_expr> // LAMBDA
         > value;
     };
@@ -470,35 +468,27 @@ namespace sg::ast {
         ptr<expr> size;
     };
 
-    struct extract_expr : node {
+    struct extraction_expr : node {
         enum {
-            NAME,
-            INDEX,
-            ITEM
-        };
-
-        variant<
-            pair<ptr<expr>, string>,
-            pair<ptr<expr>, size_t>,
-            pair<ptr<expr>, ptr<expr>>
-        > value;
-    };
-
-    struct ptr_extract_expr : node {
-        enum {
-            OWNER,
-            NAME,
+            FIELD,
             INDEX,
             ITEM,
-            ITEM_RANGE
+            FIELD_REF,
+            INDEX_REF,
+            ITEM_REF,
+            ITEM_RANGE_REF,
+            OWNER_REF
         };
 
         variant<
-            ptr<expr>,
-            pair<ptr<expr>, string>,
-            pair<ptr<expr>, size_t>,
-            pair<ptr<expr>, ptr<expr>>,
-            pair<ptr<expr>, pair<optional<ptr<expr>>, optional<ptr<expr>>>>
+            string, // FIELD
+            size_t, // INDEX
+            ptr<expr>, // ITEM
+            string, // FIELD_REF
+            size_t, // INDEX_REF
+            ptr<expr>, // ITEM_REF
+            pair<optional<ptr<expr>>, optional<ptr<expr>>>, // ITEM_RANGE_REF
+            monostate // OWNER_REF
         > value;
     };
 

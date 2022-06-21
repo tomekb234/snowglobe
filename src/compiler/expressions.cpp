@@ -94,8 +94,8 @@ namespace sg {
                 return compile_conditional(conditional_ast, confined);
             }
 
-            case ast::expr::GLOBAL_REF: {
-                auto name = GET(ast, GLOBAL_REF);
+            case ast::expr::GLOBAL_VAR_REF: {
+                auto name = GET(ast, GLOBAL_VAR_REF);
                 auto var_index = clr.get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
 
                 auto& var_type = *clr.prog.global_vars[var_index]->tp;
@@ -133,12 +133,7 @@ namespace sg {
                 return compile_length(expr_ast);
             }
 
-            case ast::expr::EXTRACT: {
-                auto& extraction_ast = *GET(ast, EXTRACT);
-                return compile_extraction(extraction_ast, confined);
-            }
-
-            case ast::expr::PTR_EXTRACT:
+            case ast::expr::EXTRACTION:
             case ast::expr::LAMBDA:
                 error(diags::not_implemented(), ast.loc); // TODO
 
@@ -1089,116 +1084,6 @@ namespace sg {
         return { result, copy_type_local(prog::SIZE_TYPE_LOCAL) };
     }
 
-    pair<prog::reg_index, prog::type_local> function_compiler::compile_extraction(const ast::extract_expr& ast, bool confined) {
-        ast::expr* expr_ast_ptr;
-
-        switch (INDEX(ast)) {
-            case ast::extract_expr::NAME:
-                expr_ast_ptr = GET(ast, NAME).first.get();
-                break;
-            case ast::extract_expr::INDEX:
-                expr_ast_ptr = GET(ast, INDEX).first.get();
-                break;
-            case ast::extract_expr::ITEM:
-                expr_ast_ptr = GET(ast, ITEM).first.get();
-                break;
-            default:
-                UNREACHABLE;
-        }
-
-        auto& expr_ast = *expr_ast_ptr;
-
-        auto [value, type_local] = compile_expr(expr_ast, true);
-        auto& type = *type_local.tp;
-
-        if (INDEX_EQ(type, PTR) || INDEX_EQ(type, INNER_PTR) || INDEX_EQ(type, FUNC_WITH_PTR)) {
-            error(diags::not_implemented(), ast.loc); // TODO
-        }
-
-        prog::reg_index result;
-        prog::type result_type;
-
-        switch (INDEX(ast)) {
-            case ast::extract_expr::NAME: {
-                auto name = GET(ast, NAME).second;
-
-                if (!INDEX_EQ(type, STRUCT))
-                    error(diags::expected_struct_type(clr.prog, move(type)), expr_ast.loc);
-
-                auto struct_index = GET(type, STRUCT);
-                auto& st = *clr.prog.struct_types[struct_index];
-
-                auto iter = st.field_names.find(name);
-                if (iter == st.field_names.end())
-                    error(diags::unknown_struct_field(st, name), ast.loc);
-
-                auto field = iter->second;
-
-                result = new_reg();
-                result_type = copy_type(*st.fields[field]->tp);
-
-                auto extract_instr = prog::extract_field_instr { value, field, result };
-                add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
-            } break;
-
-            case ast::extract_expr::INDEX: {
-                auto index = GET(ast, INDEX).second;
-
-                if (!INDEX_EQ(type, TUPLE))
-                    error(diags::expected_tuple_type(clr.prog, move(type)), expr_ast.loc);
-
-                auto types = as_cref_vector(GET(type, TUPLE));
-
-                if (index >= types.size())
-                    error(diags::invalid_tuple_field(index, types.size()), ast.loc);
-
-                result = new_reg();
-                result_type = copy_type(types[index]);
-
-                auto extract_instr = prog::extract_field_instr { value, index, result };
-                add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
-            } break;
-
-            case ast::extract_expr::ITEM: {
-                auto& item_expr = *GET(ast, ITEM).second;
-                auto [index_value, index_type] = compile_expr(item_expr, true);
-
-                index_value = conv_clr.convert(index_value, index_type, prog::SIZE_TYPE, item_expr.loc);
-
-                if (!INDEX_EQ(type, ARRAY))
-                    error(diags::expected_array_type(clr.prog, move(type)), expr_ast.loc);
-
-                auto check_result = new_reg();
-                auto check_instr = prog::check_index_instr { value, index_value, check_result };
-                add_instr(VARIANT(prog::instr, CHECK_ARRAY_INDEX, into_ptr(check_instr)));
-
-                auto false_branch = [&] () {
-                    add_instr(VARIANT(prog::instr, ABORT, monostate()));
-                    returned = true;
-                };
-
-                add_branch(check_result, [] { }, false_branch);
-
-                result = new_reg();
-                result_type = copy_type(*GET(type, ARRAY)->tp);
-
-                auto extract_instr = prog::extract_item_instr { value, index_value, result };
-                add_instr(VARIANT(prog::instr, EXTRACT_ITEM, into_ptr(extract_instr)));
-            } break;
-        }
-
-        if (!confined) {
-            if (clr.type_copyable(result_type))
-                add_copy(result, result_type);
-            else
-                error(diags::type_not_copyable(clr.prog, move(result_type)), ast.loc);
-        }
-
-        auto result_type_local = prog::type_local { into_ptr(result_type), confined };
-
-        return { result, move(result_type_local) };
-    }
-
     function_compiler::lvalue function_compiler::compile_left_expr(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {
         switch (INDEX(ast)) {
             case ast::expr::TUPLE:
@@ -1254,8 +1139,8 @@ namespace sg {
                 return VARIANT(lvalue, DEREFERENCE, make_pair(ptr_value, move(target_type)));
             }
 
-            case ast::expr::EXTRACT:
-                return compile_left_extraction(*GET(ast, EXTRACT));
+            case ast::expr::EXTRACTION:
+                error(diags::not_implemented(), ast.loc); // TODO
 
             default:
                 error(diags::expression_not_assignable(), ast.loc);
@@ -1339,35 +1224,6 @@ namespace sg {
         }
 
         return VARIANT(lvalue, STRUCT, make_pair(struct_index, into_ptr_vector(lvals)));
-    }
-
-    function_compiler::lvalue function_compiler::compile_left_extraction(const ast::extract_expr& ast) {
-        ast::expr* expr_ast_ptr;
-
-        switch (INDEX(ast)) {
-            case ast::extract_expr::NAME:
-                expr_ast_ptr = GET(ast, NAME).first.get();
-                break;
-            case ast::extract_expr::INDEX:
-                expr_ast_ptr = GET(ast, INDEX).first.get();
-                break;
-            case ast::extract_expr::ITEM:
-                expr_ast_ptr = GET(ast, ITEM).first.get();
-                break;
-            default:
-                UNREACHABLE;
-        }
-
-        auto& expr_ast = *expr_ast_ptr;
-
-        auto [value, type_local] = compile_expr(expr_ast, true);
-        auto& type = *type_local.tp;
-
-        if (INDEX_EQ(type, PTR) || INDEX_EQ(type, INNER_PTR) || INDEX_EQ(type, FUNC_WITH_PTR)) {
-            error(diags::not_implemented(), ast.loc); // TODO
-        }
-
-        error(diags::expected_pointer_type(clr.prog, move(type)), expr_ast.loc);
     }
 
     tuple<vector<cref<ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> function_compiler::compile_args(
