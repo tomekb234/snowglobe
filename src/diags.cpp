@@ -300,9 +300,8 @@ namespace sg::diags {
 
         switch (kind) {
             case value_kind::FUNCTION_RESULT: stream << "a non-trivial function result "; break;
-            case value_kind::ALLOCATION: stream << "a heap allocation result "; break;
             case value_kind::DEREFERENCE: stream << "a non-trivial dereference result "; break;
-            case value_kind::WEAK_POINTER_TEST: stream << "a weak shared pointer test result "; break;
+            case value_kind::ALLOCATION: stream << "a pointer to newly allocated memory "; break;
         }
 
         stream << "in a confined context" << endl;

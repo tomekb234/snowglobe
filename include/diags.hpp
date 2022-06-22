@@ -141,9 +141,8 @@ namespace sg::diags {
 
     enum struct value_kind {
         FUNCTION_RESULT,
-        ALLOCATION,
         DEREFERENCE,
-        WEAK_POINTER_TEST
+        ALLOCATION
     };
 
     DIAG1(confinement_mismatch, error, bool, confined);

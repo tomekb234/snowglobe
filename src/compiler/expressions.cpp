@@ -994,19 +994,18 @@ namespace sg {
     }
 
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_weak_ptr_test(const ast::expr& ast, bool confined) {
-        if (confined)
-            error(diags::not_allowed_in_confined_context(diags::value_kind::WEAK_POINTER_TEST, ast.loc));
-
         prog::reg_index value;
         prog::type_local type_local;
         tie(value, type_local) = compile(ast, true);
         auto& type = *type_local.tp;
 
-        if (!INDEX_EQ(type, PTR) || GET(type, PTR)->kind != prog::ptr_type::WEAK)
+        auto [ptr_value, ptr_type] = fclr.add_ptr_extraction(value, copy_type(type), ast.loc);
+
+        if (ptr_type.kind != prog::ptr_type::WEAK)
             error(diags::invalid_type(prog, move(type), diags::type_kind::WEAK_POINTER, ast.loc));
 
         auto test_result = fclr.new_reg();
-        auto test_instr = prog::test_ref_count_instr { value, test_result };
+        auto test_instr = prog::test_ref_count_instr { ptr_value, test_result };
         fclr.add_instr(VARIANT(prog::instr, TEST_REF_COUNT, into_ptr(test_instr)));
 
         auto true_result = fclr.new_reg();
@@ -1015,7 +1014,8 @@ namespace sg {
         auto true_branch = [&] () {
             auto make_instr = prog::make_optional_instr { { value }, true_result };
             fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(make_instr)));
-            fclr.add_instr(VARIANT(prog::instr, INCR_REF_COUNT, value));
+            if (!confined)
+                fclr.add_instr(VARIANT(prog::instr, INCR_REF_COUNT, value));
         };
 
         auto false_branch = [&] () {
@@ -1028,8 +1028,19 @@ namespace sg {
         auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_result, false_result, result };
         fclr.add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
 
-        GET(type, PTR)->kind = prog::ptr_type::SHARED;
-        auto result_type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, into_ptr(type))), false };
+        switch (INDEX(type)) {
+            case prog::type::PTR:
+                GET(type, PTR)->kind = prog::ptr_type::SHARED;
+                break;
+            case prog::type::INNER_PTR:
+                GET(type, INNER_PTR)->kind = prog::ptr_type::SHARED;
+                break;
+            case prog::type::FUNC_WITH_PTR:
+                GET(type, FUNC_WITH_PTR)->kind = prog::ptr_type::SHARED;
+                break;
+        }
+
+        auto result_type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, into_ptr(type))), confined };
 
         return { result, move(result_type) };
     }
