@@ -717,11 +717,15 @@ namespace sg {
 
                     if (INDEX_EQ(*instr, VALUE_BRANCH)) {
                         auto& vb_instr = *GET(*instr, VALUE_BRANCH);
-                        auto& type = regs[vb_instr.true_value].type;
-                        auto phi_node = llvm::PHINode::Create(type->get_type(), 2, "", continuation_block);
-                        phi_node->addIncoming(regs[vb_instr.true_value].value, true_return_block);
-                        phi_node->addIncoming(regs[vb_instr.false_value].value, false_return_block);
-                        regs[vb_instr.result] = { phi_node, type };
+                        auto& type = regs[vb_instr.true_value].type ? regs[vb_instr.true_value].type : regs[vb_instr.false_value].type;
+                        if (type) {
+                            auto phi_node = llvm::PHINode::Create(type->get_type(), 2, "", continuation_block);
+                            phi_node->addIncoming(regs[vb_instr.true_value].value ? regs[vb_instr.true_value].value : llvm::UndefValue::get(type->get_type()), true_return_block);
+                            phi_node->addIncoming(regs[vb_instr.false_value].value ? regs[vb_instr.false_value].value : llvm::UndefValue::get(type->get_type()), false_return_block);
+                            regs[vb_instr.result] = { phi_node, type };
+                        }
+                        else
+                            terminated = true;
                     }
                 } break;
 
@@ -752,8 +756,9 @@ namespace sg {
                 break;
         }
 
-        if (!builder.GetInsertBlock()->getTerminator())
-            builder.CreateBr(after_block);
+        if (builder.GetInsertBlock()->getTerminator()) 
+            builder.SetInsertPoint(llvm::BasicBlock::Create(gen.ctx, "", llvm_function));
+        builder.CreateBr(after_block);
         return builder.GetInsertBlock();
     }
 }
