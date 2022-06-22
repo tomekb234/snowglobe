@@ -85,7 +85,7 @@ namespace sg {
         auto confined = ast.confined;
 
         if (type_trivial(type) && ast.marked)
-            warning(diags::trivial_type_with_confinement_marker(), ast.loc);
+            warning(diags::trivial_type_with_confinement_marker(ast.loc));
 
         if ((INDEX_EQ(type, PTR) || INDEX_EQ(type, INNER_PTR) || INDEX_EQ(type, FUNC_WITH_PTR)) && confined) {
             auto kind =
@@ -94,7 +94,7 @@ namespace sg {
                 : GET(type, FUNC_WITH_PTR)->kind;
 
             if (kind == prog::ptr_type::SHARED || kind == prog::ptr_type::WEAK || kind == prog::ptr_type::UNIQUE)
-                warning(diags::restrictive_pointer_type(), ast.loc);
+                warning(diags::restrictive_pointer_type(ast.loc));
         }
 
         return { into_ptr(type), confined };
@@ -348,6 +348,6 @@ namespace sg {
         if (conv_clr.try_convert(0, type_b, type_a, false))
             return prog::copy_type(type_a);
 
-        error(diags::no_common_supertype(prog, copy_type(type_a), copy_type(type_b)), loc);
+        error(diags::no_common_supertype(prog, copy_type(type_a), copy_type(type_b), loc));
     }
 }

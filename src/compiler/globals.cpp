@@ -11,10 +11,10 @@ namespace sg {
         auto name = ast.name;
 
         if (name == ast::IGNORED_PLACEHOLDER)
-            error(diags::invalid_variable_name(name), ast.name_loc);
+            error(diags::invalid_variable_name(name, ast.name_loc));
 
         if (global_names.count(name))
-            error(diags::name_used(name), ast.name_loc);
+            error(diags::name_used(name, ast.name_loc));
 
         auto [value, value_type] = compile_const(*ast.value);
 
@@ -33,7 +33,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name), ast.name_loc);
+            error(diags::name_used(name, ast.name_loc));
 
         vector<prog::func_param> params;
         unordered_map<string, prog::param_index> param_names;
@@ -47,7 +47,7 @@ namespace sg {
             if (type.confined)
                 confined = true;
             else if (confined)
-                error(diags::invalid_parameter_order(), param_ast.loc);
+                error(diags::invalid_parameter_order(param_ast.loc));
 
             params.push_back(prog::func_param { { param_ast.name }, into_ptr(type) });
         }
@@ -65,7 +65,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name), ast.name_loc);
+            error(diags::name_used(name, ast.name_loc));
 
         return { name, ast.copyable, ast.copyable, { }, { }, 0 };
     }
@@ -74,7 +74,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::name_used(name), ast.name_loc);
+            error(diags::name_used(name, ast.name_loc));
 
         return { ast.name, ast.copyable, ast.copyable, { }, { }, 0 };
     }
@@ -89,11 +89,11 @@ namespace sg {
 
         for (const ast::struct_field& field_ast : as_cref_vector(ast.fields)) {
             if (field_names.count(field_ast.name))
-                error(diags::field_name_used(field_ast.name), field_ast.loc);
+                error(diags::field_name_used(field_ast.name, field_ast.loc));
 
             auto type = compile_type(*field_ast.tp, false);
             if (st.copyable && !type_copyable(type))
-                error(diags::type_not_copyable(prog, move(type)), field_ast.tp->loc);
+                error(diags::type_not_copyable(prog, move(type), field_ast.tp->loc));
             if (!type_trivial(type))
                 st.trivial = false;
 
@@ -112,13 +112,13 @@ namespace sg {
 
         for (const ast::enum_variant& variant_ast : as_cref_vector(ast.variants)) {
             if (variant_names.count(variant_ast.name))
-                error(diags::variant_name_used(variant_ast.name), variant_ast.loc);
+                error(diags::variant_name_used(variant_ast.name, variant_ast.loc));
 
             vector<prog::type> types;
             for (const ast::type& type_ast : as_cref_vector(variant_ast.tps)) {
                 auto type = compile_type(type_ast, false);
                 if (en.copyable && !type_copyable(type))
-                    error(diags::type_not_copyable(prog, move(type)), type_ast.loc);
+                    error(diags::type_not_copyable(prog, move(type), type_ast.loc));
                 if (!type_trivial(type))
                     en.trivial = false;
                 types.push_back(move(type));

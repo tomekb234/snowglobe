@@ -139,10 +139,10 @@ namespace sg {
             }
 
             case ast::expr::LAMBDA:
-                error(diags::not_implemented(), ast.loc); // TODO
+                error(diags::not_implemented(ast.loc)); // TODO
 
             default:
-                error(diags::invalid_expression(), ast.loc);
+                error(diags::invalid_expression(ast.loc));
         }
 
         UNREACHABLE;
@@ -163,7 +163,7 @@ namespace sg {
                     if (clr.type_copyable(*var.tp))
                         add_copy(result, *var.tp);
                     else
-                        error(diags::global_variable_moved_out(), loc);
+                        error(diags::global_variable_moved_out(loc));
                 }
 
                 auto type = prog::type_local { make_ptr(copy_type(*var.tp)), confined };
@@ -196,7 +196,7 @@ namespace sg {
             }
 
             case global_name_kind::ENUM:
-                error(diags::invalid_kind(name, global_name_kind::ENUM, { }), loc);
+                error(diags::invalid_kind(name, global_name_kind::ENUM, { }, loc));
         }
 
         UNREACHABLE;
@@ -204,14 +204,14 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_variant_name(string name, string variant_name, bool confined, location loc) {
         if (try_get_var(name))
-            error(diags::expected_enum_name(), loc);
+            error(diags::expected_enum_name(loc));
 
         auto enum_index = clr.get_global_name(name, { global_name_kind::ENUM }, loc).index;
         auto& en = *clr.prog.enum_types[enum_index];
 
         auto iter = en.variant_names.find(variant_name);
         if (iter == en.variant_names.end())
-            error(diags::unknown_enum_variant(en, name), loc);
+            error(diags::unknown_enum_variant(en, name, loc));
         auto variant_index = iter->second;
         auto& variant = *en.variants[variant_index];
 
@@ -297,7 +297,7 @@ namespace sg {
                 auto arg_with_name = [&] (string name, location loc) -> size_t {
                     auto iter = st.field_names.find(name);
                     if (iter == st.field_names.end())
-                        error(diags::unknown_struct_field(st, name), loc);
+                        error(diags::unknown_struct_field(st, name, loc));
                     return iter->second;
                 };
 
@@ -342,7 +342,7 @@ namespace sg {
                 auto& ftype = INDEX_EQ(receiver_type, FUNC) ? *GET(receiver_type, FUNC) : *GET(receiver_type, FUNC_WITH_PTR);
 
                 if (confined && !clr.type_trivial(*ftype.return_tp))
-                    error(diags::not_allowed_in_confined_context(diags::value_kind::FUNCTION_RESULT), loc);
+                    error(diags::not_allowed_in_confined_context(diags::value_kind::FUNCTION_RESULT, loc));
 
                 auto args = compile_call_args(arg_asts, ftype, { }, loc);
 
@@ -366,7 +366,7 @@ namespace sg {
                 auto& ftype = *GET(receiver_type, GLOBAL_FUNC);
 
                 if (confined && !clr.type_trivial(*ftype.return_tp))
-                    error(diags::not_allowed_in_confined_context(diags::value_kind::FUNCTION_RESULT), loc);
+                    error(diags::not_allowed_in_confined_context(diags::value_kind::FUNCTION_RESULT, loc));
 
                 auto args = compile_call_args(arg_asts, ftype, { }, loc);
 
@@ -383,7 +383,7 @@ namespace sg {
                 auto ftype = prog::get_func_type(func);
 
                 if (confined && !clr.type_trivial(*ftype.return_tp))
-                    error(diags::not_allowed_in_confined_context(diags::value_kind::FUNCTION_RESULT), loc);
+                    error(diags::not_allowed_in_confined_context(diags::value_kind::FUNCTION_RESULT, loc));
 
                 auto args = compile_call_args(arg_asts, ftype, { func }, loc);
 
@@ -395,7 +395,7 @@ namespace sg {
             }
 
             default:
-                error(diags::invalid_expression(), loc);
+                error(diags::invalid_expression(loc));
         }
 
         UNREACHABLE;
@@ -418,7 +418,7 @@ namespace sg {
 
             case unop::MINUS: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
-                    error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
+                    error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp), ast.loc));
 
                 switch (GET(*type.tp, NUMBER)->tp) {
                     case num::I8:
@@ -436,7 +436,7 @@ namespace sg {
                     } break;
 
                     default:
-                        error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
+                        error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp), ast.loc));
                 }
 
                 return { result, move(type) };
@@ -444,7 +444,7 @@ namespace sg {
 
             case unop::BIT_NEG: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
-                    error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
+                    error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp), ast.loc));
 
                 switch (GET(*type.tp, NUMBER)->tp) {
                     case num::I8:
@@ -461,7 +461,7 @@ namespace sg {
                     }
 
                     default:
-                        error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp)), ast.loc);
+                        error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp), ast.loc));
                 }
             }
         }
@@ -472,7 +472,7 @@ namespace sg {
     pair<prog::reg_index, prog::type_local> function_compiler::compile_binary_operation(const ast::binary_operation_expr& ast) {
         #define INVALID_BINARY_OP { \
             error(diags::invalid_binary_operation(clr.prog, ast.operation, \
-                copy_type(*left_type.tp), copy_type(*right_type.tp)), ast.loc); \
+                copy_type(*left_type.tp), copy_type(*right_type.tp), ast.loc)); \
         }
 
         using num = prog::number_type;
@@ -708,9 +708,9 @@ namespace sg {
         auto new_type = clr.compile_type_local(*ast.tp, false);
 
         if (!INDEX_EQ(*type.tp, NUMBER))
-            error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::NUMBER), ast.value->loc);
+            error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::NUMBER, ast.value->loc));
         if (!INDEX_EQ(*new_type.tp, NUMBER))
-            error(diags::invalid_type(clr.prog, move(*new_type.tp), diags::type_kind::NUMBER), ast.loc);
+            error(diags::invalid_type(clr.prog, move(*new_type.tp), diags::type_kind::NUMBER, ast.loc));
 
         auto& ntype = *GET(*type.tp, NUMBER);
         auto& new_ntype = *GET(*new_type.tp, NUMBER);
@@ -908,7 +908,7 @@ namespace sg {
             if (!both_confined)
                 both_confined = { false_type.confined };
             else if (false_type.confined != *both_confined)
-                error(diags::confinement_ambiguous(), ast.loc);
+                error(diags::confinement_ambiguous(ast.loc));
         }
 
         auto common_type = clr.common_supertype(*true_type.tp, *false_type.tp, ast.loc);
@@ -934,12 +934,12 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_heap_alloc(const ast::expr& ast, bool confined) {
         if (confined)
-            error(diags::not_allowed_in_confined_context(diags::value_kind::ALLOCATION), ast.loc);
+            error(diags::not_allowed_in_confined_context(diags::value_kind::ALLOCATION, ast.loc));
 
         auto [value, value_type] = compile_expr(ast, false);
 
         if (value_type.confined && !clr.type_trivial(*value_type.tp))
-            error(diags::confinement_mismatch(value_type.confined), ast.loc);
+            error(diags::confinement_mismatch(value_type.confined, ast.loc));
 
         auto result = new_reg();
         auto instr = prog::alloc_instr { value, result };
@@ -965,7 +965,7 @@ namespace sg {
         auto& target_type = *type_pointed.tp;
 
         if (type_pointed.slice)
-            error(diags::slice_not_allowed(), ast.loc);
+            error(diags::slice_not_allowed(ast.loc));
 
         auto result = new_reg();
         auto read_instr = prog::ptr_read_instr { ptr_value, result };
@@ -973,7 +973,7 @@ namespace sg {
 
         if (!clr.type_trivial(target_type)) {
             if (confined)
-                error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE), ast.loc);
+                error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE, ast.loc));
 
             if (clr.type_copyable(target_type))
                 add_copy(result, target_type);
@@ -981,7 +981,7 @@ namespace sg {
                 add_instr(VARIANT(prog::instr, DELETE, value));
                 move_out_var(*var_index, ast.loc);
             } else
-                error(diags::type_not_copyable(clr.prog, move(target_type)), ast.loc);
+                error(diags::type_not_copyable(clr.prog, move(target_type), ast.loc));
         }
 
         auto target_type_local = prog::type_local { into_ptr(target_type), false };
@@ -991,7 +991,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_weak_ptr_test(const ast::expr& ast, bool confined) {
         if (confined)
-            error(diags::not_allowed_in_confined_context(diags::value_kind::WEAK_POINTER_TEST), ast.loc);
+            error(diags::not_allowed_in_confined_context(diags::value_kind::WEAK_POINTER_TEST, ast.loc));
 
         prog::reg_index value;
         prog::type_local type_local;
@@ -999,7 +999,7 @@ namespace sg {
         auto& type = *type_local.tp;
 
         if (!INDEX_EQ(type, PTR) || GET(type, PTR)->kind != prog::ptr_type::WEAK)
-            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::WEAK_POINTER), ast.loc);
+            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::WEAK_POINTER, ast.loc));
 
         auto test_result = new_reg();
         auto test_instr = prog::test_ref_count_instr { value, test_result };
@@ -1032,7 +1032,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast, bool confined) {
         if (confined)
-            error(diags::not_allowed_in_confined_context(diags::value_kind::ALLOCATION), ast.loc);
+            error(diags::not_allowed_in_confined_context(diags::value_kind::ALLOCATION, ast.loc));
 
         auto& value_ast = *ast.value;
         auto& size_ast = *ast.size;
@@ -1041,13 +1041,13 @@ namespace sg {
         auto& type = *type_local.tp;
 
         if (type_local.confined && !clr.type_trivial(*type_local.tp))
-            error(diags::confinement_mismatch(type_local.confined), ast.loc);
+            error(diags::confinement_mismatch(type_local.confined, ast.loc));
 
         auto [size_value, size_type] = compile_expr(size_ast, true);
         size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
 
         if (!clr.type_copyable(type))
-            error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
+            error(diags::type_not_copyable(clr.prog, move(type), value_ast.loc));
 
         push_frame();
         add_copy(value, type);
@@ -1083,7 +1083,7 @@ namespace sg {
         auto& type_pointed = *ptr_type.target_tp;
 
         if (!type_pointed.slice && !INDEX_EQ(*type_pointed.tp, ARRAY))
-            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER), ast.loc);
+            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, ast.loc));
 
         auto result = new_reg();
 
@@ -1114,12 +1114,12 @@ namespace sg {
 
                 if (!clr.type_trivial(type)) {
                     if (confined)
-                        error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE), extr_ast.loc);
+                        error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE, extr_ast.loc));
 
                     if (clr.type_copyable(type))
                         add_copy(result, type);
                     else
-                        error(diags::type_not_copyable(clr.prog, move(type)), extr_ast.loc);
+                        error(diags::type_not_copyable(clr.prog, move(type), extr_ast.loc));
                 }
 
                 auto result_type = prog::type_local { into_ptr(type), false };
@@ -1146,16 +1146,16 @@ namespace sg {
                         auto name = GET(extr_ast, FIELD_REF);
 
                         if (slice)
-                            error(diags::slice_not_allowed(), expr_ast.loc);
+                            error(diags::slice_not_allowed(expr_ast.loc));
                         if (!INDEX_EQ(type, STRUCT))
-                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::STRUCT), expr_ast.loc);
+                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
 
                         auto struct_index = GET(type, STRUCT);
                         auto& st = *clr.prog.struct_types[struct_index];
 
                         auto iter = st.field_names.find(name);
                         if (iter == st.field_names.end())
-                            error(diags::unknown_struct_field(st, name), extr_ast.loc);
+                            error(diags::unknown_struct_field(st, name, extr_ast.loc));
 
                         auto field = iter->second;
 
@@ -1170,14 +1170,14 @@ namespace sg {
                         auto field = GET(extr_ast, INDEX_REF);
 
                         if (slice)
-                            error(diags::slice_not_allowed(), expr_ast.loc);
+                            error(diags::slice_not_allowed(expr_ast.loc));
                         if (!INDEX_EQ(type, TUPLE))
-                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::TUPLE), expr_ast.loc);
+                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
 
                         auto types = as_cref_vector(GET(type, TUPLE));
 
                         if (field >= types.size())
-                            error(diags::invalid_tuple_index(field, types.size()), extr_ast.loc);
+                            error(diags::invalid_tuple_index(field, types.size(), extr_ast.loc));
 
                         target_ptr_value = new_reg();
                         target_type = prog::type_pointed { make_ptr(copy_type(types[field])), false };
@@ -1190,7 +1190,7 @@ namespace sg {
                         auto& index_expr = *GET(extr_ast, ITEM_REF);
 
                         if (!slice && !INDEX_EQ(type, ARRAY))
-                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER), expr_ast.loc);
+                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                         auto [index_value, index_type] = compile_expr(index_expr, true);
                         index_value = conv_clr.convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
@@ -1226,7 +1226,7 @@ namespace sg {
                         auto end_expr = as_optional_cref(GET(extr_ast, ITEM_RANGE_REF).second);
 
                         if (!slice && !INDEX_EQ(type, ARRAY))
-                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER), expr_ast.loc);
+                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                         prog::reg_index begin_value;
                         prog::reg_index end_value;
@@ -1329,7 +1329,7 @@ namespace sg {
                 auto& type = *type_local.tp;
 
                 if (!INDEX_EQ(type, INNER_PTR))
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INNER_POINTER), expr_ast.loc);
+                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INNER_POINTER, expr_ast.loc));
 
                 auto result = new_reg();
                 auto instr = prog::ptr_conversion_instr { value, result };
@@ -1376,11 +1376,11 @@ namespace sg {
             case ast::expr::VAR_DECL: {
                 auto& var_decl_ast = *GET(ast, VAR_DECL);
                 if (!var_decl_ast.tp && !implicit_type)
-                    error(diags::variable_without_type(), var_decl_ast.loc);
+                    error(diags::variable_without_type(var_decl_ast.loc));
 
                 auto name = var_decl_ast.name;
                 if (name == ast::IGNORED_PLACEHOLDER)
-                    error(diags::invalid_variable_name(name), var_decl_ast.loc);
+                    error(diags::invalid_variable_name(name, var_decl_ast.loc));
 
                 auto type = var_decl_ast.tp ? clr.compile_type_local(**var_decl_ast.tp, false) : copy_type_local(*implicit_type);
 
@@ -1396,7 +1396,7 @@ namespace sg {
                 auto& target_type = *type_pointed.tp;
 
                 if (type_pointed.slice)
-                    error(diags::slice_not_allowed(), ast.loc);
+                    error(diags::slice_not_allowed(ast.loc));
 
                 return VARIANT(lvalue, DEREFERENCE, make_pair(ptr_value, move(target_type)));
             }
@@ -1407,7 +1407,7 @@ namespace sg {
             }
 
             default:
-                error(diags::expression_not_assignable(), ast.loc);
+                error(diags::expression_not_assignable(ast.loc));
         }
     }
 
@@ -1416,7 +1416,7 @@ namespace sg {
         auto count = value_asts.size();
 
         if (count == 0)
-            error(diags::expression_not_assignable(), loc);
+            error(diags::expression_not_assignable(loc));
 
         if (count == 1)
             return compile_left_expr(value_asts[0], implicit_type);
@@ -1459,7 +1459,7 @@ namespace sg {
 
     function_compiler::lvalue function_compiler::compile_left_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, optional<cref<prog::type_local>> implicit_type, location loc) {
         if (!INDEX_EQ(receiver_ast, NAME))
-            error(diags::expression_not_assignable(), receiver_ast.loc);
+            error(diags::expression_not_assignable(receiver_ast.loc));
 
         auto name = GET(receiver_ast, NAME);
         auto struct_index = clr.get_global_name(name, { global_name_kind::STRUCT }, receiver_ast.loc).index;
@@ -1469,7 +1469,7 @@ namespace sg {
         auto arg_with_name = [&] (string name, location loc) -> size_t {
             auto iter = st.field_names.find(name);
             if (iter == st.field_names.end())
-                error(diags::unknown_struct_field(st, name), loc);
+                error(diags::unknown_struct_field(st, name, loc));
             return iter->second;
         };
 
@@ -1506,16 +1506,16 @@ namespace sg {
                 auto name = GET(extr_ast, FIELD);
 
                 if (slice)
-                    error(diags::slice_not_allowed(), expr_ast.loc);
+                    error(diags::slice_not_allowed(expr_ast.loc));
                 if (!INDEX_EQ(type, STRUCT))
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::STRUCT), expr_ast.loc);
+                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
 
                 auto struct_index = GET(type, STRUCT);
                 auto& st = *clr.prog.struct_types[struct_index];
 
                 auto iter = st.field_names.find(name);
                 if (iter == st.field_names.end())
-                    error(diags::unknown_struct_field(st, name), extr_ast.loc);
+                    error(diags::unknown_struct_field(st, name, extr_ast.loc));
 
                 auto field = iter->second;
 
@@ -1530,14 +1530,14 @@ namespace sg {
                 auto field = GET(extr_ast, INDEX);
 
                 if (slice)
-                    error(diags::slice_not_allowed(), expr_ast.loc);
+                    error(diags::slice_not_allowed(expr_ast.loc));
                 if (!INDEX_EQ(type, TUPLE))
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::TUPLE), expr_ast.loc);
+                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
 
                 auto types = as_cref_vector(GET(type, TUPLE));
 
                 if (field >= types.size())
-                    error(diags::invalid_tuple_index(field, types.size()), extr_ast.loc);
+                    error(diags::invalid_tuple_index(field, types.size(), extr_ast.loc));
 
                 target_ptr_value = new_reg();
                 target_type = prog::type_pointed { make_ptr(copy_type(types[field])), false };
@@ -1550,7 +1550,7 @@ namespace sg {
                 auto& index_expr = *GET(extr_ast, ITEM);
 
                 if (!slice && !INDEX_EQ(type, ARRAY))
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER), expr_ast.loc);
+                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                 auto [index_value, index_type] = compile_expr(index_expr, true);
                 index_value = conv_clr.convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
@@ -1582,7 +1582,7 @@ namespace sg {
             } break;
 
             default:
-                error(diags::expression_not_assignable(), extr_ast.loc);
+                error(diags::expression_not_assignable(extr_ast.loc));
         }
 
         return VARIANT(lvalue, DEREFERENCE, make_pair(target_ptr_value, move(*target_type.tp)));
@@ -1607,7 +1607,7 @@ namespace sg {
                 if (!all_confined)
                     all_confined = { type.confined };
                 else if (type.confined != *all_confined)
-                    error(diags::confinement_ambiguous(), value_ast.get().loc);
+                    error(diags::confinement_ambiguous(value_ast.get().loc));
             }
 
             values.push_back(value);
@@ -1630,7 +1630,7 @@ namespace sg {
         auto arg_with_name = [&] (string name, location loc) -> size_t {
             auto iter = func->get().param_names.find(name);
             if (iter == func->get().param_names.end())
-                error(diags::unknown_function_parameter(*func, name), loc);
+                error(diags::unknown_function_parameter(*func, name, loc));
             return iter->second;
         };
 

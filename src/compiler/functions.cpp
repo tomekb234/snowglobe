@@ -25,11 +25,11 @@ namespace sg {
 
         if (ast.body->return_value) {
             if (returned)
-                warning(diags::unreachable_code(), (*ast.body->return_value)->loc);
+                warning(diags::unreachable_code((*ast.body->return_value)->loc));
             compile_return(as_optional_cref(ast.body->return_value), (*ast.body->return_value)->loc);
         } else if (!returned) {
             if (!INDEX_EQ(*func.return_tp, UNIT))
-                error(diags::missing_return(), ast.body->block->end_loc);
+                error(diags::missing_return(ast.body->block->end_loc));
             add_return(new_unit_reg(), ast.body->block->end_loc);
         }
 
@@ -188,7 +188,7 @@ namespace sg {
     prog::var_index function_compiler::get_var(string name, location loc) {
         auto index = try_get_var(name);
         if (!index)
-            error(diags::variable_not_found(name), loc);
+            error(diags::variable_not_found(name, loc));
         return *index;
     }
 
@@ -196,7 +196,7 @@ namespace sg {
         auto& var = vars[index];
 
         if (var.outside_loop > 0)
-            error(diags::variable_moved_out_inside_loop(var.name), loc);
+            error(diags::variable_moved_out_inside_loop(var.name, loc));
 
         var.state = VAR_MOVED_OUT;
     }
@@ -241,7 +241,7 @@ namespace sg {
         auto var_confined = var.type.confined;
 
         if (state != VAR_INITIALIZED)
-            error(diags::variable_not_usable(var.name, state & VAR_INITIALIZED, state & VAR_UNINITIALIZED, state & VAR_MOVED_OUT), loc);
+            error(diags::variable_not_usable(var.name, state & VAR_INITIALIZED, state & VAR_UNINITIALIZED, state & VAR_MOVED_OUT, loc));
 
         auto result = new_reg();
         auto instr = prog::read_var_instr { var_index, result };
@@ -283,7 +283,7 @@ namespace sg {
                 add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
                 add_delete(value, *var.type.tp);
             } else if (var.state & VAR_INITIALIZED)
-                error(diags::variable_not_deletable(var.name, var.state & VAR_UNINITIALIZED, var.state & VAR_MOVED_OUT), loc);
+                error(diags::variable_not_deletable(var.name, var.state & VAR_UNINITIALIZED, var.state & VAR_MOVED_OUT, loc));
         }
     }
 
@@ -304,7 +304,7 @@ namespace sg {
             add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(extract_instr)));
             return { result, move(ptr_type) };
         } else
-            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::POINTER), loc);
+            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::POINTER, loc));
     }
 
     void function_compiler::add_return(prog::reg_index value, location loc) {
@@ -330,7 +330,7 @@ namespace sg {
         }
 
         if (index == frame_count)
-            error(diags::break_outside_loop(), loc);
+            error(diags::break_outside_loop(loc));
 
         add_instr(VARIANT(prog::instr, BREAK_LOOP, monostate()));
     }
@@ -346,7 +346,7 @@ namespace sg {
         }
 
         if (index == frame_count)
-            error(diags::continue_outside_loop(), loc);
+            error(diags::continue_outside_loop(loc));
 
         add_instr(VARIANT(prog::instr, CONTINUE_LOOP, monostate()));
     }
@@ -427,7 +427,7 @@ namespace sg {
                 auto& var = vars[var_index];
 
                 if (type.confined && !clr.type_trivial(*type.tp) && var.outside_confinement > 0)
-                    error(diags::variable_outside_confinement(var.name), loc);
+                    error(diags::variable_outside_confinement(var.name, loc));
 
                 add_var_delete(var_index, loc);
 
@@ -460,13 +460,13 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, TUPLE))
-                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::TUPLE), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::TUPLE, loc));
 
                 auto field_types = as_cref_vector(GET(*type.tp, TUPLE));
                 auto confined = type.confined;
 
                 if (field_types.size() != count)
-                    error(diags::invalid_tuple_size(field_types.size(), count), loc);
+                    error(diags::invalid_tuple_size(field_types.size(), count, loc));
 
                 for (size_t index = 0; index < count; index++) {
                     auto extracted = new_reg();
@@ -483,13 +483,13 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, ARRAY))
-                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ARRAY), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ARRAY, loc));
 
                 auto& array_type = *GET(*type.tp, ARRAY);
                 auto item_type = prog::type_local { make_ptr(copy_type(*array_type.tp)), type.confined };
 
                 if (array_type.size != count)
-                    error(diags::invalid_array_size(array_type.size, count), loc);
+                    error(diags::invalid_array_size(array_type.size, count, loc));
 
                 for (size_t index = 0; index < count; index++) {
                     auto extracted = new_reg();
@@ -505,9 +505,9 @@ namespace sg {
                 auto lvals = as_cref_vector(lval_ptrs);
 
                 if (!INDEX_EQ(*type.tp, STRUCT))
-                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::STRUCT), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::STRUCT, loc));
                 if (GET(*type.tp, STRUCT) != struct_index)
-                    error(diags::invalid_struct(*clr.prog.struct_types[GET(*type.tp, STRUCT)], *clr.prog.struct_types[struct_index]), loc);
+                    error(diags::invalid_struct(*clr.prog.struct_types[GET(*type.tp, STRUCT)], *clr.prog.struct_types[struct_index], loc));
 
                 auto& st = *clr.prog.struct_types[struct_index];
                 auto count = st.fields.size();
@@ -552,7 +552,7 @@ namespace sg {
                     if (!all_confined)
                         all_confined = { type.confined };
                     else if (type.confined != *all_confined)
-                        error(diags::confinement_ambiguous(), loc);
+                        error(diags::confinement_ambiguous(loc));
                 }
 
                 values.push_back(value);
@@ -567,7 +567,7 @@ namespace sg {
 
         switch (INDEX(lval)) {
             case lvalue::IGNORED:
-                error(diags::expression_not_swappable(), loc);
+                error(diags::expression_not_swappable(loc));
 
             case lvalue::VAR: {
                 auto var_index = GET(lval, VAR);
@@ -575,7 +575,7 @@ namespace sg {
                 auto& state = var.state;
 
                 if (state != VAR_INITIALIZED)
-                    error(diags::variable_not_usable(var.name, state & VAR_INITIALIZED, state & VAR_UNINITIALIZED, state & VAR_MOVED_OUT), loc);
+                    error(diags::variable_not_usable(var.name, state & VAR_INITIALIZED, state & VAR_UNINITIALIZED, state & VAR_MOVED_OUT, loc));
 
                 auto result = new_reg();
                 auto instr = prog::read_var_instr { var_index, result };
@@ -677,7 +677,7 @@ namespace sg {
                 auto& var = vars[var_index];
 
                 if (type.confined && !clr.type_trivial(*type.tp) && var.outside_confinement > 0)
-                    error(diags::variable_outside_confinement(var.name), loc);
+                    error(diags::variable_outside_confinement(var.name, loc));
 
                 value = conv_clr.convert(value, type, var.type, loc);
 
@@ -703,13 +703,13 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, TUPLE))
-                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::TUPLE), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::TUPLE, loc));
 
                 auto field_types = as_cref_vector(GET(*type.tp, TUPLE));
                 auto confined = type.confined;
 
                 if (field_types.size() != count)
-                    error(diags::invalid_tuple_size(field_types.size(), count), loc);
+                    error(diags::invalid_tuple_size(field_types.size(), count, loc));
 
                 for (size_t index = 0; index < count; index++) {
                     auto extracted = new_reg();
@@ -726,13 +726,13 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, ARRAY))
-                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ARRAY), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ARRAY, loc));
 
                 auto& array_type = *GET(*type.tp, ARRAY);
                 auto item_type = prog::type_local { make_ptr(copy_type(*array_type.tp)), type.confined };
 
                 if (array_type.size != count)
-                    error(diags::invalid_array_size(array_type.size, count), loc);
+                    error(diags::invalid_array_size(array_type.size, count, loc));
 
                 for (size_t index = 0; index < count; index++) {
                     auto extracted = new_reg();
@@ -748,9 +748,9 @@ namespace sg {
                 auto lvals = as_cref_vector(lval_ptrs);
 
                 if (!INDEX_EQ(*type.tp, STRUCT))
-                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::STRUCT), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::STRUCT, loc));
                 if (GET(*type.tp, STRUCT) != struct_index)
-                    error(diags::invalid_struct(*clr.prog.struct_types[GET(*type.tp, STRUCT)], *clr.prog.struct_types[struct_index]), loc);
+                    error(diags::invalid_struct(*clr.prog.struct_types[GET(*type.tp, STRUCT)], *clr.prog.struct_types[struct_index], loc));
 
                 auto& st = *clr.prog.struct_types[struct_index];
                 auto count = st.fields.size();

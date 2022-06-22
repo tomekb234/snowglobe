@@ -17,22 +17,23 @@ namespace sg::diags {
     using std::vector;
 
     struct error : diagnostic {
-        error() : diagnostic(ERROR) { }
+        error(location loc) : diagnostic(ERROR, loc) { }
     };
 
     struct warning : diagnostic {
-        warning() : diagnostic(WARNING) { }
+        warning(location loc) : diagnostic(WARNING, loc) { }
     };
 
     #define DIAG0(name, base) \
         struct name : base { \
+            name(location loc) : base(loc) { } \
             void write(ostream& stream) const override; \
         }
 
     #define DIAG1(name, base, type1, name1) \
         struct name : base { \
             type1 name1; \
-            name(type1 name1) : name1(move(name1)) { } \
+            name(type1 name1, location loc) : base(loc), name1(move(name1)) { } \
             void write(ostream& stream) const override; \
         }
 
@@ -40,7 +41,7 @@ namespace sg::diags {
         struct name : base { \
             type1 name1; \
             type2 name2; \
-            name(type1 name1, type2 name2) : name1(move(name1)), name2(move(name2)) { } \
+            name(type1 name1, type2 name2, location loc) : base(loc), name1(move(name1)), name2(move(name2)) { } \
             void write(ostream& stream) const override; \
         }
 
@@ -49,7 +50,7 @@ namespace sg::diags {
             type1 name1; \
             type2 name2; \
             type3 name3; \
-            name(type1 name1, type2 name2, type3 name3) : name1(move(name1)), name2(move(name2)), name3(move(name3)) { } \
+            name(type1 name1, type2 name2, type3 name3, location loc) : base(loc), name1(move(name1)), name2(move(name2)), name3(move(name3)) { } \
             void write(ostream& stream) const override; \
         }
 
@@ -59,7 +60,7 @@ namespace sg::diags {
             type2 name2; \
             type3 name3; \
             type4 name4; \
-            name(type1 name1, type2 name2, type3 name3, type4 name4) : name1(move(name1)), name2(move(name2)), name3(move(name3)), name4(move(name4)) { } \
+            name(type1 name1, type2 name2, type3 name3, type4 name4, location loc) : base(loc), name1(move(name1)), name2(move(name2)), name3(move(name3)), name4(move(name4)) { } \
             void write(ostream& stream) const override; \
         }
 

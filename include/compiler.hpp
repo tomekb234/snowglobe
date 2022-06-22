@@ -69,15 +69,13 @@ namespace sg {
         // Utilities
 
         template<typename T>
-        [[noreturn]] void error(T&& diag, location loc) {
-            diag.loc = loc;
+        [[noreturn]] void error(T&& diag) {
             diags.add(make_unique<T>(move(diag)));
             throw compilation_error();
         }
 
         template<typename T>
-        void warning(T&& diag, location loc) {
-            diag.loc = loc;
+        void warning(T&& diag) {
             diags.add(make_unique<T>(move(diag)));
         }
 
@@ -246,13 +244,13 @@ namespace sg {
         // Utilities
 
         template<typename T>
-        [[noreturn]] void error(T&& diag, location loc) {
-            clr.error(move(diag), loc);
+        [[noreturn]] void error(T&& diag) {
+            clr.error(move(diag));
         }
 
         template<typename T>
-        void warning(T&& diag, location loc) {
-            clr.warning(move(diag), loc);
+        void warning(T&& diag) {
+            clr.warning(move(diag));
         }
 
         // Frames

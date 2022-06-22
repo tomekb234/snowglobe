@@ -198,7 +198,7 @@ namespace sg {
             auto& func = *prog.global_funcs[main.index];
 
             if (!func.params.empty() || !INDEX_EQ(*func.return_tp, UNIT))
-                error(diags::invalid_main_type(), whole_file(ast.loc));
+                error(diags::invalid_main_type(whole_file(ast.loc)));
 
             prog.entry_func = main.index;
         } catch (compilation_error) {
@@ -219,21 +219,21 @@ namespace sg {
     const compiler::global_name& compiler::get_global_name(string name, location loc) {
         auto iter = global_names.find(name);
         if (iter == global_names.end())
-            error(diags::name_not_found(name), loc);
+            error(diags::name_not_found(name, loc));
         return iter->second;
     }
 
     const compiler::global_name& compiler::get_global_name(string name, vector<global_name_kind> expected_kinds, location loc) {
         auto& gname = get_global_name(name, loc);
         if (find(expected_kinds.begin(), expected_kinds.end(), gname.kind) == expected_kinds.end())
-            error(diags::invalid_kind(name, gname.kind, expected_kinds), loc);
+            error(diags::invalid_kind(name, gname.kind, expected_kinds, loc));
         return gname;
     }
 
     const compiler::global_name& compiler::get_global_type(string name, bool allow_uncompiled, location loc) {
         auto& gname = get_global_name(name, { global_name_kind::STRUCT, global_name_kind::ENUM }, loc);
         if (!gname.compiled && !allow_uncompiled)
-            error(diags::type_not_compiled(name), loc);
+            error(diags::type_not_compiled(name, loc));
         return gname;
     }
 
@@ -258,7 +258,7 @@ namespace sg {
         auto count = asts.size();
 
         if (expected_count && count != *expected_count)
-            error(diags::invalid_argument_count(count, *expected_count), loc);
+            error(diags::invalid_argument_count(count, *expected_count, loc));
 
         vector<bool> used(count, false);
         vector<const ast::expr*> value_ast_ptrs(count);
@@ -279,7 +279,7 @@ namespace sg {
                     if (arg_with_name)
                         index = (*arg_with_name)(name, arg_ast.loc);
                     else
-                        error(diags::invalid_argument_marker(), arg_ast.loc);
+                        error(diags::invalid_argument_marker(arg_ast.loc));
                     value_ast_ptr = GET(arg_ast, EXPR_WITH_NAME).second.get();
                 } break;
 
@@ -293,9 +293,9 @@ namespace sg {
             }
 
             if (index >= count)
-                error(diags::invalid_argument_index(index, count), arg_ast.loc);
+                error(diags::invalid_argument_index(index, count, arg_ast.loc));
             if (used[index])
-                error(diags::duplicate_argument_index(index), arg_ast.loc);
+                error(diags::duplicate_argument_index(index, arg_ast.loc));
 
             value_ast_ptrs[index] = value_ast_ptr;
             used[index] = true;
@@ -303,7 +303,7 @@ namespace sg {
 
         for (size_t index = 0; index < count; index++) {
             if (!used[index])
-                error(diags::missing_argument(index), loc);
+                error(diags::missing_argument(index, loc));
         }
 
         vector<cref<ast::expr>> value_asts;

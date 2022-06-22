@@ -66,14 +66,14 @@ namespace sg {
                 auto& target_ast = *GET(ast, LENGTH);
                 auto target_type = compile_const(target_ast).second;
                 if (!INDEX_EQ(target_type, ARRAY))
-                    error(diags::invalid_type(prog, move(target_type), diags::type_kind::ARRAY), target_ast.loc);
+                    error(diags::invalid_type(prog, move(target_type), diags::type_kind::ARRAY, target_ast.loc));
                 auto size = GET(target_type, ARRAY)->size;
                 auto value = VARIANT(prog::constant, NUMBER, encode_number(size));
                 return { move(value), copy_type(prog::SIZE_TYPE) };
             }
 
             default:
-                error(diags::expression_not_constant(), ast.loc);
+                error(diags::expression_not_constant(ast.loc));
         }
     }
 
@@ -138,7 +138,7 @@ namespace sg {
                 auto arg_with_name = [&] (string name, location loc) -> size_t {
                     auto iter = st.field_names.find(name);
                     if (iter == st.field_names.end())
-                        error(diags::unknown_struct_field(st, name), loc);
+                        error(diags::unknown_struct_field(st, name, loc));
                     return iter->second;
                 };
 
@@ -184,10 +184,10 @@ namespace sg {
             case prog::type::FUNC_WITH_PTR:
             case prog::type::GLOBAL_FUNC:
             case prog::type::KNOWN_FUNC:
-                error(diags::expression_not_constant(), loc);
+                error(diags::expression_not_constant(loc));
 
             default:
-                error(diags::invalid_expression(), loc);
+                error(diags::invalid_expression(loc));
         }
     }
 
@@ -196,7 +196,7 @@ namespace sg {
 
         switch (gname.kind) {
             case global_name_kind::VAR:
-                error(diags::expression_not_constant(), loc);
+                error(diags::expression_not_constant(loc));
 
             case global_name_kind::CONST: {
                 auto& var = consts[gname.index];
@@ -216,7 +216,7 @@ namespace sg {
             }
 
             case global_name_kind::ENUM:
-                error(diags::invalid_expression(), loc);
+                error(diags::invalid_expression(loc));
         }
 
         UNREACHABLE;
@@ -228,7 +228,7 @@ namespace sg {
 
         auto iter = en.variant_names.find(variant_name);
         if (iter == en.variant_names.end())
-            error(diags::unknown_enum_variant(en, name), loc);
+            error(diags::unknown_enum_variant(en, name, loc));
         auto variant_index = iter->second;
 
         if (en.variants[variant_index]->tps.empty()) {
@@ -301,7 +301,7 @@ namespace sg {
 
         #define RETURN_OR_ERROR(type, type_marker) { \
             RETURN_IF_OK(type, type_marker); \
-            error(diags::int_overflow(ast.value, ast.negative, is_signed<type>(), 8 * sizeof(type)), ast.loc); \
+            error(diags::int_overflow(ast.value, ast.negative, is_signed<type>(), 8 * sizeof(type), ast.loc)); \
         }
 
         switch (ast.marker) {
@@ -383,7 +383,7 @@ namespace sg {
                 auto& type = *consts[index].tp;
 
                 if (!INDEX_EQ(type, NUMBER))
-                    error(diags::invalid_size_constant_type(prog, copy_type(type)), ast.loc);
+                    error(diags::invalid_size_constant_type(prog, copy_type(type), ast.loc));
 
                 auto ntype = GET(type, NUMBER)->tp;
                 auto number = GET(value, NUMBER);
@@ -402,7 +402,7 @@ namespace sg {
                         return decode_number<uint64_t>(number);
 
                     default:
-                        error(diags::invalid_size_constant_type(prog, copy_type(type)), ast.loc);
+                        error(diags::invalid_size_constant_type(prog, copy_type(type), ast.loc));
                 }
             }
         }

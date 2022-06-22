@@ -168,7 +168,7 @@ yy::parser::symbol_type yylex(sg::lexer_input& input, sg::diagnostic_collector& 
         }
     } catch (sg::diagnostic* diag) {
         auto loc = input.loc();
-        diag->loc = { loc };
+        diag->loc = loc;
         diags.add(unique_ptr<sg::diagnostic>(diag));
         return yy::parser::make_YYerror(loc);
     }
@@ -232,7 +232,7 @@ static int_token parse_int(const string& text, int base) {
     try {
         return { { }, stoull(remove_underscores(text), nullptr, base), false, get_int_marker(text) };
     } catch (out_of_range&) {
-        throw new sg::diags::int_token_overflow(text);
+        throw new sg::diags::int_token_overflow(text, sg::location());
     }
 }
 
@@ -240,7 +240,7 @@ static float_token parse_float(const string& text) {
     try {
         return { { }, stod(remove_underscores(text)), false, get_float_marker(text) };
     } catch (out_of_range&) {
-        throw new sg::diags::float_token_overflow(text);
+        throw new sg::diags::float_token_overflow(text, sg::location());
     }
 }
 
@@ -255,14 +255,14 @@ static char resolve_escape_sequence(char ch) {
         case '\\': return '\\';
 
         default:
-            throw new sg::diags::invalid_escape_sequence(ch);
+            throw new sg::diags::invalid_escape_sequence(ch, sg::location());
     }
 }
 
 static char parse_char(const string& text) {
     if (text.length() == 3 || (text.length() == 4 && text[1] == '\\'))
         return (text[1] == '\\') ? resolve_escape_sequence(text[2]) : text[1];
-    throw new sg::diags::multibyte_character_literal(text);
+    throw new sg::diags::multibyte_character_literal(text, sg::location());
 }
 
 static string parse_string(const string& text) {

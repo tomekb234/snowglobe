@@ -10,7 +10,7 @@ namespace sg {
     void function_compiler::compile_stmt_block(const ast::stmt_block& ast, bool cleanup) {
         for (const ast::stmt& stmt_ast : as_cref_vector(ast.stmts)) {
             if (returned)
-                warning(diags::unreachable_code(), stmt_ast.loc);
+                warning(diags::unreachable_code(stmt_ast.loc));
 
             compile_stmt(stmt_ast);
         }
@@ -77,7 +77,7 @@ namespace sg {
                 break;
 
             case ast::stmt::FUNC_DEF:
-                error(diags::not_implemented(), ast.loc); // TODO
+                error(diags::not_implemented(ast.loc)); // TODO
         }
     }
 
@@ -199,7 +199,7 @@ namespace sg {
             }
 
             if (!INDEX_EQ(*type.tp, OPTIONAL))
-                error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::OPTIONAL), value_ast.loc);
+                error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::OPTIONAL, value_ast.loc));
 
             auto cond = new_reg();
             auto test_instr = prog::test_optional_instr { value, cond };
@@ -252,7 +252,7 @@ namespace sg {
         }
 
         if (!INDEX_EQ(*type.tp, ENUM))
-            error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ENUM), value_ast.loc);
+            error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ENUM, value_ast.loc));
 
         compile_match_stmt_branches(ast, value, type, 0);
 
@@ -281,15 +281,15 @@ namespace sg {
             auto& [receiver_ast_ptr, arg_marked_ast_ptrs] = GET(lval_ast, APPLICATION);
             auto& receiver_ast = *receiver_ast_ptr;
             if (!INDEX_EQ(receiver_ast, NAME))
-                error(diags::invalid_expression(), lval_ast.loc);
+                error(diags::invalid_expression(lval_ast.loc));
             variant_name = GET(receiver_ast, NAME);
             arg_marked_asts = { as_cref_vector(arg_marked_ast_ptrs) };
         } else
-            error(diags::invalid_expression(), lval_ast.loc);
+            error(diags::invalid_expression(lval_ast.loc));
 
         auto iter = en.variant_names.find(variant_name);
         if (iter == en.variant_names.end())
-            error(diags::unknown_enum_variant(en, variant_name), lval_ast.loc);
+            error(diags::unknown_enum_variant(en, variant_name, lval_ast.loc));
 
         auto variant_index = iter->second;
         auto& variant = *en.variants[variant_index];
@@ -297,7 +297,7 @@ namespace sg {
         auto confined = type.confined;
 
         if ((count > 0) != arg_marked_asts.has_value())
-            error(diags::invalid_expression(), lval_ast.loc);
+            error(diags::invalid_expression(lval_ast.loc));
         if (count > 0)
             arg_asts = clr.order_args(*arg_marked_asts, { }, { count }, lval_ast.loc);
 
@@ -381,7 +381,7 @@ namespace sg {
                 }
 
                 if (!INDEX_EQ(*type.tp, OPTIONAL))
-                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::OPTIONAL), value_ast.loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::OPTIONAL, value_ast.loc));
 
                 auto cond = new_reg();
                 auto test_instr = prog::test_optional_instr { value, cond };
@@ -438,7 +438,7 @@ namespace sg {
             auto type_local = prog::type_local { make_ptr(copy_type(type)), false };
 
             if (!INDEX_EQ(type, NUMBER))
-                error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INTEGER), begin_ast.loc);
+                error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INTEGER, begin_ast.loc));
 
             auto& ntype = *GET(type, NUMBER);
             prog::numeric_binary_operation_instr::kind_t op_kind;
@@ -463,7 +463,7 @@ namespace sg {
 
                 case num::F32:
                 case num::F64:
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INTEGER), begin_ast.loc);
+                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INTEGER, begin_ast.loc));
             }
 
             begin_value = conv_clr.convert(begin_value, begin_type, type, begin_ast.loc);
@@ -525,7 +525,7 @@ namespace sg {
 
             add_loop(head, true_branch, false_branch, [] { });
         } else if (INDEX_EQ(ast, SLICE)) {
-            error(diags::not_implemented(), ast.loc); // TODO
+            error(diags::not_implemented(ast.loc)); // TODO
         }
     }
 }
