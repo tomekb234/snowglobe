@@ -181,6 +181,8 @@ namespace sg {
         typed_llvm_value<> make_enum_variant_value(prog::global_index enum_index, prog::variant_index variant_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_tuple_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_array_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
+        typed_llvm_value<> make_empty_optional_value(ll_type* value_type, llvm::IRBuilderBase& builder);
+        typed_llvm_value<> make_filled_optional_value(typed_llvm_value<> value, llvm::IRBuilderBase& builder);
 
         // top-level declarations
         typed_llvm_value<llvm::Function> declare_function(const prog::global_func& func);

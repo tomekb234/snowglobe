@@ -171,6 +171,15 @@ namespace sg {
                 return make_array_value(values, builder);
             }
 
+            case prog::constant::OPTIONAL: {
+                auto& value_type = *GET(type, OPTIONAL);
+                auto& maybe_value = GET(constant, OPTIONAL);
+                if (maybe_value)
+                    return make_filled_optional_value(make_constant(**maybe_value, value_type, builder), builder);
+                else
+                    return make_empty_optional_value(get_type_from_prog(value_type), builder);
+            }
+
             default:
                 error(diags::not_implemented()); // TODO
         }
@@ -178,7 +187,7 @@ namespace sg {
         UNREACHABLE;
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_struct_value(prog::global_index struct_index, vector<code_generator::typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
+    code_generator::typed_llvm_value<> code_generator::make_struct_value(prog::global_index struct_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
         auto struct_type = struct_types[struct_index];
         llvm::Value* struct_value = llvm::UndefValue::get(struct_type->get_type());
         for (size_t i = 0; i < fields.size(); i++)
@@ -186,7 +195,7 @@ namespace sg {
         return { struct_value, struct_type };
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_enum_variant_value(prog::global_index enum_index, prog::variant_index variant_index, vector<code_generator::typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
+    code_generator::typed_llvm_value<> code_generator::make_enum_variant_value(prog::global_index enum_index, prog::variant_index variant_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
         // make variant
         auto variant_type = variant_types[enum_index][variant_index];
         llvm::Value* variant_value = llvm::UndefValue::get(variant_type->get_type());
@@ -204,7 +213,7 @@ namespace sg {
         return { enum_value, enum_type };
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_tuple_value(vector<code_generator::typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
+    code_generator::typed_llvm_value<> code_generator::make_tuple_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
         vector<ll_type*> field_types;
         for (auto field : fields)
             field_types.push_back(field.type);
@@ -215,13 +224,28 @@ namespace sg {
         return { tuple_value, tuple_type };
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_array_value(vector<code_generator::typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
+    code_generator::typed_llvm_value<> code_generator::make_array_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
         auto value_type = fields.empty() ? get_never_type() : fields.front().type;
         auto array_type = get_array_type(value_type, fields.size());
         llvm::Value* array_value = llvm::UndefValue::get(array_type->get_type());
         for (size_t i = 0; i < fields.size(); i++)
             array_value = builder.CreateInsertValue(array_value, fields[i].value, vector<unsigned>{(unsigned)i});
         return { array_value, array_type };
+    }
+
+    code_generator::typed_llvm_value<> code_generator::make_empty_optional_value(ll_type* value_type, llvm::IRBuilderBase& builder) {
+        auto optional_type = get_optional_type(value_type);
+        llvm::Value* value = llvm::UndefValue::get(optional_type->get_type());
+        value = builder.CreateInsertValue(value, builder.getFalse(), vector<unsigned>{0});
+        return { value, optional_type };
+    }
+
+    code_generator::typed_llvm_value<> code_generator::make_filled_optional_value(typed_llvm_value<> value, llvm::IRBuilderBase& builder) {
+        auto optional_type = get_optional_type(value.type);
+        llvm::Value* optional_value = llvm::UndefValue::get(optional_type->get_type());
+        optional_value = builder.CreateInsertValue(optional_value, builder.getTrue(), vector<unsigned>{0});
+        optional_value = builder.CreateInsertValue(optional_value, value.value, vector<unsigned>{1});
+        return { optional_value, optional_type };
     }
 
     code_generator::typed_llvm_value<llvm::Function> code_generator::declare_function(const prog::global_func& func) {
@@ -377,6 +401,14 @@ namespace sg {
                     regs[ma_instr.result] = gen.make_array_value(fields, builder);
                 } break;
 
+                case prog::instr::MAKE_OPTIONAL: {
+                    auto& mo_instr = *GET(*instr, MAKE_OPTIONAL);
+                    if (mo_instr.value)
+                        regs[mo_instr.result] = gen.make_filled_optional_value(regs[*mo_instr.value], builder);
+                    else
+                        regs[mo_instr.result] = gen.make_empty_optional_value(gen.get_never_type(), builder);
+                } break;
+
                 case prog::instr::MAKE_STRUCT: {
                     auto& ms_instr = *GET(*instr, MAKE_STRUCT);
                     vector<code_generator::typed_llvm_value<>> fields;
@@ -391,6 +423,12 @@ namespace sg {
                     for (auto reg : mev_instr.args)
                         fields.push_back(regs[reg]);
                     regs[mev_instr.result] = gen.make_enum_variant_value(mev_instr.en, mev_instr.variant, fields, builder);
+                } break;
+
+                case prog::instr::FROM_NEVER: {
+                    auto& fn_instr = *GET(*instr, FROM_NEVER);
+                    auto type = gen.get_type_from_prog(*fn_instr.tp);
+                    regs[fn_instr.result] = { llvm::UndefValue::get(type->get_type()), type };
                 } break;
 
                 case prog::instr::TEST_OPTIONAL: {
@@ -426,7 +464,13 @@ namespace sg {
                         field_type = GET(*value.type, TUPLE).fields[ef_instr.field];
                     else
                         UNREACHABLE;
-                    regs[ef_instr.result] = { builder.CreateExtractValue(regs[ef_instr.value].value, vector<unsigned>{(unsigned)ef_instr.field}), field_type };
+                    regs[ef_instr.result] = { builder.CreateExtractValue(value.value, vector<unsigned>{(unsigned)ef_instr.field}), field_type };
+                } break;
+
+                case prog::instr::EXTRACT_OPTIONAL_VALUE: {
+                    auto& eov_instr = *GET(*instr, EXTRACT_OPTIONAL_VALUE);
+                    auto& value = regs[eov_instr.value];
+                    regs[eov_instr.result] = { builder.CreateExtractValue(value.value, vector<unsigned>{1}), value.type };
                 } break;
 
                 case prog::instr::EXTRACT_VARIANT_FIELD: {
@@ -604,6 +648,12 @@ namespace sg {
                         regs[nbo_instr.result] = { builder.CreateFCmpUGE(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
                 } break;
 
+                case prog::instr::TRUNC: {
+                    auto& nc_instr = *GET(*instr, TRUNC);
+                    auto type = gen.get_number_type(nc_instr.new_type->tp);
+                    regs[nc_instr.result] = { builder.CreateTrunc(regs[nc_instr.value].value, type->get_type()), type };
+                } break;
+
                 case prog::instr::ZERO_EXT: {
                     auto& nc_instr = *GET(*instr, ZERO_EXT);
                     auto type = gen.get_number_type(nc_instr.new_type->tp);
@@ -616,10 +666,40 @@ namespace sg {
                     regs[nc_instr.result] = { builder.CreateSExt(regs[nc_instr.value].value, type->get_type()), type };
                 } break;
 
+                case prog::instr::UINT_TO_FLOAT: {
+                    auto& nc_instr = *GET(*instr, UINT_TO_FLOAT);
+                    auto type = gen.get_number_type(nc_instr.new_type->tp);
+                    regs[nc_instr.result] = { builder.CreateUIToFP(regs[nc_instr.value].value, type->get_type()), type };
+                } break;
+
+                case prog::instr::SINT_TO_FLOAT: {
+                    auto& nc_instr = *GET(*instr, SINT_TO_FLOAT);
+                    auto type = gen.get_number_type(nc_instr.new_type->tp);
+                    regs[nc_instr.result] = { builder.CreateSIToFP(regs[nc_instr.value].value, type->get_type()), type };
+                } break;
+
+                case prog::instr::FLOAT_TRUNC: {
+                    auto& nc_instr = *GET(*instr, FLOAT_TRUNC);
+                    auto type = gen.get_number_type(nc_instr.new_type->tp);
+                    regs[nc_instr.result] = { builder.CreateSIToFP(regs[nc_instr.value].value, type->get_type()), type };
+                } break;
+
                 case prog::instr::FLOAT_EXT: {
                     auto& nc_instr = *GET(*instr, FLOAT_EXT);
                     auto type = gen.get_number_type(nc_instr.new_type->tp);
                     regs[nc_instr.result] = { builder.CreateFPExt(regs[nc_instr.value].value, type->get_type()), type };
+                } break;
+
+                case prog::instr::FLOAT_TO_UINT: {
+                    auto& nc_instr = *GET(*instr, FLOAT_TO_UINT);
+                    auto type = gen.get_number_type(nc_instr.new_type->tp);
+                    regs[nc_instr.result] = { builder.CreateFPToUI(regs[nc_instr.value].value, type->get_type()), type };
+                } break;
+
+                case prog::instr::FLOAT_TO_SINT: {
+                    auto& nc_instr = *GET(*instr, FLOAT_TO_SINT);
+                    auto type = gen.get_number_type(nc_instr.new_type->tp);
+                    regs[nc_instr.result] = { builder.CreateFPToSI(regs[nc_instr.value].value, type->get_type()), type };
                 } break;
 
                 case prog::instr::BRANCH:
