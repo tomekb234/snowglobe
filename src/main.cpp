@@ -47,6 +47,8 @@ static bool option_present(int argc, const char** argv, vector<string> options);
 static optional<string> get_option_value(int argc, const char** argv, vector<string> options);
 static optional<string> get_arg(int argc, const char** argv);
 
+static string get_output_name(string& input_name);
+
 const string BUILTIN_NAME = "builtin";
 
 const string BUILTINS = R"CODE(
@@ -119,7 +121,7 @@ int main(int argc, const char** argv) {
         if (compiler.compile(source_ast)) {
             if (!option_present(argc, argv, { "-k", "--check" })) {
                 auto opt_output_name = get_option_value(argc, argv, { "-o", "--output" });
-                auto output_name = opt_output_name ? *opt_output_name : "a.out";
+                auto output_name = opt_output_name ? *opt_output_name : get_output_name(file_name);
                 ofstream output(output_name);
 
                 if (!output.is_open()) {
@@ -199,4 +201,21 @@ static optional<string> get_arg(int argc, const char** argv) {
         iter += 1 + OPTIONS.at(*iter);
     }
     return { };
+}
+
+static string get_output_name(string& input_name) {
+    string result = input_name;
+    size_t slash = result.find_last_of("\\/");
+    if (slash != string::npos) {
+        result = result.substr(slash + 1);
+    }
+
+    size_t dot = result.find_last_of('.');
+    if (dot == string::npos) {
+        result += ".out";
+    } else {
+        result = result.substr(0, dot);
+    }
+
+    return result;
 }
