@@ -98,7 +98,7 @@ namespace sg {
                 auto name = GET(ast, GLOBAL_VAR_REF);
                 auto var_index = clr.get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
 
-                auto& var_type = *clr.prog.global_vars[var_index]->tp;
+                auto& var_type = *prog.global_vars[var_index]->tp;
                 auto type = prog::type_local { make_ptr(prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false)), false };
 
                 auto result = new_reg();
@@ -153,7 +153,7 @@ namespace sg {
 
         switch (gname.kind) {
             case global_name_kind::VAR: {
-                auto& var = *clr.prog.global_vars[gname.index];
+                auto& var = *prog.global_vars[gname.index];
 
                 auto result = new_reg();
                 auto instr = prog::read_global_var_instr { gname.index, result };
@@ -207,7 +207,7 @@ namespace sg {
             error(diags::expected_enum_name(loc));
 
         auto enum_index = clr.get_global_name(name, { global_name_kind::ENUM }, loc).index;
-        auto& en = *clr.prog.enum_types[enum_index];
+        auto& en = *prog.enum_types[enum_index];
 
         auto iter = en.variant_names.find(variant_name);
         if (iter == en.variant_names.end())
@@ -291,7 +291,7 @@ namespace sg {
         switch (INDEX(receiver_type)) {
             case prog::type::STRUCT_CTOR: {
                 auto struct_index = GET(receiver_type, STRUCT_CTOR);
-                auto& st = *clr.prog.struct_types[struct_index];
+                auto& st = *prog.struct_types[struct_index];
                 auto size = st.fields.size();
 
                 auto arg_with_name = [&] (string name, location loc) -> size_t {
@@ -318,7 +318,7 @@ namespace sg {
 
             case prog::type::ENUM_CTOR: {
                 auto [enum_index, variant_index] = GET(receiver_type, ENUM_CTOR);
-                auto& en = *clr.prog.enum_types[enum_index];
+                auto& en = *prog.enum_types[enum_index];
                 auto& variant = *en.variants[variant_index];
                 auto size = variant.tps.size();
 
@@ -379,7 +379,7 @@ namespace sg {
 
             case prog::type::KNOWN_FUNC: {
                 auto func_index = GET(receiver_type, KNOWN_FUNC);
-                auto& func = *clr.prog.global_funcs[func_index];
+                auto& func = *prog.global_funcs[func_index];
                 auto ftype = prog::get_func_type(func);
 
                 if (confined && !clr.type_trivial(*ftype.return_tp))
@@ -418,7 +418,7 @@ namespace sg {
 
             case unop::MINUS: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
-                    error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp), ast.loc));
+                    error(diags::invalid_unary_operation(prog, ast.operation, move(*type.tp), ast.loc));
 
                 switch (GET(*type.tp, NUMBER)->tp) {
                     case num::I8:
@@ -436,7 +436,7 @@ namespace sg {
                     } break;
 
                     default:
-                        error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp), ast.loc));
+                        error(diags::invalid_unary_operation(prog, ast.operation, move(*type.tp), ast.loc));
                 }
 
                 return { result, move(type) };
@@ -444,7 +444,7 @@ namespace sg {
 
             case unop::BIT_NEG: {
                 if (!INDEX_EQ(*type.tp, NUMBER))
-                    error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp), ast.loc));
+                    error(diags::invalid_unary_operation(prog, ast.operation, move(*type.tp), ast.loc));
 
                 switch (GET(*type.tp, NUMBER)->tp) {
                     case num::I8:
@@ -461,7 +461,7 @@ namespace sg {
                     }
 
                     default:
-                        error(diags::invalid_unary_operation(clr.prog, ast.operation, move(*type.tp), ast.loc));
+                        error(diags::invalid_unary_operation(prog, ast.operation, move(*type.tp), ast.loc));
                 }
             }
         }
@@ -471,7 +471,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> function_compiler::compile_binary_operation(const ast::binary_operation_expr& ast) {
         #define INVALID_BINARY_OP { \
-            error(diags::invalid_binary_operation(clr.prog, ast.operation, \
+            error(diags::invalid_binary_operation(prog, ast.operation, \
                 copy_type(*left_type.tp), copy_type(*right_type.tp), ast.loc)); \
         }
 
@@ -708,9 +708,9 @@ namespace sg {
         auto new_type = clr.compile_type_local(*ast.tp, false);
 
         if (!INDEX_EQ(*type.tp, NUMBER))
-            error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::NUMBER, ast.value->loc));
+            error(diags::invalid_type(prog, move(*type.tp), diags::type_kind::NUMBER, ast.value->loc));
         if (!INDEX_EQ(*new_type.tp, NUMBER))
-            error(diags::invalid_type(clr.prog, move(*new_type.tp), diags::type_kind::NUMBER, ast.loc));
+            error(diags::invalid_type(prog, move(*new_type.tp), diags::type_kind::NUMBER, ast.loc));
 
         auto& ntype = *GET(*type.tp, NUMBER);
         auto& new_ntype = *GET(*new_type.tp, NUMBER);
@@ -981,7 +981,7 @@ namespace sg {
                 add_instr(VARIANT(prog::instr, DELETE, value));
                 move_out_var(*var_index, ast.loc);
             } else
-                error(diags::type_not_copyable(clr.prog, move(target_type), ast.loc));
+                error(diags::type_not_copyable(prog, move(target_type), ast.loc));
         }
 
         auto target_type_local = prog::type_local { into_ptr(target_type), false };
@@ -999,7 +999,7 @@ namespace sg {
         auto& type = *type_local.tp;
 
         if (!INDEX_EQ(type, PTR) || GET(type, PTR)->kind != prog::ptr_type::WEAK)
-            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::WEAK_POINTER, ast.loc));
+            error(diags::invalid_type(prog, move(type), diags::type_kind::WEAK_POINTER, ast.loc));
 
         auto test_result = new_reg();
         auto test_instr = prog::test_ref_count_instr { value, test_result };
@@ -1047,7 +1047,7 @@ namespace sg {
         size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
 
         if (!clr.type_copyable(type))
-            error(diags::type_not_copyable(clr.prog, move(type), value_ast.loc));
+            error(diags::type_not_copyable(prog, move(type), value_ast.loc));
 
         push_frame();
         add_copy(value, type);
@@ -1083,7 +1083,7 @@ namespace sg {
         auto& type_pointed = *ptr_type.target_tp;
 
         if (!type_pointed.slice && !INDEX_EQ(*type_pointed.tp, ARRAY))
-            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, ast.loc));
+            error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, ast.loc));
 
         auto result = new_reg();
 
@@ -1119,7 +1119,7 @@ namespace sg {
                     if (clr.type_copyable(type))
                         add_copy(result, type);
                     else
-                        error(diags::type_not_copyable(clr.prog, move(type), extr_ast.loc));
+                        error(diags::type_not_copyable(prog, move(type), extr_ast.loc));
                 }
 
                 auto result_type = prog::type_local { into_ptr(type), false };
@@ -1148,10 +1148,10 @@ namespace sg {
                         if (slice)
                             error(diags::slice_not_allowed(expr_ast.loc));
                         if (!INDEX_EQ(type, STRUCT))
-                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
+                            error(diags::invalid_type(prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
 
                         auto struct_index = GET(type, STRUCT);
-                        auto& st = *clr.prog.struct_types[struct_index];
+                        auto& st = *prog.struct_types[struct_index];
 
                         auto iter = st.field_names.find(name);
                         if (iter == st.field_names.end())
@@ -1172,7 +1172,7 @@ namespace sg {
                         if (slice)
                             error(diags::slice_not_allowed(expr_ast.loc));
                         if (!INDEX_EQ(type, TUPLE))
-                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
+                            error(diags::invalid_type(prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
 
                         auto types = as_cref_vector(GET(type, TUPLE));
 
@@ -1190,7 +1190,7 @@ namespace sg {
                         auto& index_expr = *GET(extr_ast, ITEM_REF);
 
                         if (!slice && !INDEX_EQ(type, ARRAY))
-                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
+                            error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                         auto [index_value, index_type] = compile_expr(index_expr, true);
                         index_value = conv_clr.convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
@@ -1226,7 +1226,7 @@ namespace sg {
                         auto end_expr = as_optional_cref(GET(extr_ast, ITEM_RANGE_REF).second);
 
                         if (!slice && !INDEX_EQ(type, ARRAY))
-                            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
+                            error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                         prog::reg_index begin_value;
                         prog::reg_index end_value;
@@ -1329,7 +1329,7 @@ namespace sg {
                 auto& type = *type_local.tp;
 
                 if (!INDEX_EQ(type, INNER_PTR))
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INNER_POINTER, expr_ast.loc));
+                    error(diags::invalid_type(prog, move(type), diags::type_kind::INNER_POINTER, expr_ast.loc));
 
                 auto result = new_reg();
                 auto instr = prog::ptr_conversion_instr { value, result };
@@ -1463,7 +1463,7 @@ namespace sg {
 
         auto name = GET(receiver_ast, NAME);
         auto struct_index = clr.get_global_name(name, { global_name_kind::STRUCT }, receiver_ast.loc).index;
-        auto& st = *clr.prog.struct_types[struct_index];
+        auto& st = *prog.struct_types[struct_index];
         auto count = st.fields.size();
 
         auto arg_with_name = [&] (string name, location loc) -> size_t {
@@ -1508,10 +1508,10 @@ namespace sg {
                 if (slice)
                     error(diags::slice_not_allowed(expr_ast.loc));
                 if (!INDEX_EQ(type, STRUCT))
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
+                    error(diags::invalid_type(prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
 
                 auto struct_index = GET(type, STRUCT);
-                auto& st = *clr.prog.struct_types[struct_index];
+                auto& st = *prog.struct_types[struct_index];
 
                 auto iter = st.field_names.find(name);
                 if (iter == st.field_names.end())
@@ -1532,7 +1532,7 @@ namespace sg {
                 if (slice)
                     error(diags::slice_not_allowed(expr_ast.loc));
                 if (!INDEX_EQ(type, TUPLE))
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
+                    error(diags::invalid_type(prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
 
                 auto types = as_cref_vector(GET(type, TUPLE));
 
@@ -1550,7 +1550,7 @@ namespace sg {
                 auto& index_expr = *GET(extr_ast, ITEM);
 
                 if (!slice && !INDEX_EQ(type, ARRAY))
-                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
+                    error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                 auto [index_value, index_type] = compile_expr(index_expr, true);
                 index_value = conv_clr.convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);

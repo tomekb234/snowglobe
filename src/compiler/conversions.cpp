@@ -13,7 +13,7 @@ namespace sg {
         auto result = try_convert(value, type, new_type, confined);
 
         if (!result)
-            clr.error(diags::not_convertible(clr.prog, copy_type(type), copy_type(new_type), loc));
+            error(diags::not_convertible(prog, copy_type(type), copy_type(new_type), loc));
 
         return *result;
     }
@@ -24,14 +24,14 @@ namespace sg {
 
     prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc) {
         if (type.confined != new_type.confined && !clr.type_trivial(*type.tp))
-            clr.error(diags::confinement_mismatch(type.confined, loc));
+            error(diags::confinement_mismatch(type.confined, loc));
 
         return convert(value, *type.tp, *new_type.tp, new_type.confined, loc);
     }
 
     prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc) {
         if (type.confined && !clr.type_trivial(*type.tp))
-            clr.error(diags::confinement_mismatch(type.confined, loc));
+            error(diags::confinement_mismatch(type.confined, loc));
 
         return convert(value, *type.tp, new_type, false, loc);
     }
@@ -380,7 +380,7 @@ namespace sg {
 
             case prog::type::KNOWN_FUNC: {
                 auto index = GET(type, KNOWN_FUNC);
-                auto& func = *clr.prog.global_funcs[index];
+                auto& func = *prog.global_funcs[index];
                 auto ftype = prog::get_func_type(func);
 
                 if (INDEX_EQ(new_type, GLOBAL_FUNC)) {

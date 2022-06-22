@@ -49,13 +49,13 @@ namespace sg {
         switch (INDEX(type)) {
             case prog::type::STRUCT: {
                 auto struct_index = GET(type, STRUCT);
-                auto& st = *clr.prog.struct_types[struct_index];
+                auto& st = *prog.struct_types[struct_index];
                 add_struct_delete(value, st);
             } break;
 
             case prog::type::ENUM: {
                 auto enum_index = GET(type, ENUM);
-                auto& en = *clr.prog.enum_types[enum_index];
+                auto& en = *prog.enum_types[enum_index];
                 add_enum_delete(value, en);
             } break;
 

@@ -31,42 +31,16 @@ namespace sg {
     template<typename T>
     using cref = std::reference_wrapper<const T>;
 
-    enum struct global_name_kind {
-        VAR,
-        CONST,
-        FUNC,
-        STRUCT,
-        ENUM
-    };
-
-    class compiler {
-        struct global_name {
-            global_name_kind kind;
-            prog::global_index index;
-            bool compiled;
-        };
+    class compiler_base {
+        protected:
 
         struct compilation_error { };
 
         prog::program& prog;
         diagnostic_collector& diags;
-        vector<prog::global_var> consts;
-        unordered_map<string, global_name> global_names;
-        unordered_map<prog::global_index, prog::global_index> func_wrappers;
 
-        friend class conversion_compiler;
-        friend class function_compiler;
-
-        public:
-
-        compiler(prog::program& prog, diagnostic_collector& diags) : prog(prog), diags(diags) { }
-
-        void compile_builtins(const ast::program& ast, string builtin_name);
-        bool compile(const ast::program& ast);
-
-        private:
-
-        // Utilities
+        compiler_base(const compiler_base& clr) : prog(clr.prog), diags(clr.diags) { }
+        compiler_base(prog::program& prog, diagnostic_collector& diags) : prog(prog), diags(diags) { }
 
         template<typename T>
         [[noreturn]] void error(T&& diag) {
@@ -78,6 +52,40 @@ namespace sg {
         void warning(T&& diag) {
             diags.add(make_unique<T>(move(diag)));
         }
+    };
+
+    enum struct global_name_kind {
+        VAR,
+        CONST,
+        FUNC,
+        STRUCT,
+        ENUM
+    };
+
+    class compiler : compiler_base {
+        struct global_name {
+            global_name_kind kind;
+            prog::global_index index;
+            bool compiled;
+        };
+
+        vector<prog::global_var> consts;
+        unordered_map<string, global_name> global_names;
+        unordered_map<prog::global_index, prog::global_index> func_wrappers;
+
+        friend class conversion_compiler;
+        friend class function_compiler;
+
+        public:
+
+        compiler(prog::program& prog, diagnostic_collector& diags) : compiler_base(prog, diags) { }
+
+        void compile_builtins(const ast::program& ast, string builtin_name);
+        bool compile(const ast::program& ast);
+
+        private:
+
+        // Utilities
 
         const global_name& get_global_name(string name, location loc);
         const global_name& get_global_name(string name, vector<global_name_kind> expected_kinds, location loc);
@@ -143,14 +151,14 @@ namespace sg {
         prog::type common_supertype(const prog::type& type_a, const prog::type& type_b, location loc);
     };
 
-    class conversion_compiler {
+    class conversion_compiler : compiler_base {
         compiler& clr;
         function<prog::reg_index()> new_reg;
         function<void(prog::instr&&)> add_instr;
 
         public:
 
-        conversion_compiler(compiler& clr, decltype(new_reg) new_reg, decltype(add_instr) add_instr) : clr(clr), new_reg(new_reg), add_instr(add_instr) { }
+        conversion_compiler(compiler& clr, decltype(new_reg) new_reg, decltype(add_instr) add_instr) : compiler_base(clr), clr(clr), new_reg(new_reg), add_instr(add_instr) { }
 
         prog::reg_index convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined, location loc);
         prog::reg_index convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc);
@@ -164,7 +172,7 @@ namespace sg {
         optional<prog::reg_index> try_convert_ptr_target(prog::reg_index value, const prog::type_pointed& type, const prog::type_pointed& new_type);
     };
 
-    class function_compiler {
+    class function_compiler : compiler_base {
         typedef unsigned char var_state;
         typedef size_t frame_index;
 
@@ -228,7 +236,7 @@ namespace sg {
 
         public:
 
-        function_compiler(compiler& clr, prog::global_func& func) : clr(clr), func(func), conv_clr(clr,
+        function_compiler(compiler& clr, prog::global_func& func) : compiler_base(clr), clr(clr), func(func), conv_clr(clr,
                     [this] () { return new_reg(); },
                     [this] (prog::instr&& instr) { add_instr(move(instr)); }) { }
 
@@ -240,18 +248,6 @@ namespace sg {
         void make_cleanup_func();
 
         private:
-
-        // Utilities
-
-        template<typename T>
-        [[noreturn]] void error(T&& diag) {
-            clr.error(move(diag));
-        }
-
-        template<typename T>
-        void warning(T&& diag) {
-            clr.warning(move(diag));
-        }
 
         // Frames
 
