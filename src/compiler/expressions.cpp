@@ -938,6 +938,9 @@ namespace sg {
 
         auto [value, value_type] = compile_expr(ast, false);
 
+        if (value_type.confined && !clr.type_trivial(*value_type.tp))
+            error(diags::confinement_mismatch(value_type.confined), ast.loc);
+
         auto result = new_reg();
         auto instr = prog::alloc_instr { value, result };
         add_instr(VARIANT(prog::instr, ALLOC, into_ptr(instr)));
