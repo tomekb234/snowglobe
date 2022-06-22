@@ -2,7 +2,7 @@
 #include "diagcol.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
-#include "compiler.hpp"
+#include "compiler/compiler.hpp"
 #include "program.hpp"
 #include <fstream>
 #include <sstream>
@@ -10,6 +10,7 @@
 #include <optional>
 #include <iostream>
 #include <unordered_map>
+#include <algorithm>
 
 using std::string;
 using std::cout;

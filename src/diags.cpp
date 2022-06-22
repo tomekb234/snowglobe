@@ -162,23 +162,23 @@ namespace sg::diags {
 
     void not_convertible::write(ostream& stream) const {
         stream << "Cannot convert from type '";
-        prog::print_type(stream, prog, type);
+        print_type(stream, prog, type);
         stream << "' to type '";
-        prog::print_type(stream, prog, new_type);
+        print_type(stream, prog, new_type);
         stream << "'" << endl;
     }
 
     void no_common_supertype::write(ostream& stream) const {
         stream << "The types '";
-        prog::print_type(stream, prog, type_a);
+        print_type(stream, prog, type_a);
         stream << "' and '";
-        prog::print_type(stream, prog, type_b);
+        print_type(stream, prog, type_b);
         stream << "' have no common supertype" << endl;
     }
 
     void type_not_copyable::write(ostream& stream) const {
         stream << "The type '";
-        prog::print_type(stream, prog, type);
+        print_type(stream, prog, type);
         stream << "' is not copyable" << endl;
     }
 
@@ -200,7 +200,7 @@ namespace sg::diags {
         }
 
         stream << "instead of value with type '";
-        prog::print_type(stream, prog, type);
+        print_type(stream, prog, type);
         stream << "'" << endl;
     }
 
@@ -218,7 +218,7 @@ namespace sg::diags {
         }
 
         stream << "' is not applicable to type '";
-        prog::print_type(stream, prog, type);
+        print_type(stream, prog, type);
         stream << "'" << endl;
     }
 
@@ -247,9 +247,9 @@ namespace sg::diags {
         }
 
         stream << "' is not applicable to types '";
-        prog::print_type(stream, prog, left_type);
+        print_type(stream, prog, left_type);
         stream << "' and '";
-        prog::print_type(stream, prog, right_type);
+        print_type(stream, prog, right_type);
         stream << "'" << endl;
     }
 
@@ -267,7 +267,7 @@ namespace sg::diags {
 
     void invalid_size_constant_type::write(ostream& stream) const {
         stream << "Expected a constant with unsigned integer type instead of '";
-        prog::print_type(stream, prog, type);
+        print_type(stream, prog, type);
         stream << "'" << endl;
     }
 

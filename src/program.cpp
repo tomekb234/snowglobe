@@ -35,7 +35,7 @@ namespace sg::prog {
     type make_ptr_type(type&& tp, ptr_type::kind_t kind, bool slice) {
         auto tp_pointed = type_pointed { into_ptr(tp), slice };
         auto ptr_tp = ptr_type { kind, into_ptr(tp_pointed) };
-        return VARIANT(prog::type, PTR, into_ptr(ptr_tp));
+        return VARIANT(type, PTR, into_ptr(ptr_tp));
     }
 
     constant copy_const(const constant& value) {
@@ -289,6 +289,105 @@ namespace sg::prog {
         return { into_ptr_vector(param_types), make_ptr(copy_type(*func.return_tp)) };
     }
 
+    bool type_copyable(const program& prog, const type& tp) {
+        switch (INDEX(tp)) {
+            case type::NEVER:
+            case type::UNIT:
+            case type::NUMBER:
+                return true;
+
+            case type::STRUCT:
+                return prog.struct_types[GET(tp, STRUCT)]->copyable;
+
+            case type::ENUM:
+                return prog.enum_types[GET(tp, ENUM)]->copyable;
+
+            case type::TUPLE: {
+                for (const type& tp : as_cref_vector(GET(tp, TUPLE)))
+                    if (!type_copyable(prog, tp))
+                        return false;
+                return true;
+            }
+
+            case type::ARRAY:
+                return type_copyable(prog, *GET(tp, ARRAY)->tp);
+
+            case type::OPTIONAL:
+                return type_copyable(prog, *GET(tp, OPTIONAL));
+
+            case type::PTR:
+                return GET(tp, PTR)->kind != ptr_type::UNIQUE;
+
+            case type::INNER_PTR:
+                return GET(tp, INNER_PTR)->kind != ptr_type::UNIQUE;
+
+            case type::FUNC:
+            case type::GLOBAL_FUNC:
+                return true;
+
+            case type::FUNC_WITH_PTR:
+                return GET(tp, FUNC_WITH_PTR)->kind != ptr_type::UNIQUE;
+
+            case type::KNOWN_FUNC:
+            case type::STRUCT_CTOR:
+            case type::ENUM_CTOR:
+                return true;
+
+        }
+
+        UNREACHABLE;
+    }
+
+    bool type_trivial(const program& prog, const type& tp) {
+        switch (INDEX(tp)) {
+            case type::NEVER:
+            case type::NUMBER:
+            case type::UNIT:
+                return true;
+
+            case type::STRUCT:
+                return prog.struct_types[GET(tp, STRUCT)]->trivial;
+
+            case type::ENUM:
+                return prog.enum_types[GET(tp, ENUM)]->trivial;
+
+            case type::TUPLE: {
+                for (const type& tp : as_cref_vector(GET(tp, TUPLE)))
+                    if (!type_trivial(prog, tp))
+                        return false;
+                return true;
+            }
+
+            case type::ARRAY:
+                return type_trivial(prog, *GET(tp, ARRAY)->tp);
+
+            case type::OPTIONAL:
+                return type_trivial(prog, *GET(tp, OPTIONAL));
+
+            case type::PTR:
+                return GET(tp, PTR)->kind == ptr_type::GLOBAL;
+
+            case type::INNER_PTR:
+                return GET(tp, INNER_PTR)->kind == ptr_type::GLOBAL;
+
+            case type::FUNC:
+                return false;
+
+            case type::GLOBAL_FUNC:
+                return true;
+
+            case type::FUNC_WITH_PTR:
+                return false;
+
+            case type::KNOWN_FUNC:
+            case type::STRUCT_CTOR:
+            case type::ENUM_CTOR:
+                return true;
+        }
+
+        UNREACHABLE;
+    }
+
     void print_type(ostream& stream, const program& prog, const type& tp) {
         switch (INDEX(tp)) {
             case type::NEVER:
@@ -480,7 +579,7 @@ namespace sg::prog {
         stream << '(';
 
         auto first = true;
-        for (const prog::type_local& tp : as_cref_vector(func.param_tps)) {
+        for (const type_local& tp : as_cref_vector(func.param_tps)) {
             if (!first)
                 stream << ", ";
             first = false;

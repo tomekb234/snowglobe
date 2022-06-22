@@ -2,12 +2,11 @@
 #define AST_HPP
 
 #include "location.hpp"
-#include <memory>
 #include <vector>
 #include <optional>
 #include <variant>
-#include <string>
 #include <utility>
+#include <memory>
 
 namespace sg::ast {
     using std::vector;

@@ -4,7 +4,7 @@
 #include "diagcol.hpp"
 #include "ast.hpp"
 #include "program.hpp"
-#include "compiler.hpp"
+#include "compiler/compiler.hpp"
 #include <ostream>
 #include <string>
 #include <optional>

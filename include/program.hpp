@@ -2,7 +2,6 @@
 #define PROGRAM_HPP
 
 #include <vector>
-#include <memory>
 #include <optional>
 #include <variant>
 #include <string>
@@ -10,6 +9,7 @@
 #include <tuple>
 #include <ostream>
 #include <unordered_map>
+#include <memory>
 
 namespace sg::prog {
     using std::vector;
@@ -118,7 +118,7 @@ namespace sg::prog {
         unordered_map<string, param_index> param_names;
         ptr<type> return_tp;
         vector<ptr<type_local>> vars;
-        ptr<instr_block> instrs;
+        vector<ptr<instr>> instrs;
     };
 
     struct func_param {
@@ -756,6 +756,9 @@ namespace sg::prog {
     bool func_types_equal(const func_type& type_a, const func_type& type_b);
 
     func_type get_func_type(const global_func& func);
+
+    bool type_copyable(const prog::program& prog, const prog::type& tp);
+    bool type_trivial(const prog::program& prog, const prog::type& tp);
 
     void print_type(ostream& stream, const program& prog, const type& tp);
 }

@@ -21,6 +21,7 @@ namespace sg::utils {
     using std::monostate;
     using std::in_place_index;
     using std::make_pair;
+    using std::tuple;
     using std::make_tuple;
     using std::tie;
     using std::vector;
@@ -46,11 +47,6 @@ namespace sg::utils {
     template<typename T>
     unique_ptr<T> make_ptr(T&& value) {
         return make_unique<T>(move(value));
-    }
-
-    template<typename T>
-    unique_ptr<T> copy_make_ptr(T value) {
-        return make_unique<T>(value);
     }
 
     template<typename T>
@@ -98,6 +94,31 @@ namespace sg::utils {
         for (auto& ptr : vec)
             result.push_back(*ptr);
         return result;
+    }
+
+    template<typename T>
+    unsigned long long encode_number(T number) {
+        unsigned long long result = 0;
+        auto ptr = reinterpret_cast<T*>(&result);
+        *ptr = number;
+        return result;
+    }
+
+    template<typename T>
+    T decode_number(unsigned long long number) {
+        auto ptr = reinterpret_cast<T*>(&number);
+        return *ptr;
+    }
+
+    template<typename T>
+    static optional<T> try_make_number(unsigned long long abs_value, bool negative) {
+        if (abs_value == 0)
+            return 0;
+        if (!negative)
+            return abs_value <= numeric_limits<T>::max() ? static_cast<T>(abs_value) : optional<T>();
+        if (is_unsigned<T>())
+            return { };
+        return abs_value - 1 <= numeric_limits<T>::max() ? -static_cast<T>(abs_value - 1) - 1 : optional<T>();
     }
 }
 
