@@ -61,6 +61,7 @@ namespace sg {
 
         compiler(prog::program& prog, diagnostic_collector& diags) : prog(prog), diags(diags) { }
 
+        void compile_builtins(const ast::program& ast, string builtin_name);
         bool compile(const ast::program& ast);
 
         private:

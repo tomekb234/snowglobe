@@ -428,6 +428,9 @@ namespace sg {
 
         do_instr = [&] (const prog::instr& instr) {
             switch (INDEX(instr)) {
+                case prog::instr::FROM_NEVER:
+                    break;
+
                 case prog::instr::ZERO_EXT:
                 case prog::instr::SIGNED_EXT:
                 case prog::instr::FLOAT_EXT: {

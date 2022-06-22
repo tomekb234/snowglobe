@@ -4,13 +4,45 @@
 #include "diags.hpp"
 #include "utils.hpp"
 
-#include <iostream>
-
 namespace sg {
     using namespace sg::utils;
 
+    void compiler::compile_builtins(const ast::program& ast, string builtin_name) {
+        auto dummy_type = copy_type(prog::NEVER_TYPE);
+        auto dummy_value = VARIANT(prog::constant, UNIT, monostate());
+        auto dummy = prog::global_var { { builtin_name }, into_ptr(dummy_type), into_ptr(dummy_value) };
+
+        auto dummy_index = consts.size();
+        consts.push_back(move(dummy));
+        global_names[builtin_name] = { global_name_kind::CONST, dummy_index, true };
+
+        for (const ast::global_def& def_ast : as_cref_vector(ast.global_defs)) {
+            switch (INDEX(def_ast)) {
+                case ast::global_def::VAR_DEF: {
+                    auto& var_ast = *GET(def_ast, VAR_DEF);
+                    auto var = compile_global_var(var_ast);
+                    auto name = *var.name;
+                    auto index = prog.global_vars.size();
+                    prog.global_vars.push_back(into_ptr(var));
+                    global_names[name] = { global_name_kind::VAR, index, true };
+                } break;
+
+                case ast::global_def::FUNC_DEF: {
+                    auto& func_ast = *GET(def_ast, FUNC_DEF);
+                    auto func = declare_global_func(func_ast);
+                    compile_global_func(func_ast, func);
+                    auto name = *func.name;
+                    auto index = prog.global_funcs.size();
+                    prog.global_funcs.push_back(into_ptr(func));
+                    global_names[name] = { global_name_kind::FUNC, index, true };
+                } break;
+            }
+        }
+
+        global_names.erase(builtin_name);
+    }
+
     bool compiler::compile(const ast::program& ast) {
-        prog = { };
         auto ok = true;
         auto global_def_asts = as_cref_vector(ast.global_defs);
 

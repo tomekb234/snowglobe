@@ -29,6 +29,8 @@ namespace sg {
                     auto [value, type] = compile_expr(expr_ast, false);
                     if (!type.confined)
                         add_delete(value, *type.tp);
+                    if (INDEX_EQ(*type.tp, NEVER))
+                        returned = true;
                 }
             } break;
 
