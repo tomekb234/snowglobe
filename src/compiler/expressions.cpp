@@ -1040,22 +1040,23 @@ namespace sg {
         auto [value, type_local] = compile_expr(value_ast, false);
         auto& type = *type_local.tp;
 
+        if (type_local.confined && !clr.type_trivial(*type_local.tp))
+            error(diags::confinement_mismatch(type_local.confined), ast.loc);
+
         auto [size_value, size_type] = compile_expr(size_ast, true);
         size_value = conv_clr.convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
 
-        if (!type_local.confined) {
-            if (!clr.type_copyable(type))
-                error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
+        if (!clr.type_copyable(type))
+            error(diags::type_not_copyable(clr.prog, move(type)), value_ast.loc);
 
-            push_frame();
-            add_copy(value, type);
-            auto block = pop_frame();
+        push_frame();
+        add_copy(value, type);
+        auto block = pop_frame();
 
-            auto repeat_instr = prog::repeat_instr { size_value, new_reg(), into_ptr(block) };
-            add_instr(VARIANT(prog::instr, REPEAT, into_ptr(repeat_instr)));
+        auto repeat_instr = prog::repeat_instr { size_value, new_reg(), into_ptr(block) };
+        add_instr(VARIANT(prog::instr, REPEAT, into_ptr(repeat_instr)));
 
-            add_delete(value, type);
-        }
+        add_delete(value, type);
 
         auto result = new_reg();
         auto instr = prog::alloc_slice_instr { value, size_value, result };
