@@ -150,15 +150,23 @@ namespace sg {
         auto do_add = [&] () {
             if (target_type.slice) {
                 auto length = fclr.new_reg();
-                auto get_instr = prog::get_slice_length_instr { value, length };
-                fclr.add_instr(VARIANT(prog::instr, GET_SLICE_LENGTH, into_ptr(get_instr)));
+                auto length_instr = prog::get_slice_length_instr { value, length };
+                fclr.add_instr(VARIANT(prog::instr, GET_SLICE_LENGTH, into_ptr(length_instr)));
 
                 fclr.push_frame();
+
                 auto index = fclr.new_reg();
+
+                auto ptr = fclr.new_reg();
+                auto get_instr = prog::get_item_ptr_instr { value, index, ptr };
+                fclr.add_instr(VARIANT(prog::instr, GET_ITEM_PTR, into_ptr(get_instr)));
+
                 auto result = fclr.new_reg();
-                auto read_instr = prog::slice_read_instr { value, index, result };
-                fclr.add_instr(VARIANT(prog::instr, SLICE_READ, into_ptr(read_instr)));
+                auto read_instr = prog::ptr_read_instr { ptr, result };
+                fclr.add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(read_instr)));
+
                 add(result, *target_type.tp);
+
                 auto block = fclr.pop_frame();
 
                 auto repeat_instr = prog::repeat_instr { length, index, into_ptr(block) };
