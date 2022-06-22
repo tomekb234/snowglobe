@@ -15,6 +15,7 @@
 
 namespace sg {
     using std::move;
+    using std::optional;
     using std::pair;
     using std::tuple;
     using std::variant;
@@ -68,14 +69,14 @@ namespace sg {
 
         template<typename T>
         [[noreturn]] void error(T&& diag, location loc) {
-            diag.loc = { loc };
+            diag.loc = loc;
             diags.add(make_unique<T>(move(diag)));
             throw compilation_error();
         }
 
         template<typename T>
         void warning(T&& diag, location loc) {
-            diag.loc = { loc };
+            diag.loc = loc;
             diags.add(make_unique<T>(move(diag)));
         }
 

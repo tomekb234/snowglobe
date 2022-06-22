@@ -101,6 +101,8 @@ namespace sg::prog {
         vector<ptr<global_func>> global_funcs;
         vector<ptr<struct_type>> struct_types;
         vector<ptr<enum_type>> enum_types;
+
+        global_index entry_func;
         global_index cleanup_func;
     };
 

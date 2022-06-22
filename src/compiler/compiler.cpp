@@ -4,6 +4,8 @@
 #include "diags.hpp"
 #include "utils.hpp"
 
+#include <iostream>
+
 namespace sg {
     using namespace sg::utils;
 
@@ -159,9 +161,25 @@ namespace sg {
             }
         }
 
-        auto cleanup = make_cleanup_func();
-        prog.cleanup_func = prog.global_funcs.size();
-        prog.global_funcs.push_back(into_ptr(cleanup));
+        try {
+            auto main = get_global_name("main", { global_name_kind::FUNC }, whole_file(ast.loc));
+            auto& func = *prog.global_funcs[main.index];
+
+            if (!func.params.empty() || !INDEX_EQ(*func.return_tp, UNIT))
+                error(diags::invalid_main_type(), whole_file(ast.loc));
+
+            prog.entry_func = main.index;
+        } catch (compilation_error) {
+            ok = false;
+        }
+
+        try {
+            auto cleanup = make_cleanup_func();
+            prog.cleanup_func = prog.global_funcs.size();
+            prog.global_funcs.push_back(into_ptr(cleanup));
+        } catch (compilation_error) {
+            ok = false;
+        }
 
         return ok;
     }

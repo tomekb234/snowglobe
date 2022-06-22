@@ -142,6 +142,7 @@ namespace sg::diags {
     // Function compilation related
 
     DIAG0(invalid_parameter_order, error);
+    DIAG0(invalid_main_type, error);
     DIAG1(variable_not_found, error, string, name);
     DIAG0(variable_without_type, error);
     DIAG4(variable_not_usable, error, optional<string>, name, bool, initialized, bool, uninitialized, bool, moved_out);

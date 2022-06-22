@@ -234,6 +234,7 @@
 program:
     global_def_seq {
         ast = { { @$ }, into_ptr_vector($global_def_seq) };
+        ast.loc.begin = { ast.loc.end.file_name, false, 1, 1 };
     }
 
 global_def_seq:

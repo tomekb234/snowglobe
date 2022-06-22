@@ -7,7 +7,8 @@ namespace sg {
     using std::string;
 
     struct position {
-        const string* file_name;
+        const string* file_name = nullptr;
+        bool whole_file;
         size_t line;
         size_t column;
     };
@@ -16,6 +17,11 @@ namespace sg {
         position begin;
         position end;
     };
+
+    inline location whole_file(location loc) {
+        loc.begin.whole_file = loc.end.whole_file = true;
+        return loc;
+    }
 }
 
 #endif

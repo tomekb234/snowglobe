@@ -361,6 +361,10 @@ namespace sg::diags {
         stream << "All function parameters with non-confined types must be ordered after parameters with confined types" << endl;
     }
 
+    void invalid_main_type::write(ostream& stream) const {
+        stream << "Invalid type for main function" << endl;
+    }
+
     void variable_not_found::write(ostream& stream) const {
         stream << "Local variable with name '" << name << "' not found" << endl;
     }

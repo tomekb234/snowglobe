@@ -22,7 +22,7 @@ namespace sg {
 
         public:
 
-        lexer_input(istream& stream, const string& file_name) : stream(stream), cursor(0), cursor_pos { &file_name, 1, 1 } { }
+        lexer_input(istream& stream, const string& file_name) : stream(stream), cursor(0), cursor_pos { &file_name, false, 1, 1 } { }
 
         void start();
         char peek() const;
