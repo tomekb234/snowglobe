@@ -66,10 +66,10 @@ namespace sg {
                 auto& target_ast = *GET(ast, LENGTH);
                 auto target_type = compile_const(target_ast).second;
                 if (!INDEX_EQ(target_type, ARRAY))
-                    error(diags::expected_array_type(prog, move(target_type)), target_ast.loc);
+                    error(diags::invalid_type(prog, move(target_type), diags::type_kind::ARRAY), target_ast.loc);
                 auto size = GET(target_type, ARRAY)->size;
                 auto value = VARIANT(prog::constant, NUMBER, encode_number(size));
-                return { move(value), copy_type(*prog::SIZE_TYPE_LOCAL.tp) };
+                return { move(value), copy_type(prog::SIZE_TYPE) };
             }
 
             default:
@@ -383,7 +383,7 @@ namespace sg {
                 auto& type = *consts[index].tp;
 
                 if (!INDEX_EQ(type, NUMBER))
-                    error(diags::invalid_size_constant_type(), ast.loc);
+                    error(diags::invalid_size_constant_type(prog, copy_type(type)), ast.loc);
 
                 auto ntype = GET(type, NUMBER)->tp;
                 auto number = GET(value, NUMBER);
@@ -402,7 +402,7 @@ namespace sg {
                         return decode_number<uint64_t>(number);
 
                     default:
-                        error(diags::invalid_size_constant_type(), ast.loc);
+                        error(diags::invalid_size_constant_type(prog, copy_type(type)), ast.loc);
                 }
             }
         }

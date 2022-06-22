@@ -25,7 +25,7 @@ namespace sg {
 
         if (ast.body->return_value) {
             if (returned)
-                warning(diags::dead_code(), (*ast.body->return_value)->loc);
+                warning(diags::unreachable_code(), (*ast.body->return_value)->loc);
             compile_return(as_optional_cref(ast.body->return_value), (*ast.body->return_value)->loc);
         } else if (!returned) {
             if (!INDEX_EQ(*func.return_tp, UNIT))
@@ -196,7 +196,7 @@ namespace sg {
         auto& var = vars[index];
 
         if (var.outside_loop > 0)
-            error(diags::variable_moved_inside_loop(var.name), loc);
+            error(diags::variable_moved_out_inside_loop(var.name), loc);
 
         var.state = VAR_MOVED_OUT;
     }
@@ -304,7 +304,7 @@ namespace sg {
             add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(extract_instr)));
             return { result, move(ptr_type) };
         } else
-            error(diags::expected_pointer_type(clr.prog, move(type)), loc);
+            error(diags::invalid_type(clr.prog, move(type), diags::type_kind::POINTER), loc);
     }
 
     void function_compiler::add_return(prog::reg_index value, location loc) {
@@ -460,7 +460,7 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, TUPLE))
-                    error(diags::expected_tuple_type(clr.prog, move(*type.tp)), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::TUPLE), loc);
 
                 auto field_types = as_cref_vector(GET(*type.tp, TUPLE));
                 auto confined = type.confined;
@@ -483,7 +483,7 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, ARRAY))
-                    error(diags::expected_array_type(clr.prog, move(*type.tp)), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ARRAY), loc);
 
                 auto& array_type = *GET(*type.tp, ARRAY);
                 auto item_type = prog::type_local { make_ptr(copy_type(*array_type.tp)), type.confined };
@@ -504,8 +504,10 @@ namespace sg {
                 auto& [struct_index, lval_ptrs] = GET(lval, STRUCT);
                 auto lvals = as_cref_vector(lval_ptrs);
 
-                if (!INDEX_EQ(*type.tp, STRUCT) || GET(*type.tp, STRUCT) != struct_index)
-                    error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, STRUCT, struct_index)), loc);
+                if (!INDEX_EQ(*type.tp, STRUCT))
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::STRUCT), loc);
+                if (GET(*type.tp, STRUCT) != struct_index)
+                    error(diags::invalid_struct(*clr.prog.struct_types[GET(*type.tp, STRUCT)], *clr.prog.struct_types[struct_index]), loc);
 
                 auto& st = *clr.prog.struct_types[struct_index];
                 auto count = st.fields.size();
@@ -701,7 +703,7 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, TUPLE))
-                    error(diags::expected_tuple_type(clr.prog, move(*type.tp)), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::TUPLE), loc);
 
                 auto field_types = as_cref_vector(GET(*type.tp, TUPLE));
                 auto confined = type.confined;
@@ -724,7 +726,7 @@ namespace sg {
                 auto count = lvals.size();
 
                 if (!INDEX_EQ(*type.tp, ARRAY))
-                    error(diags::expected_array_type(clr.prog, move(*type.tp)), loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ARRAY), loc);
 
                 auto& array_type = *GET(*type.tp, ARRAY);
                 auto item_type = prog::type_local { make_ptr(copy_type(*array_type.tp)), type.confined };
@@ -745,8 +747,10 @@ namespace sg {
                 auto& [struct_index, lval_ptrs] = GET(lval, STRUCT);
                 auto lvals = as_cref_vector(lval_ptrs);
 
-                if (!INDEX_EQ(*type.tp, STRUCT) || GET(*type.tp, STRUCT) != struct_index)
-                    error(diags::invalid_type(clr.prog, move(*type.tp), VARIANT(prog::type, STRUCT, struct_index)), loc);
+                if (!INDEX_EQ(*type.tp, STRUCT))
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::STRUCT), loc);
+                if (GET(*type.tp, STRUCT) != struct_index)
+                    error(diags::invalid_struct(*clr.prog.struct_types[GET(*type.tp, STRUCT)], *clr.prog.struct_types[struct_index]), loc);
 
                 auto& st = *clr.prog.struct_types[struct_index];
                 auto count = st.fields.size();

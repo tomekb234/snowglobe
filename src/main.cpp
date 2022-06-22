@@ -97,6 +97,7 @@ int main(int argc, const char** argv) {
 
     auto ok = true;
 
+    sg::prog::program prog;
     sg::diagnostic_collector diags;
 
     istringstream builtins(BUILTINS);
@@ -110,7 +111,6 @@ int main(int argc, const char** argv) {
     yy::parser(builtins_input, diags, builtins_ast).parse();
 
     if (yy::parser(source_input, diags, source_ast).parse() == 0) {
-        sg::prog::program prog;
         sg::compiler compiler(prog, diags);
 
         compiler.compile_builtins(builtins_ast, BUILTIN_NAME);

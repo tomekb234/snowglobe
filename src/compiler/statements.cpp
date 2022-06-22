@@ -10,7 +10,7 @@ namespace sg {
     void function_compiler::compile_stmt_block(const ast::stmt_block& ast, bool cleanup) {
         for (const ast::stmt& stmt_ast : as_cref_vector(ast.stmts)) {
             if (returned)
-                warning(diags::dead_code(), stmt_ast.loc);
+                warning(diags::unreachable_code(), stmt_ast.loc);
 
             compile_stmt(stmt_ast);
         }
@@ -199,7 +199,7 @@ namespace sg {
             }
 
             if (!INDEX_EQ(*type.tp, OPTIONAL))
-                error(diags::expected_optional_type(clr.prog, move(*type.tp)), value_ast.loc);
+                error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::OPTIONAL), value_ast.loc);
 
             auto cond = new_reg();
             auto test_instr = prog::test_optional_instr { value, cond };
@@ -252,7 +252,7 @@ namespace sg {
         }
 
         if (!INDEX_EQ(*type.tp, ENUM))
-            error(diags::expected_enum_type(clr.prog, move(*type.tp)), value_ast.loc);
+            error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::ENUM), value_ast.loc);
 
         compile_match_stmt_branches(ast, value, type, 0);
 
@@ -381,7 +381,7 @@ namespace sg {
                 }
 
                 if (!INDEX_EQ(*type.tp, OPTIONAL))
-                    error(diags::expected_optional_type(clr.prog, move(*type.tp)), value_ast.loc);
+                    error(diags::invalid_type(clr.prog, move(*type.tp), diags::type_kind::OPTIONAL), value_ast.loc);
 
                 auto cond = new_reg();
                 auto test_instr = prog::test_optional_instr { value, cond };
@@ -438,7 +438,7 @@ namespace sg {
             auto type_local = prog::type_local { make_ptr(copy_type(type)), false };
 
             if (!INDEX_EQ(type, NUMBER))
-                error(diags::expected_integer_type(clr.prog, move(type)), begin_ast.loc);
+                error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INTEGER), begin_ast.loc);
 
             auto& ntype = *GET(type, NUMBER);
             prog::numeric_binary_operation_instr::kind_t op_kind;
@@ -463,7 +463,7 @@ namespace sg {
 
                 case num::F32:
                 case num::F64:
-                    error(diags::expected_integer_type(clr.prog, move(type)), begin_ast.loc);
+                    error(diags::invalid_type(clr.prog, move(type), diags::type_kind::INTEGER), begin_ast.loc);
             }
 
             begin_value = conv_clr.convert(begin_value, begin_type, type, begin_ast.loc);

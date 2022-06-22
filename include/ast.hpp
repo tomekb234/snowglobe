@@ -579,6 +579,7 @@ namespace sg::ast {
     struct type_local : node {
         ptr<type> tp;
         bool confined;
+        bool marked;
     };
 
     const string IGNORED_PLACEHOLDER = "_";

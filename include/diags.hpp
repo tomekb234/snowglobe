@@ -83,7 +83,7 @@ namespace sg::diags {
 
     DIAG1(name_not_found, error, string, name);
     DIAG1(type_not_compiled, error, string, name);
-    DIAG1(global_name_used, error, string, name);
+    DIAG1(name_used, error, string, name);
     DIAG1(field_name_used, error, string, name);
     DIAG1(variant_name_used, error, string, name);
     DIAG3(invalid_kind, error, string, name, global_name_kind, kind, vector<global_name_kind>, expected_kinds);
@@ -96,65 +96,75 @@ namespace sg::diags {
     DIAG2(invalid_argument_count, error, size_t, count, size_t, expected);
     DIAG0(invalid_argument_marker, error);
     DIAG2(invalid_argument_index, error, size_t, index, size_t, argument_count);
-    DIAG1(reused_argument_index, error, size_t, index);
+    DIAG1(duplicate_argument_index, error, size_t, index);
     DIAG1(missing_argument, error, size_t, index);
     DIAG2(unknown_struct_field, error, const prog::struct_type&, st, string, name);
     DIAG2(unknown_enum_variant, error, const prog::enum_type&, en, string, name);
     DIAG2(unknown_function_parameter, error, const prog::global_func&, func, string, name);
-    DIAG2(invalid_tuple_field, error, size_t, index, size_t, count);
+    DIAG2(invalid_tuple_index, error, size_t, index, size_t, count);
     DIAG0(expected_enum_name, error);
-    DIAG0(expected_enum_variant, error);
-    DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
-    DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
-    DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
-    DIAG0(slice_dereference, error);
     DIAG0(expression_not_swappable, error);
 
     // Typing related
 
+    enum struct type_kind {
+        NUMBER,
+        INTEGER,
+        OPTIONAL,
+        TUPLE,
+        ARRAY,
+        STRUCT,
+        ENUM,
+        POINTER,
+        SLICE_OR_ARRAY_POINTER,
+        WEAK_POINTER,
+        INNER_POINTER
+    };
+
     DIAG3(not_convertible, error, const prog::program&, prog, prog::type, type, prog::type, new_type);
-    DIAG1(confinement_mismatch, error, bool, confined);
-    DIAG0(confinement_ambiguous, error);
-    DIAG0(function_call_in_confined_context, error);
-    DIAG0(allocation_in_confined_context, error);
-    DIAG0(dereference_in_confined_context, error);
-    DIAG0(weak_pointer_test_in_confined_context, error);
     DIAG3(no_common_supertype, error, const prog::program&, prog, prog::type, type_a, prog::type, type_b);
     DIAG2(type_not_copyable, error, const prog::program&, prog, prog::type, type);
-    DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, prog::type, expected);
-    DIAG2(expected_number_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_integer_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_optional_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_tuple_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_array_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_struct_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_enum_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_pointer_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_slice_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_inner_pointer_type, error, const prog::program&, prog, prog::type, type);
-    DIAG2(expected_weak_pointer_type, error, const prog::program&, prog, prog::type, type);
-    DIAG0(slice_not_allowed, error);
+    DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, type_kind, expected);
+    DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
+    DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
+    DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
     DIAG2(invalid_tuple_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);
-    DIAG0(invalid_size_constant_type, error);
+    DIAG2(invalid_struct, error, const prog::struct_type&, st, const prog::struct_type&, expected);
+    DIAG2(invalid_size_constant_type, error, const prog::program&, prog, prog::type, type);
+    DIAG0(slice_not_allowed, error);
+    DIAG0(trivial_type_with_confinement_marker, warning);
     DIAG0(restrictive_pointer_type, warning);
+
+    // Value confinement related
+
+    enum struct value_kind {
+        FUNCTION_RESULT,
+        ALLOCATION,
+        DEREFERENCE,
+        WEAK_POINTER_TEST
+    };
+
+    DIAG1(confinement_mismatch, error, bool, confined);
+    DIAG0(confinement_ambiguous, error);
+    DIAG1(not_allowed_in_confined_context, error, value_kind, kind);
 
     // Function compilation related
 
-    DIAG0(invalid_parameter_order, error);
     DIAG0(invalid_main_type, error);
+    DIAG0(invalid_parameter_order, error);
+    DIAG1(invalid_variable_name, error, string, name);
     DIAG1(variable_not_found, error, string, name);
     DIAG0(variable_without_type, error);
     DIAG4(variable_not_usable, error, optional<string>, name, bool, initialized, bool, uninitialized, bool, moved_out);
     DIAG3(variable_not_deletable, error, optional<string>, name, bool, uninitialized, bool, moved_out);
-    DIAG1(variable_moved_inside_loop, error, optional<string>, name);
+    DIAG1(variable_moved_out_inside_loop, error, optional<string>, name);
     DIAG1(variable_outside_confinement, error, optional<string>, name);
-    DIAG1(global_variable_moved, error, string, name);
-    DIAG1(invalid_variable_name, error, string, name);
+    DIAG0(global_variable_moved_out, error);
     DIAG0(break_outside_loop, error);
     DIAG0(continue_outside_loop, error);
     DIAG0(missing_return, error);
-    DIAG0(dead_code, warning);
+    DIAG0(unreachable_code, warning);
 }
 
 #endif

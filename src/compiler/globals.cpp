@@ -14,7 +14,7 @@ namespace sg {
             error(diags::invalid_variable_name(name), ast.name_loc);
 
         if (global_names.count(name))
-            error(diags::global_name_used(name), ast.name_loc);
+            error(diags::name_used(name), ast.name_loc);
 
         auto [value, value_type] = compile_const(*ast.value);
 
@@ -33,7 +33,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::global_name_used(name), ast.name_loc);
+            error(diags::name_used(name), ast.name_loc);
 
         vector<prog::func_param> params;
         unordered_map<string, prog::param_index> param_names;
@@ -65,7 +65,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::global_name_used(name), ast.name_loc);
+            error(diags::name_used(name), ast.name_loc);
 
         return { name, ast.copyable, ast.copyable, { }, { }, 0 };
     }
@@ -74,7 +74,7 @@ namespace sg {
         auto name = ast.name;
 
         if (global_names.count(name))
-            error(diags::global_name_used(name), ast.name_loc);
+            error(diags::name_used(name), ast.name_loc);
 
         return { ast.name, ast.copyable, ast.copyable, { }, { }, 0 };
     }

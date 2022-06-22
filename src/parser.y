@@ -1105,11 +1105,11 @@ type_pointed:
 
 type_local:
     type {
-        $$ = { { @$ }, into_ptr($type), true };
+        $$ = { { @$ }, into_ptr($type), true, false };
     }
 
     | "!" type {
-        $$ = { { @$ }, into_ptr($type), false };
+        $$ = { { @$ }, into_ptr($type), false, true };
     }
 
 type_local_seq:

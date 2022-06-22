@@ -295,7 +295,7 @@ namespace sg {
             if (index >= count)
                 error(diags::invalid_argument_index(index, count), arg_ast.loc);
             if (used[index])
-                error(diags::reused_argument_index(index), arg_ast.loc);
+                error(diags::duplicate_argument_index(index), arg_ast.loc);
 
             value_ast_ptrs[index] = value_ast_ptr;
             used[index] = true;

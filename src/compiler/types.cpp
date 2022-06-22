@@ -84,6 +84,9 @@ namespace sg {
         auto type = compile_type(*ast.tp, allow_uncompiled);
         auto confined = ast.confined;
 
+        if (type_trivial(type) && ast.marked)
+            warning(diags::trivial_type_with_confinement_marker(), ast.loc);
+
         if ((INDEX_EQ(type, PTR) || INDEX_EQ(type, INNER_PTR) || INDEX_EQ(type, FUNC_WITH_PTR)) && confined) {
             auto kind =
                 INDEX_EQ(type, PTR) ? GET(type, PTR)->kind
