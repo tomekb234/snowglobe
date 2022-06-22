@@ -324,10 +324,20 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
+    void expected_inner_pointer_type::write(ostream& stream) const {
+        stream << "Expected an inner pointer type instead of '";
+        prog::print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
     void expected_weak_pointer_type::write(ostream& stream) const {
         stream << "Expected a weak pointer type instead of '";
         prog::print_type(stream, prog, type);
         stream << "'" << endl;
+    }
+
+    void slice_not_allowed::write(ostream& stream) const {
+        stream << "Slice type not allowed" << endl;
     }
 
     void invalid_tuple_size::write(ostream& stream) const {
@@ -349,6 +359,10 @@ namespace sg::diags {
 
     void invalid_parameter_order::write(ostream& stream) const {
         stream << "All function parameters with non-confined types must be ordered after parameters with confined types" << endl;
+    }
+
+    void invalid_main_type::write(ostream& stream) const {
+        stream << "Invalid type for main function" << endl;
     }
 
     void variable_not_found::write(ostream& stream) const {
@@ -416,6 +430,10 @@ namespace sg::diags {
 
     void invalid_variable_name::write(ostream& stream) const {
         stream << "The name '" << name << "' cannot be used as a variable" << endl;
+    }
+
+    void expression_not_swappable::write(ostream& stream) const {
+        stream << "Expression not swappable" << endl;
     }
 
     void break_outside_loop::write(ostream& stream) const {

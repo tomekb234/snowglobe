@@ -188,6 +188,7 @@ namespace sg {
         typed_llvm_value<llvm::Function> declare_function(const prog::global_func& func);
         typed_llvm_value<> define_global_variable(const prog::global_var& var);
         llvm::Function* define_init_function();
+        llvm::Function* define_internal_main_function(llvm::Function* init_func, llvm::Function* main_func, llvm::Function* cleanup_func);
     };
 
     class function_code_generator {
@@ -203,7 +204,7 @@ namespace sg {
 
         function_code_generator(code_generator& gen, const prog::global_func& func, code_generator::typed_llvm_value<llvm::Function> llvm_function) : gen(gen), func(func), llvm_function(llvm_function.value), return_type(llvm_function.type) {}
 
-        void generate(optional<llvm::Function*> init_func);
+        void generate();
 
         private:
 

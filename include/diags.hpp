@@ -108,6 +108,7 @@ namespace sg::diags {
     DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
     DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
     DIAG0(slice_dereference, error);
+    DIAG0(expression_not_swappable, error);
 
     // Typing related
 
@@ -130,7 +131,9 @@ namespace sg::diags {
     DIAG2(expected_enum_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_pointer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_slice_type, error, const prog::program&, prog, prog::type, type);
+    DIAG2(expected_inner_pointer_type, error, const prog::program&, prog, prog::type, type);
     DIAG2(expected_weak_pointer_type, error, const prog::program&, prog, prog::type, type);
+    DIAG0(slice_not_allowed, error);
     DIAG2(invalid_tuple_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);
     DIAG0(invalid_size_constant_type, error);
@@ -139,6 +142,7 @@ namespace sg::diags {
     // Function compilation related
 
     DIAG0(invalid_parameter_order, error);
+    DIAG0(invalid_main_type, error);
     DIAG1(variable_not_found, error, string, name);
     DIAG0(variable_without_type, error);
     DIAG4(variable_not_usable, error, optional<string>, name, bool, initialized, bool, uninitialized, bool, moved_out);

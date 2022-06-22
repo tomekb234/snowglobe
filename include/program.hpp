@@ -68,7 +68,6 @@ namespace sg::prog {
     struct make_joint_func_ptr_instr;
     struct test_optional_instr;
     struct test_variant_instr;
-    struct extract_item_instr;
     struct extract_field_instr;
     struct extract_optional_value_instr;
     struct extract_variant_field_instr;
@@ -82,11 +81,13 @@ namespace sg::prog {
     struct slice_read_instr;
     struct slice_write_instr;
     struct get_slice_length_instr;
+    struct get_field_ptr_instr;
+    struct get_item_ptr_instr;
+    struct get_item_range_slice_instr;
     struct test_ref_count_instr;
     struct branch_instr;
     struct value_branch_instr;
     struct repeat_instr;
-    struct repeat_static_instr;
 
     typedef size_t global_index;
     typedef size_t param_index;
@@ -100,6 +101,8 @@ namespace sg::prog {
         vector<ptr<global_func>> global_funcs;
         vector<ptr<struct_type>> struct_types;
         vector<ptr<enum_type>> enum_types;
+
+        global_index entry_func;
         global_index cleanup_func;
     };
 
@@ -304,7 +307,6 @@ namespace sg::prog {
 
             TEST_OPTIONAL,
             TEST_VARIANT,
-            EXTRACT_ITEM,
             EXTRACT_FIELD,
             EXTRACT_OPTIONAL_VALUE,
             EXTRACT_VARIANT_FIELD,
@@ -312,7 +314,7 @@ namespace sg::prog {
             EXTRACT_OUTER_PTR,
             EXTRACT_FUNC_PTR,
             EXTRACT_VALUE_PTR,
-            CHECK_ARRAY_INDEX,
+            CHECK_ARRAY_PTR_INDEX,
             CHECK_SLICE_INDEX,
 
             BOOL_NOT,
@@ -355,6 +357,9 @@ namespace sg::prog {
             ALLOC_SLICE,
             ARRAY_PTR_INTO_SLICE,
             GET_SLICE_LENGTH,
+            GET_FIELD_PTR,
+            GET_ITEM_PTR,
+            GET_ITEM_RANGE_SLICE,
             ALLOC_REF_COUNTER,
             FORGET_REF_COUNTER,
             PTR_READ,
@@ -374,7 +379,6 @@ namespace sg::prog {
             VALUE_BRANCH,
             LOOP,
             REPEAT,
-            REPEAT_STATIC,
             CONTINUE_LOOP,
             BREAK_LOOP,
             ABORT
@@ -404,7 +408,6 @@ namespace sg::prog {
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
             ptr<test_variant_instr>, // TEST_VARIANT
-            ptr<extract_item_instr>, // EXTRACT_ITEM
             ptr<extract_field_instr>, // EXTRACT_FIELD
             ptr<extract_optional_value_instr>, // EXTRACT_OPTIONAL_VALUE
             ptr<extract_variant_field_instr>, // EXTRACT_VARIANT_FIELD
@@ -412,7 +415,7 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // EXTRACT_OUTER_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_FUNC_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_VALUE_PTR
-            ptr<check_index_instr>, // CHECK_ARRAY_INDEX
+            ptr<check_index_instr>, // CHECK_ARRAY_PTR_INDEX
             ptr<check_index_instr>, // CHECK_SLICE_INDEX
 
             ptr<unary_operation_instr>, // BOOL_NOT
@@ -455,6 +458,9 @@ namespace sg::prog {
             ptr<alloc_slice_instr>, // ALLOC_SLICE
             ptr<ptr_conversion_instr>, // ARRAY_PTR_INTO_SLICE
             ptr<get_slice_length_instr>, // GET_SLICE_LENGTH
+            ptr<get_field_ptr_instr>, // GET_FIELD_PTR
+            ptr<get_item_ptr_instr>, // GET_ITEM_PTR
+            ptr<get_item_range_slice_instr>, // GET_ITEM_RANGE_SLICE
             ptr<ptr_conversion_instr>, // ALLOC_REF_COUNTER
             ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
             ptr<ptr_read_instr>, // PTR_READ
@@ -474,7 +480,6 @@ namespace sg::prog {
             ptr<value_branch_instr>, // VALE_BRANCH
             ptr<instr_block>, // LOOP
             ptr<repeat_instr>, // REPEAT
-            ptr<repeat_static_instr>, // REPEAT_STATIC
             monostate, // CONTINUE_LOOP
             monostate, // BREAK_LOOP
             monostate // ABORT
@@ -608,12 +613,6 @@ namespace sg::prog {
         reg_index result;
     };
 
-    struct extract_item_instr {
-        reg_index value;
-        reg_index index;
-        reg_index result;
-    };
-
     struct extract_field_instr {
         reg_index value;
         field_index field;
@@ -690,6 +689,25 @@ namespace sg::prog {
         reg_index result;
     };
 
+    struct get_field_ptr_instr {
+        reg_index ptr;
+        field_index field;
+        reg_index result;
+    };
+
+    struct get_item_ptr_instr {
+        reg_index ptr;
+        reg_index index;
+        reg_index result;
+    };
+
+    struct get_item_range_slice_instr {
+        reg_index ptr;
+        reg_index begin;
+        reg_index end;
+        reg_index result;
+    };
+
     struct test_ref_count_instr {
         reg_index ptr;
         reg_index result;
@@ -709,12 +727,6 @@ namespace sg::prog {
 
     struct repeat_instr {
         reg_index count;
-        reg_index index;
-        ptr<instr_block> block;
-    };
-
-    struct repeat_static_instr {
-        size_t count;
         reg_index index;
         ptr<instr_block> block;
     };

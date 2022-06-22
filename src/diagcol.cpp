@@ -33,13 +33,19 @@ namespace sg {
 
             // Location
 
-            if (diag->loc) {
-                auto& pos = diag->loc->begin;
+            auto& pos = diag->loc.begin;
+
+            if (pos.file_name) {
                 stream << " at ";
                 stream << colors.location;
-                stream << *pos.file_name << ":";
-                stream << pos.line << ":";
-                stream << pos.column;
+                stream << *pos.file_name;
+
+                if (!pos.whole_file) {
+                    stream << ":";
+                    stream << pos.line << ":";
+                    stream << pos.column;
+                }
+
                 stream << colors.reset;
             }
 
@@ -47,8 +53,8 @@ namespace sg {
 
             // Code fragment
 
-            if (diag->loc) {
-                auto& [begin, end] = *diag->loc;
+            if (pos.file_name && !pos.whole_file) {
+                auto& [begin, end] = diag->loc;
                 auto iter = files.find(*begin.file_name);
 
                 if (iter != files.end()) {

@@ -4,13 +4,14 @@
 
 #include <llvm-12/llvm/IR/IRBuilder.h>
 #include <llvm-12/llvm/IR/Verifier.h>
+#include <llvm-12/llvm/Transforms/Utils/ModuleUtils.h>
 #include <llvm/Support/raw_os_ostream.h>
 
 namespace sg {
     using namespace sg::utils;
 
+    const string normal_func_prefix = "f.";
     const string internal_func_prefix = "if.";
-    const string internal_var_prefix = "iv.";
 
     template<typename T>
     static T decode_number(unsigned long long number) {
@@ -44,22 +45,16 @@ namespace sg {
             for (size_t i = 0; i < prog.global_funcs.size(); i++)
                 functions[i] = declare_function(*prog.global_funcs[i]);
 
-            // define global variables
+            // define global variables and init function
             global_vars.resize(prog.global_vars.size());
             for (size_t i = 0; i < prog.global_vars.size(); i++)
                 global_vars[i] = define_global_variable(*prog.global_vars[i]);
-
-            // generate internal variables / functions
             auto init_func = define_init_function();
-            
+
             // generate function code
-            for (size_t i = 0; i < prog.global_funcs.size(); i++) {
-                auto func_codegen = function_code_generator(*this, *prog.global_funcs[i], functions[i]);
-                if (prog.global_funcs[i]->name.value_or("") == "main")
-                    func_codegen.generate({ init_func });
-                else
-                    func_codegen.generate({ });
-            }
+            for (size_t i = 0; i < prog.global_funcs.size(); i++)
+                function_code_generator(*this, *prog.global_funcs[i], functions[i]).generate();
+            define_internal_main_function(init_func, functions[prog.entry_func].value, functions[prog.cleanup_func].value);
 
             // verify module well-formedness
             llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyModule(mod, stream); });
@@ -257,9 +252,10 @@ namespace sg {
         auto function_type = llvm::FunctionType::get(ret_type->get_type(), arg_types, false);
 
         // create function
-        return { llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, func.name.value_or(""), mod), ret_type };
+        auto function_name = func.name ? (normal_func_prefix + *func.name) : "";
+        return { llvm::Function::Create(function_type, llvm::Function::ExternalLinkage, function_name, mod), ret_type };
     }
-    
+
     code_generator::typed_llvm_value<> code_generator::define_global_variable(const prog::global_var& var) {
         auto type = get_type_from_prog(*var.tp);
         auto value = llvm::UndefValue::get(type->get_type());
@@ -267,46 +263,42 @@ namespace sg {
     }
 
     llvm::Function* code_generator::define_init_function() {
-        auto init_var = new llvm::GlobalVariable(mod, llvm::Type::getInt1Ty(ctx), false, llvm::GlobalVariable::PrivateLinkage, llvm::ConstantInt::getFalse(ctx), internal_var_prefix + "after_init");
         auto type = llvm::FunctionType::get(llvm::Type::getVoidTy(ctx), { }, false);
         auto func = llvm::Function::Create(type, llvm::Function::PrivateLinkage, internal_func_prefix + "init", mod);
-        auto entry_block = llvm::BasicBlock::Create(ctx, "entry", func);
+        auto block = llvm::BasicBlock::Create(ctx, "entry", func);
+        llvm::IRBuilder<> builder(block);
 
-        // init block
-        auto init_block = llvm::BasicBlock::Create(ctx, "init", func);
-        llvm::IRBuilder<> builder(init_block);
         for (size_t i = 0; i < prog.global_vars.size(); i++) {
             auto& global_var = *prog.global_vars[i];
             builder.CreateStore(make_constant(*global_var.value, *global_var.tp, builder).value, global_vars[i].value);
         }
-        builder.CreateStore(llvm::ConstantInt::getTrue(ctx), init_var);
         builder.CreateRetVoid();
 
-        // noinit block
-        auto noinit_block = llvm::BasicBlock::Create(ctx, "noinit", func);
-        builder.SetInsertPoint(noinit_block);
-        builder.CreateRetVoid();
-
-        // entry block
-        builder.SetInsertPoint(entry_block);
-        auto init_var_val = builder.CreateLoad(llvm::Type::getInt1Ty(ctx), init_var);
-        builder.CreateCondBr(init_var_val, noinit_block, init_block);
-
-        // verify corectness
         llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyFunction(*func, stream); });
+        return func;
+    }
 
+    llvm::Function* code_generator::define_internal_main_function(llvm::Function* init_func, llvm::Function* main_func, llvm::Function* cleanup_func) {
+        vector<llvm::Type*> arg_types{ llvm::Type::getInt32Ty(ctx), llvm::PointerType::getUnqual(llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(ctx))) };
+        auto type = llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), arg_types, false);
+        auto func = llvm::Function::Create(type, llvm::Function::ExternalLinkage, "main", mod);
+        auto block = llvm::BasicBlock::Create(ctx, "entry", func);
+        llvm::IRBuilder<> builder(block);
+
+        builder.CreateCall(init_func->getFunctionType(), init_func);
+        builder.CreateCall(main_func->getFunctionType(), main_func);
+        builder.CreateCall(cleanup_func->getFunctionType(), cleanup_func);
+        builder.CreateRet(builder.getInt32(0));
+
+        llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyFunction(*func, stream); });
         return func;
     }
 
 
-    void function_code_generator::generate(optional<llvm::Function*> init_func) {
+    void function_code_generator::generate() {
         // create entry block
         auto entry_block = llvm::BasicBlock::Create(gen.ctx, "entry", llvm_function);
         llvm::IRBuilder<> builder(entry_block);
-
-        // add call to init function
-        if (init_func)
-            builder.CreateCall(*init_func);
 
         // alloc variables
         for (size_t i = 0; i < func.vars.size(); i++) {
@@ -443,17 +435,6 @@ namespace sg {
                     regs[tv_instr.result] = { result, gen.get_number_type(prog::number_type::BOOL) };
                 } break;
 
-                case prog::instr::EXTRACT_ITEM: {
-                    auto& ei_instr = *GET(*instr, EXTRACT_ITEM);
-                    auto& array_value = regs[ei_instr.value];
-                    auto value_type = GET(*array_value.type, ARRAY).value;
-
-                    auto buffer_ptr = builder.CreateAlloca(array_value.type->get_type());
-                    builder.CreateStore(array_value.value, buffer_ptr);
-                    auto item_adr = builder.CreateGEP(array_value.type->get_type(), buffer_ptr, vector<llvm::Value*>{regs[ei_instr.index].value});
-                    regs[ei_instr.result] = { builder.CreateLoad(value_type->get_type(), item_adr), value_type };
-                } break;
-
                 case prog::instr::EXTRACT_FIELD: {
                     auto& ef_instr = *GET(*instr, EXTRACT_FIELD);
                     auto& value = regs[ef_instr.value];
@@ -462,6 +443,8 @@ namespace sg {
                         field_type = GET(*value.type, STRUCT).fields[ef_instr.field];
                     else if (INDEX_EQ(*value.type, TUPLE))
                         field_type = GET(*value.type, TUPLE).fields[ef_instr.field];
+                    else if (INDEX_EQ(*value.type, ARRAY))
+                        field_type = GET(*value.type, ARRAY).value;
                     else
                         UNREACHABLE;
                     regs[ef_instr.result] = { builder.CreateExtractValue(value.value, vector<unsigned>{(unsigned)ef_instr.field}), field_type };

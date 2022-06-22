@@ -84,17 +84,14 @@ namespace sg {
         auto type = compile_type(*ast.tp, allow_uncompiled);
         auto confined = ast.confined;
 
-        if (INDEX_EQ(type, PTR) && confined) {
-            switch (GET(type, PTR)->kind) {
-                case prog::ptr_type::SHARED:
-                case prog::ptr_type::WEAK:
-                case prog::ptr_type::UNIQUE:
-                    warning(diags::restrictive_pointer_type(), ast.loc);
-                    break;
+        if ((INDEX_EQ(type, PTR) || INDEX_EQ(type, INNER_PTR) || INDEX_EQ(type, FUNC_WITH_PTR)) && confined) {
+            auto kind =
+                INDEX_EQ(type, PTR) ? GET(type, PTR)->kind
+                : INDEX_EQ(type, INNER_PTR) ? GET(type, INNER_PTR)->kind
+                : GET(type, FUNC_WITH_PTR)->kind;
 
-                default:
-                    break;
-            }
+            if (kind == prog::ptr_type::SHARED || kind == prog::ptr_type::WEAK || kind == prog::ptr_type::UNIQUE)
+                warning(diags::restrictive_pointer_type(), ast.loc);
         }
 
         return { into_ptr(type), confined };

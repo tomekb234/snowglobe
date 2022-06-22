@@ -53,8 +53,8 @@ namespace sg {
                 return { move(value), move(type) };
             }
 
-            case ast::expr::GLOBAL_REF: {
-                auto& name = GET(ast, GLOBAL_REF);
+            case ast::expr::GLOBAL_VAR_REF: {
+                auto& name = GET(ast, GLOBAL_VAR_REF);
                 auto index = get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
                 auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, index);
                 auto& var_type = *prog.global_vars[index]->tp;
@@ -416,6 +416,7 @@ namespace sg {
         prog::reg_index reg_counter = 0;
 
         reg_values.push_back(move(value));
+        reg_types.push_back(copy_type(type));
 
         auto new_reg = [&] () -> prog::reg_index {
             reg_values.emplace_back();
@@ -427,6 +428,9 @@ namespace sg {
 
         do_instr = [&] (const prog::instr& instr) {
             switch (INDEX(instr)) {
+                case prog::instr::FROM_NEVER:
+                    break;
+
                 case prog::instr::ZERO_EXT:
                 case prog::instr::SIGNED_EXT:
                 case prog::instr::FLOAT_EXT: {

@@ -2,7 +2,6 @@
 #define DIAGCOL_HPP
 
 #include "location.hpp"
-#include <optional>
 #include <ostream>
 #include <vector>
 #include <memory>
@@ -11,7 +10,6 @@
 #include <istream>
 
 namespace sg {
-    using std::optional;
     using std::ostream;
     using std::vector;
     using std::unique_ptr;
@@ -29,7 +27,7 @@ namespace sg {
             ERROR = 2,
         } level;
 
-        optional<location> loc;
+        location loc;
 
         diagnostic(level_t level) : level(level) { }
         diagnostic(level_t level, location loc) : level(level), loc(loc) { }

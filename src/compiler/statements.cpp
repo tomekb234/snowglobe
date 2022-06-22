@@ -29,6 +29,8 @@ namespace sg {
                     auto [value, type] = compile_expr(expr_ast, false);
                     if (!type.confined)
                         add_delete(value, *type.tp);
+                    if (INDEX_EQ(*type.tp, NEVER))
+                        returned = true;
                 }
             } break;
 
@@ -93,17 +95,25 @@ namespace sg {
     }
 
     void function_compiler::compile_swap_stmt(const ast::swap_stmt& ast) {
-        auto lval_a = compile_left_expr(*ast.left, { });
-        auto lval_b = compile_left_expr(*ast.right, { });
+        auto& left_ast = *ast.left;
+        auto& right_ast = *ast.right;
 
-        add_lvalues_swap(lval_a, lval_b, ast.loc);
+        auto lval_a = compile_left_expr(left_ast, { });
+        auto lval_b = compile_left_expr(right_ast, { });
+
+        auto [value_a, type_a] = add_read_for_swap(lval_a, left_ast.loc);
+        auto [value_b, type_b] = add_read_for_swap(lval_b, right_ast.loc);
+
+        add_write_from_swap(lval_a, value_b, type_b, right_ast.loc);
+        add_write_from_swap(lval_b, value_a, type_a, left_ast.loc);
     }
 
     void function_compiler::compile_swap_block_stmt(const ast::swap_block_stmt& ast) {
+        auto& left_ast = *ast.left;
         auto& right_ast = *ast.right;
         auto& block_ast = *ast.block;
 
-        auto lval_a = compile_left_expr(*ast.left, { });
+        auto lval_a = compile_left_expr(left_ast, { });
         lvalue lval_b;
         optional<prog::var_index> var_index;
 
@@ -116,7 +126,11 @@ namespace sg {
         }
 
         auto swap = [&] () {
-            add_lvalues_swap(lval_a, lval_b, ast.loc);
+            auto [value_a, type_a] = add_read_for_swap(lval_a, left_ast.loc);
+            auto [value_b, type_b] = add_read_for_swap(lval_b, right_ast.loc);
+
+            add_write_from_swap(lval_a, value_b, type_b, right_ast.loc);
+            add_write_from_swap(lval_b, value_a, type_a, left_ast.loc);
         };
 
         push_frame();
