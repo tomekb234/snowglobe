@@ -4,6 +4,7 @@
 #include "compiler/deletion.hpp"
 #include "compiler/compiler_utils.hpp"
 #include "diags.hpp"
+#include "program.hpp"
 #include "utils.hpp"
 
 namespace sg {
@@ -142,7 +143,7 @@ namespace sg {
 
         if (!confined && !var_confined) {
             if (type_copyable(prog, type))
-                copy_generator(fclr).add(result, type);
+                copy_generator(fclr, result).add(type);
             else
                 fclr.move_out_var(var_index, loc);
         }
@@ -205,6 +206,34 @@ namespace sg {
 
             default:
                 error(diags::invalid_type(prog, copy_type(type), diags::type_kind::POINTER, loc));
+        }
+    }
+
+    tuple<prog::reg_index, prog::ptr_type::kind_t, prog::type_pointed> function_utils::add_ptr_owner_extraction(prog::reg_index value, const prog::type& type) {
+        switch (INDEX(type)) {
+            case prog::type::PTR: {
+                auto& ptr_type = *GET(type, PTR);
+                return { value, ptr_type.kind, copy_type_pointed(*ptr_type.target_tp) };
+            }
+
+            case prog::type::INNER_PTR: {
+                auto result = fclr.new_reg();
+                auto extract_instr = prog::ptr_conversion_instr { value, result };
+                fclr.add_instr(VARIANT(prog::instr, EXTRACT_OUTER_PTR, into_ptr(extract_instr)));
+                auto& ptr_type = *GET(type, INNER_PTR);
+                return { result, ptr_type.kind, copy_type_pointed(*ptr_type.owner_tp) };
+            }
+
+            case prog::type::FUNC_WITH_PTR: {
+                auto result = fclr.new_reg();
+                auto extract_instr = prog::ptr_conversion_instr { value, result };
+                fclr.add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(extract_instr)));
+                auto& ptr_type = *GET(type, FUNC_WITH_PTR);
+                return { result, ptr_type.kind, copy_type_pointed(*ptr_type.target_tp) };
+            }
+
+            default:
+                UNREACHABLE;
         }
     }
 

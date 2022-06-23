@@ -166,7 +166,7 @@ namespace sg {
 
                 if (!confined) {
                     if (type_copyable(prog, *var.tp))
-                        copy_generator(fclr).add(result, *var.tp);
+                        copy_generator(fclr, result).add(*var.tp);
                     else
                         error(diags::global_variable_moved_out(loc));
                 }
@@ -983,7 +983,7 @@ namespace sg {
                 error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE, ast.loc));
 
             if (type_copyable(prog, target_type))
-                copy_generator(fclr).add(result, target_type);
+                copy_generator(fclr, result).add(target_type);
             else if (ptr_type.kind == prog::ptr_type::UNIQUE && !INDEX_EQ(*type.tp, INNER_PTR) && var_index && !fclr.vars[*var_index].type.confined) {
                 fclr.add_instr(VARIANT(prog::instr, DELETE, value));
                 fclr.move_out_var(*var_index, ast.loc);
@@ -1068,7 +1068,7 @@ namespace sg {
             error(diags::type_not_copyable(prog, move(type), value_ast.loc));
 
         fclr.push_frame();
-        copy_generator(fclr).add(value, type);
+        copy_generator(fclr, value).add(type);
         auto block = fclr.pop_frame();
 
         auto repeat_instr = prog::repeat_instr { size_value, fclr.new_reg(), into_ptr(block) };
@@ -1135,7 +1135,7 @@ namespace sg {
                         error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE, extr_ast.loc));
 
                     if (type_copyable(prog, type))
-                        copy_generator(fclr).add(result, type);
+                        copy_generator(fclr, result).add(type);
                     else
                         error(diags::type_not_copyable(prog, move(type), extr_ast.loc));
                 }

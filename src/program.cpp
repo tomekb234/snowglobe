@@ -22,7 +22,6 @@ namespace sg::prog {
     static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& tp);
     static func_type copy_func_type(const func_type& tp);
     static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& tp);
-    static type_pointed copy_type_pointed(const type_pointed& tp);
 
     static bool ptr_types_equal(const ptr_type& type_a, const ptr_type& type_b);
     static bool types_pointed_equal(const type_pointed& type_a, const type_pointed& type_b);
@@ -152,6 +151,10 @@ namespace sg::prog {
         return { tp.kind, make_ptr(copy_type_pointed(*tp.target_tp)) };
     }
 
+    type_pointed copy_type_pointed(const type_pointed& tp) {
+        return { make_ptr(copy_type(*tp.tp)), tp.slice };
+    }
+
     static array_type copy_array_type(const array_type& tp) {
         return { make_ptr(copy_type(*tp.tp)), tp.size };
     }
@@ -167,10 +170,6 @@ namespace sg::prog {
 
     static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& tp) {
         return { copy_func_type(tp), copy_ptr_type(tp) };
-    }
-
-    static type_pointed copy_type_pointed(const type_pointed& tp) {
-        return { make_ptr(copy_type(*tp.tp)), tp.slice };
     }
 
     bool types_equal(const type& type_a, const type& type_b) {

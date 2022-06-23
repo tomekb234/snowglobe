@@ -4,6 +4,8 @@
 #include "compiler/functions.hpp"
 
 namespace sg {
+    using std::tuple;
+
     class function_utils : compiler_base {
         function_compiler& fclr;
         compiler& clr;
@@ -27,6 +29,7 @@ namespace sg {
         void add_var_deletion(prog::var_index index, location loc);
 
         pair<prog::reg_index, prog::ptr_type> add_ptr_extraction(prog::reg_index value, const prog::type& type, location loc);
+        tuple<prog::reg_index, prog::ptr_type::kind_t, prog::type_pointed> add_ptr_owner_extraction(prog::reg_index value, const prog::type& type);
 
         pair<prog::reg_index, prog::type_local> add_read_for_swap(const lvalue& lval, location loc);
     };
