@@ -28,60 +28,80 @@ namespace sg {
         switch (INDEX(ast)) {
             case ast::stmt::EXPR_EVAL: {
                 auto& expr_ast = *GET(ast, EXPR_EVAL);
-                if (INDEX_EQ(expr_ast, VAR_DECL))
-                    lvalue_compiler(fclr, { }).compile(expr_ast);
-                else {
-                    auto [value, type] = expression_compiler(fclr, false).compile(expr_ast);
-                    if (!type.confined)
-                        deletion_generator(fclr, value).add(*type.tp);
-                }
+                compile_expr_eval(expr_ast);
             } break;
 
             case ast::stmt::ASSIGNMENT: {
                 auto& assignment_ast = *GET(ast, ASSIGNMENT);
-                auto [value, type] = expression_compiler(fclr, false).compile(*assignment_ast.value);
-                auto lval = lvalue_compiler(fclr, { type }).compile(*assignment_ast.lvalue);
-                assignment_generator(fclr, value, type, assignment_ast.value->loc).add(lval);
+                compile_assignment(assignment_ast);
             } break;
 
             case ast::stmt::COMPOUND_ASSIGNMENT: {
-                auto& expr_ast = *GET(ast, COMPOUND_ASSIGNMENT)->expr;
-                auto [value, type] = expression_compiler(fclr, true).compile_binary_operation(expr_ast);
-                auto lval = lvalue_compiler(fclr, { type }).compile(*expr_ast.left);
-                assignment_generator(fclr, value, type, expr_ast.right->loc).add(lval);
+                auto& assignment_ast = *GET(ast, COMPOUND_ASSIGNMENT);
+                compile_compound_assignment(assignment_ast);
             } break;
 
-            case ast::stmt::LOCALLY_BLOCK:
-                compile_locally_block(*GET(ast, LOCALLY_BLOCK));
-                break;
+            case ast::stmt::LOCALLY_BLOCK: {
+                auto& block_ast = *GET(ast, LOCALLY_BLOCK);
+                compile_locally_block(block_ast);
+            } break;
 
-            case ast::stmt::SWAP:
-                compile_swap(*GET(ast, SWAP));
-                break;
+            case ast::stmt::SWAP: {
+                auto& swap_ast = *GET(ast, SWAP);
+                compile_swap(swap_ast);
+            } break;
 
-            case ast::stmt::SWAP_BLOCK:
-                compile_swap_block(*GET(ast, SWAP_BLOCK));
-                break;
+            case ast::stmt::SWAP_BLOCK: {
+                auto& swap_block_ast = *GET(ast, SWAP_BLOCK);
+                compile_swap_block(swap_block_ast );
+            } break;
 
-            case ast::stmt::IF:
-                compile_if_branches(*GET(ast, IF), 0);
-                break;
+            case ast::stmt::IF: {
+                auto& if_ast = *GET(ast, IF);
+                compile_if_branches(if_ast, 0);
+            } break;
 
-            case ast::stmt::MATCH:
-                compile_match(*GET(ast, MATCH));
-                break;
+            case ast::stmt::MATCH: {
+                auto& match_ast = *GET(ast, MATCH);
+                compile_match(match_ast );
+            } break;
 
-            case ast::stmt::WHILE:
-                compile_while(*GET(ast, WHILE));
-                break;
+            case ast::stmt::WHILE: {
+                auto& while_ast = *GET(ast, WHILE);
+                compile_while(while_ast);
+            } break;
 
-            case ast::stmt::FOR:
-                compile_for(*GET(ast, FOR));
-                break;
+            case ast::stmt::FOR: {
+                auto& for_ast = *GET(ast, FOR);
+                compile_for(for_ast);
+            } break;
 
             case ast::stmt::FUNC_DEF:
                 error(diags::not_implemented(ast.loc)); // TODO
         }
+    }
+
+    void statement_compiler::compile_expr_eval(const ast::expr& ast) {
+        if (INDEX_EQ(ast, VAR_DECL))
+            lvalue_compiler(fclr, { }).compile(ast);
+        else {
+            auto [value, type] = expression_compiler(fclr, false).compile(ast);
+            if (!type.confined)
+                deletion_generator(fclr, value).add(*type.tp);
+        }
+    }
+
+    void statement_compiler::compile_assignment(const ast::assignment_stmt& ast) {
+        auto [value, type] = expression_compiler(fclr, false).compile(*ast.value);
+        auto lval = lvalue_compiler(fclr, { type }).compile(*ast.lvalue);
+        assignment_generator(fclr, value, type, ast.value->loc).add(lval);
+    }
+
+    void statement_compiler::compile_compound_assignment(const ast::compound_assignment_stmt& ast) {
+        auto& expr_ast = *ast.expr;
+        auto [value, type] = expression_compiler(fclr, true).compile_binary_operation(expr_ast);
+        auto lval = lvalue_compiler(fclr, { type }).compile(*expr_ast.left);
+        assignment_generator(fclr, value, type, expr_ast.right->loc).add(lval);
     }
 
     void statement_compiler::compile_locally_block(const ast::locally_block_stmt& ast) {

@@ -17,6 +17,9 @@ namespace sg {
         private:
 
         void compile(const ast::stmt& ast);
+        void compile_expr_eval(const ast::expr& ast);
+        void compile_assignment(const ast::assignment_stmt& ast);
+        void compile_compound_assignment(const ast::compound_assignment_stmt& ast);
         void compile_locally_block(const ast::locally_block_stmt& ast);
         void compile_swap(const ast::swap_stmt& ast);
         void compile_swap_block(const ast::swap_block_stmt& ast);
