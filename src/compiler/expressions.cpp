@@ -1241,6 +1241,9 @@ namespace sg {
                         auto instr = prog::get_item_ptr_instr { ptr_value, index_value, target_ptr_value };
                         fclr.add_instr(VARIANT(prog::instr, GET_ITEM_PTR, into_ptr(instr)));
                     } break;
+
+                    default:
+                        UNREACHABLE;
                 }
 
                 auto result = fclr.new_reg();
