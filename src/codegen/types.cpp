@@ -69,7 +69,7 @@ namespace sg {
 
             case ll_type::POINTER: {
                 auto& ptr_type = GET(*this, POINTER);
-                auto flags = to_string(ptr_type.has_ref_cnt) + to_string(ptr_type.has_item_cnt);
+                auto flags = to_string(ptr_type.has_ref_cnt) + to_string(ptr_type.slice);
                 auto owner = ptr_type.owner ? (*ptr_type.owner)->get_name() : "";
                 return "P" + flags + "." + ptr_type.target->get_name() + "." + owner + ".";
             }
@@ -127,7 +127,7 @@ namespace sg {
                 MAYBE_RETURN(INT_COMPARE(left.owner.has_value(), right.owner.has_value()));
                 if (left.owner.has_value())
                     MAYBE_RETURN((*left.owner)->compare(**right.owner));
-                return INT_COMPARE(left.has_item_cnt, right.has_item_cnt);
+                return INT_COMPARE(left.slice, right.slice);
             }
         }
 
@@ -157,6 +157,10 @@ namespace sg {
     }
 
     ll_type* code_generator::get_unit_type() {
+        return get_number_type(prog::number_type::BOOL);
+    }
+
+    ll_type* code_generator::get_bool_type() {
         return get_number_type(prog::number_type::BOOL);
     }
 

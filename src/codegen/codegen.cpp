@@ -262,18 +262,24 @@ namespace sg {
         return builder.CreateExtractValue(pointer.value, {0});
     }
 
-    llvm::Value* code_generator::extract_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
-        return builder.CreateExtractValue(pointer.value, {1});
+    optional<llvm::Value*> code_generator::extract_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+        if (!GET(*pointer.type, POINTER).has_ref_cnt)
+            return { };
+        return { builder.CreateExtractValue(pointer.value, {1}) };
     }
 
-    llvm::Value* code_generator::extract_owner_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+    optional<llvm::Value*> code_generator::extract_owner_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+        if (!GET(*pointer.type, POINTER).owner.has_value())
+            return { };
         unsigned index = 1 + (GET(*pointer.type, POINTER).has_ref_cnt);
-        return builder.CreateExtractValue(pointer.value, {index});
+        return { builder.CreateExtractValue(pointer.value, {index}) };
     }
 
-    llvm::Value* code_generator::extract_slice_len_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+    optional<llvm::Value*> code_generator::extract_slice_len_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+        if (!GET(*pointer.type, POINTER).slice)
+            return { };
         unsigned index = 1 + (GET(*pointer.type, POINTER).has_ref_cnt) + (GET(*pointer.type, POINTER).owner.has_value());
-        return builder.CreateExtractValue(pointer.value, {index});
+        return { builder.CreateExtractValue(pointer.value, {index}) };
     }
 
     code_generator::typed_llvm_value<llvm::Function> code_generator::declare_function(const prog::global_func& func) {
@@ -458,14 +464,14 @@ namespace sg {
 
                 case prog::instr::TEST_OPTIONAL: {
                     auto& to_instr = *GET(*instr, TEST_OPTIONAL);
-                    regs[to_instr.result] = { builder.CreateExtractValue(regs[to_instr.value].value, {0}), gen.get_number_type(prog::number_type::BOOL) };
+                    regs[to_instr.result] = { builder.CreateExtractValue(regs[to_instr.value].value, {0}), gen.get_bool_type() };
                 } break;
 
                 case prog::instr::TEST_VARIANT: {
                     auto& tv_instr = *GET(*instr, TEST_VARIANT);
                     auto real_variant_field = builder.CreateExtractValue(regs[tv_instr.value].value, {0});
                     auto result = builder.CreateICmpEQ(real_variant_field, builder.getInt64(tv_instr.variant));
-                    regs[tv_instr.result] = { result, gen.get_number_type(prog::number_type::BOOL) };
+                    regs[tv_instr.result] = { result, gen.get_bool_type() };
                 } break;
 
                 case prog::instr::EXTRACT_FIELD: {
@@ -501,6 +507,18 @@ namespace sg {
                     auto value_casted = builder.CreateLoad(variant_type.tp, buffer_ptr_casted);
                     auto field_value = builder.CreateExtractValue(value_casted, {(unsigned)evf_instr.field});
                     regs[evf_instr.result] = { field_value, variant_type.fields[evf_instr.field] };
+                } break;
+
+                case prog::instr::CHECK_ARRAY_PTR_INDEX: {
+                    auto& ci_instr = *GET(*instr, CHECK_ARRAY_PTR_INDEX);
+                    auto& array_size = GET(*GET(*regs[ci_instr.value].type, POINTER).target, ARRAY).size;
+                    regs[ci_instr.result] = { builder.CreateICmpULT(regs[ci_instr.index].value, builder.getInt64(array_size)), gen.get_bool_type() };
+                } break;
+
+                case prog::instr::CHECK_SLICE_INDEX: {
+                    auto& ci_instr = *GET(*instr, CHECK_SLICE_INDEX);
+                    auto slice_len = *gen.extract_slice_len_from_pointer(regs[ci_instr.value], builder);
+                    regs[ci_instr.result] = { builder.CreateICmpULT(regs[ci_instr.index].value, slice_len), gen.get_bool_type() };
                 } break;
 
                 case prog::instr::BOOL_NOT: {
@@ -621,11 +639,11 @@ namespace sg {
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
-                        regs[nbo_instr.result] = { builder.CreateICmpULT(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateICmpULT(lreg.value, rreg.value), gen.get_bool_type() };
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
-                        regs[nbo_instr.result] = { builder.CreateICmpSLT(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateICmpSLT(lreg.value, rreg.value), gen.get_bool_type() };
                     else
-                        regs[nbo_instr.result] = { builder.CreateFCmpULT(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateFCmpULT(lreg.value, rreg.value), gen.get_bool_type() };
                 } break;
 
                 case prog::instr::LSEQ: {
@@ -633,11 +651,11 @@ namespace sg {
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
-                        regs[nbo_instr.result] = { builder.CreateICmpULE(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateICmpULE(lreg.value, rreg.value), gen.get_bool_type() };
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
-                        regs[nbo_instr.result] = { builder.CreateICmpSLE(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateICmpSLE(lreg.value, rreg.value), gen.get_bool_type() };
                     else
-                        regs[nbo_instr.result] = { builder.CreateFCmpULE(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateFCmpULE(lreg.value, rreg.value), gen.get_bool_type() };
                 } break;
 
                 case prog::instr::GT: {
@@ -645,11 +663,11 @@ namespace sg {
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
-                        regs[nbo_instr.result] = { builder.CreateICmpUGT(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateICmpUGT(lreg.value, rreg.value), gen.get_bool_type() };
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
-                        regs[nbo_instr.result] = { builder.CreateICmpSGT(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateICmpSGT(lreg.value, rreg.value), gen.get_bool_type() };
                     else
-                        regs[nbo_instr.result] = { builder.CreateFCmpUGT(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateFCmpUGT(lreg.value, rreg.value), gen.get_bool_type() };
                 } break;
 
                 case prog::instr::GTEQ: {
@@ -657,11 +675,11 @@ namespace sg {
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
                     if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
-                        regs[nbo_instr.result] = { builder.CreateICmpUGE(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateICmpUGE(lreg.value, rreg.value), gen.get_bool_type() };
                     else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
-                        regs[nbo_instr.result] = { builder.CreateICmpSGE(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateICmpSGE(lreg.value, rreg.value), gen.get_bool_type() };
                     else
-                        regs[nbo_instr.result] = { builder.CreateFCmpUGE(lreg.value, rreg.value), gen.get_number_type(prog::number_type::BOOL) };
+                        regs[nbo_instr.result] = { builder.CreateFCmpUGE(lreg.value, rreg.value), gen.get_bool_type() };
                 } break;
 
                 case prog::instr::TRUNC: {
@@ -747,6 +765,40 @@ namespace sg {
                     regs[as_instr.result] = gen.make_pointer_value(ptr_type, heap_addr, { }, { }, regs[as_instr.size].value, builder);
                 } break;
 
+                case prog::instr::GET_SLICE_LENGTH: {
+                    auto& gsl_instr = *GET(*instr, GET_SLICE_LENGTH);
+                    regs[gsl_instr.result] = { *gen.extract_slice_len_from_pointer(regs[gsl_instr.ptr], builder), gen.get_number_type(prog::number_type::U64) };
+                } break;
+
+                case prog::instr::ALLOC_REF_COUNTER: {
+                    auto& pc_instr = *GET(*instr, ALLOC_REF_COUNTER);
+
+                    auto ref_cnt_addr = gen.make_external_malloc_call(builder.getInt64Ty(), builder.getInt64(1), builder);
+                    builder.CreateStore(builder.getInt64(1), ref_cnt_addr);
+
+                    auto& old_ptr = regs[pc_instr.value];
+                    auto data_ptr = gen.extract_data_ptr_from_pointer(old_ptr, builder);
+                    auto owner_ptr = gen.extract_owner_ptr_from_pointer(old_ptr, builder);
+                    auto slice_len = gen.extract_slice_len_from_pointer(old_ptr, builder);
+
+                    auto& old_ptr_type = GET(*old_ptr.type, POINTER);
+                    auto new_ptr_type = gen.get_pointer_type(old_ptr_type.target, true, old_ptr_type.owner, old_ptr_type.slice);
+                    regs[pc_instr.result] = gen.make_pointer_value(new_ptr_type, data_ptr, { ref_cnt_addr }, owner_ptr, slice_len, builder);
+                } break;
+
+                case prog::instr::FORGET_REF_COUNTER: {
+                    auto& pc_instr = *GET(*instr, FORGET_REF_COUNTER);
+
+                    auto& old_ptr = regs[pc_instr.value];
+                    auto data_ptr = gen.extract_data_ptr_from_pointer(old_ptr, builder);
+                    auto owner_ptr = gen.extract_owner_ptr_from_pointer(old_ptr, builder);
+                    auto slice_len = gen.extract_slice_len_from_pointer(old_ptr, builder);
+
+                    auto& old_ptr_type = GET(*old_ptr.type, POINTER);
+                    auto new_ptr_type = gen.get_pointer_type(old_ptr_type.target, false, old_ptr_type.owner, old_ptr_type.slice);
+                    regs[pc_instr.result] = gen.make_pointer_value(new_ptr_type, data_ptr, { }, owner_ptr, slice_len, builder);
+                } break;
+
                 case prog::instr::PTR_READ: {
                     auto& pr_instr = *GET(*instr, PTR_READ);
                     auto data_ptr = gen.extract_data_ptr_from_pointer(regs[pr_instr.ptr], builder);
@@ -760,10 +812,39 @@ namespace sg {
                     builder.CreateStore(regs[pw_instr.value].value, data_ptr);
                 } break;
 
+                case prog::instr::INCR_REF_COUNT: {
+                    auto& reg = GET(*instr, INCR_REF_COUNT);
+                    auto ref_cnt_ptr = *gen.extract_ref_cnt_ptr_from_pointer(regs[reg], builder);
+                    auto ref_cnt_old = builder.CreateLoad(builder.getInt64Ty(), ref_cnt_ptr);
+                    auto ref_cnt_new = builder.CreateAdd(ref_cnt_old, builder.getInt64(1));
+                    builder.CreateStore(ref_cnt_new, ref_cnt_ptr);
+                } break;
+
+                case prog::instr::DECR_REF_COUNT: {
+                    auto& reg = GET(*instr, DECR_REF_COUNT);
+                    auto ref_cnt_ptr = *gen.extract_ref_cnt_ptr_from_pointer(regs[reg], builder);
+                    auto ref_cnt_old = builder.CreateLoad(builder.getInt64Ty(), ref_cnt_ptr);
+                    auto ref_cnt_new = builder.CreateSub(ref_cnt_old, builder.getInt64(1));
+                    builder.CreateStore(ref_cnt_new, ref_cnt_ptr);
+                } break;
+
+                case prog::instr::TEST_REF_COUNT: {
+                    auto& trc_instr = *GET(*instr, TEST_REF_COUNT);
+                    auto ref_cnt_ptr = *gen.extract_ref_cnt_ptr_from_pointer(regs[trc_instr.ptr], builder);
+                    auto ref_cnt = builder.CreateLoad(builder.getInt64Ty(), ref_cnt_ptr);
+                    regs[trc_instr.result] = { builder.CreateICmpNE(ref_cnt, builder.getInt64(0)), gen.get_bool_type() };
+                } break;
+
                 case prog::instr::DELETE: {
                     auto reg = GET(*instr, DELETE);
                     auto data_ptr = gen.extract_data_ptr_from_pointer(regs[reg], builder);
                     gen.make_external_free_call(data_ptr, builder);
+                } break;
+
+                case prog::instr::DELETE_REF_COUNTER: {
+                    auto reg = GET(*instr, DELETE);
+                    auto ref_cnt_ptr = *gen.extract_ref_cnt_ptr_from_pointer(regs[reg], builder);
+                    gen.make_external_free_call(ref_cnt_ptr, builder);
                 } break;
 
                 case prog::instr::BRANCH:

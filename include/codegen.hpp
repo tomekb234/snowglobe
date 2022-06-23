@@ -85,7 +85,7 @@ namespace sg {
         ll_type* target;
         bool has_ref_cnt;
         optional<ll_type*> owner;
-        bool has_item_cnt;
+        bool slice;
         // TODO weak pointers
         // TODO auxiliary pointer for inner functions
         llvm::StructType* tp;
@@ -175,6 +175,7 @@ namespace sg {
         // LLVM types handling
         ll_type* get_never_type();
         ll_type* get_unit_type();
+        ll_type* get_bool_type();
         ll_type* get_byte_type();
         ll_type* get_number_type(prog::number_type::type_t number_type);
         ll_type* get_tuple_type(const vector<ll_type*>& field_types);
@@ -202,9 +203,9 @@ namespace sg {
 
         // pointer fields
         llvm::Value* extract_data_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
-        llvm::Value* extract_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
-        llvm::Value* extract_owner_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
-        llvm::Value* extract_slice_len_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        optional<llvm::Value*> extract_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        optional<llvm::Value*> extract_owner_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        optional<llvm::Value*> extract_slice_len_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
 
         // top-level declarations
         typed_llvm_value<llvm::Function> declare_function(const prog::global_func& func);
