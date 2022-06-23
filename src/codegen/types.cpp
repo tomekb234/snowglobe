@@ -19,6 +19,7 @@ namespace sg {
             case ll_type::TUPLE: return GET(*this, TUPLE).tp;
             case ll_type::ARRAY: return GET(*this, ARRAY).tp;
             case ll_type::OPTIONAL: return GET(*this, OPTIONAL).tp;
+            case ll_type::POINTER: return GET(*this, POINTER).tp;
         }
 
         UNREACHABLE;
@@ -65,6 +66,13 @@ namespace sg {
             case ll_type::OPTIONAL: {
                 return "O." + GET(*this, OPTIONAL).value->get_name();
             }
+
+            case ll_type::POINTER: {
+                auto& ptr_type = GET(*this, POINTER);
+                auto flags = to_string(ptr_type.has_ref_cnt) + to_string(ptr_type.has_item_cnt);
+                auto owner = ptr_type.owner ? (*ptr_type.owner)->get_name() : "";
+                return "P" + flags + "." + ptr_type.target->get_name() + "." + owner + ".";
+            }
         }
 
         UNREACHABLE;
@@ -110,6 +118,17 @@ namespace sg {
 
             case ll_type::OPTIONAL:
                 return GET(*this, OPTIONAL).value->compare(*GET(other, OPTIONAL).value);
+
+            case ll_type::POINTER: {
+                auto& left = GET(*this, POINTER);
+                auto& right = GET(other, POINTER);
+                MAYBE_RETURN(left.target->compare(*right.target));
+                MAYBE_RETURN(INT_COMPARE(left.has_ref_cnt, right.has_ref_cnt));
+                MAYBE_RETURN(INT_COMPARE(left.owner.has_value(), right.owner.has_value()));
+                if (left.owner.has_value())
+                    MAYBE_RETURN((*left.owner)->compare(**right.owner));
+                return INT_COMPARE(left.has_item_cnt, right.has_item_cnt);
+            }
         }
 
         UNREACHABLE;
@@ -121,7 +140,7 @@ namespace sg {
     }
 
 
-    
+
     #define RETURN_TYPE(kind, kind_struct, make_instr) { \
         auto type_ptr = make_ptr(VARIANT(ll_type, kind, kind_struct)); \
         auto [it, inserted] = type_set.insert(ll_type_wrapper{ move(type_ptr) }); \
@@ -132,9 +151,6 @@ namespace sg {
         } \
         return it->type.get(); \
     }
-
-
-
 
     ll_type* code_generator::get_never_type() {
         return get_number_type(prog::number_type::BOOL);
@@ -147,7 +163,6 @@ namespace sg {
     ll_type* code_generator::get_byte_type() {
         return get_number_type(prog::number_type::U8);
     }
-
 
     ll_type* code_generator::get_number_type(prog::number_type::type_t type) {
         switch (type) {
@@ -220,6 +235,21 @@ namespace sg {
         });
     }
 
+    ll_type* code_generator::get_pointer_type(ll_type* target, bool ref_cnt, optional<ll_type*> owner, bool slice) {
+        auto ptp = ll_pointer_type{ target, ref_cnt, owner, slice, nullptr };
+        RETURN_TYPE(POINTER, ptp, {
+            vector<llvm::Type*> fields;
+            fields.push_back(llvm::PointerType::getUnqual(target->get_type()));
+            if (ref_cnt)
+                fields.push_back(llvm::PointerType::getUnqual(llvm::Type::getInt64Ty(ctx)));
+            if (owner)
+                fields.push_back(llvm::PointerType::getUnqual((*owner)->get_type()));
+            if (slice)
+                fields.push_back(llvm::Type::getInt64Ty(ctx));
+            ins.tp = llvm::StructType::create(fields, type_prefix + gen_ins.get_name());
+        });
+    }
+
     ll_type* code_generator::get_type_from_prog(const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::NEVER:
@@ -253,6 +283,16 @@ namespace sg {
 
             case prog::type::OPTIONAL:
                 return get_optional_type(get_type_from_prog(*GET(type, OPTIONAL)));
+
+            case prog::type::PTR: {
+                auto& ptr_type = *GET(type, PTR);
+                if (ptr_type.kind == prog::ptr_type::WEAK)
+                    error(diags::not_implemented()); // TODO
+                auto target_type = get_type_from_prog(*ptr_type.target_tp->tp);
+                auto ref_cnt = ptr_type.kind == prog::ptr_type::SHARED;
+                auto slice = ptr_type.target_tp->slice;
+                return get_pointer_type(target_type, ref_cnt, { }, slice);
+            }
 
             default:
                 error(diags::not_implemented()); // TODO

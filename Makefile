@@ -24,7 +24,7 @@ diags_hpp = $I/diags.hpp $(diagcol_hpp) $(ast_hpp) $(program_hpp) $(compiler_hpp
 codegen_hpp = $I/codegen.hpp $(program_hpp) $(diagcol_hpp)
 
 compiler = $C/compiler.o $C/globals.o $C/functions.o $C/statements.o $C/expressions.o $C/constants.o $C/types.o $C/conversions.o $C/copying.o $C/deleting.o
-codegen = $(CG)/codegen.o $(CG)/types.o
+codegen = $(CG)/codegen.o $(CG)/types.o $(CG)/external.o
 
 $B/snowglobe: $B/input.o $B/lexer.o $B/parser.o $B/program.o $(compiler) $B/diagcol.o $B/diags.o $(codegen) $B/main.o | $B $C
 	$(LINKER) $^ $(LLVM_LINKER_FLAGS) -o $@

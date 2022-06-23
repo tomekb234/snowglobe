@@ -21,6 +21,7 @@ namespace sg {
     using std::vector;
     using std::variant;
     using std::set;
+    using std::optional;
 
     struct ll_number_type;
     struct ll_struct_type;
@@ -80,6 +81,16 @@ namespace sg {
         llvm::StructType* tp;
     };
 
+    struct ll_pointer_type {
+        ll_type* target;
+        bool has_ref_cnt;
+        optional<ll_type*> owner;
+        bool has_item_cnt;
+        // TODO weak pointers
+        // TODO auxiliary pointer for inner functions
+        llvm::StructType* tp;
+    };
+
     struct ll_type {
         enum {
             NUMBER,
@@ -88,17 +99,19 @@ namespace sg {
             ENUM_VARIANT,
             TUPLE,
             ARRAY,
-            OPTIONAL
+            OPTIONAL,
+            POINTER
         };
 
         variant<
-            ll_number_type, 
-            ll_struct_type,
-            ll_enum_type,
-            ll_enum_variant_type,
-            ll_tuple_type,
-            ll_array_type,
-            ll_optional_type
+            ll_number_type, // NUMBER
+            ll_struct_type, // STRUCT
+            ll_enum_type, // ENUM
+            ll_enum_variant_type, // ENUM_VARIANT
+            ll_tuple_type, // TUPLE
+            ll_array_type, // ARRAY
+            ll_optional_type, // OPTIONAL
+            ll_pointer_type // POINTER
         > value;
 
         llvm::Type* get_type() const;
@@ -135,6 +148,7 @@ namespace sg {
 
         // global objects
         vector<typed_llvm_value<llvm::Function>> functions; // "type" of function is its return type
+        vector<llvm::Function*> external_functions;
         vector<typed_llvm_value<>> global_vars;
         vector<ll_type*> struct_types;
         vector<ll_type*> enum_types;
@@ -166,6 +180,7 @@ namespace sg {
         ll_type* get_tuple_type(const vector<ll_type*>& field_types);
         ll_type* get_array_type(ll_type* value_type, size_t size);
         ll_type* get_optional_type(ll_type* value_type);
+        ll_type* get_pointer_type(ll_type* target, bool ref_cnt, optional<ll_type*> owner, bool slice);
 
         ll_type* get_type_from_prog(const prog::type& type);
 
@@ -183,12 +198,25 @@ namespace sg {
         typed_llvm_value<> make_array_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_empty_optional_value(ll_type* value_type, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_filled_optional_value(typed_llvm_value<> value, llvm::IRBuilderBase& builder);
+        typed_llvm_value<> make_pointer_value(ll_type* type, llvm::Value* target, optional<llvm::Value*> ref_cnt, optional<llvm::Value*> owner, optional<llvm::Value*> slice_size, llvm::IRBuilderBase& builder);
+
+        // pointer fields
+        llvm::Value* extract_data_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        llvm::Value* extract_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        llvm::Value* extract_owner_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        llvm::Value* extract_slice_len_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
 
         // top-level declarations
         typed_llvm_value<llvm::Function> declare_function(const prog::global_func& func);
         typed_llvm_value<> define_global_variable(const prog::global_var& var);
         llvm::Function* define_init_function();
         llvm::Function* define_internal_main_function(llvm::Function* init_func, llvm::Function* main_func, llvm::Function* cleanup_func);
+
+        // external functions
+        void declare_external_functions();
+        typed_llvm_value<> make_external_exit_call(llvm::Value* status, llvm::IRBuilderBase& builder);
+        llvm::Value* make_external_malloc_call(llvm::Type* target_type, llvm::Value* size, llvm::IRBuilderBase& builder);
+        void make_external_free_call(llvm::Value* heap_ptr, llvm::IRBuilderBase& builder);
     };
 
     class function_code_generator {
@@ -209,6 +237,7 @@ namespace sg {
         private:
 
         llvm::BasicBlock* process_instr_block(const prog::instr_block& block, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block);
+        void make_repeat(code_generator::typed_llvm_value<> count, optional<prog::reg_index> index, function<void(llvm::BasicBlock*,llvm::BasicBlock*,llvm::Value*)> loop_body, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block);
     };
 }
 

@@ -4,7 +4,6 @@
 
 #include <llvm-12/llvm/IR/IRBuilder.h>
 #include <llvm-12/llvm/IR/Verifier.h>
-#include <llvm-12/llvm/Transforms/Utils/ModuleUtils.h>
 #include <llvm/Support/raw_os_ostream.h>
 
 namespace sg {
@@ -21,6 +20,9 @@ namespace sg {
 
     bool code_generator::generate() {
         try {
+            // declare external functions
+            declare_external_functions();
+
             // prepare struct/enum types
             for (size_t i = 0; i < prog.struct_types.size(); i++)
                 struct_types.push_back(declare_struct_type(i));
@@ -186,7 +188,7 @@ namespace sg {
         auto struct_type = struct_types[struct_index];
         llvm::Value* struct_value = llvm::UndefValue::get(struct_type->get_type());
         for (size_t i = 0; i < fields.size(); i++)
-            struct_value = builder.CreateInsertValue(struct_value, fields[i].value, vector<unsigned>{(unsigned)i});
+            struct_value = builder.CreateInsertValue(struct_value, fields[i].value, {(unsigned)i});
         return { struct_value, struct_type };
     }
 
@@ -194,9 +196,9 @@ namespace sg {
         // make variant
         auto variant_type = variant_types[enum_index][variant_index];
         llvm::Value* variant_value = llvm::UndefValue::get(variant_type->get_type());
-        variant_value = builder.CreateInsertValue(variant_value, builder.getInt64(variant_index), vector<unsigned>{0});
+        variant_value = builder.CreateInsertValue(variant_value, builder.getInt64(variant_index), {0});
         for (size_t i = 0; i < fields.size(); i++)
-            variant_value = builder.CreateInsertValue(variant_value, fields[i].value, vector<unsigned>{(unsigned)i + 1});
+            variant_value = builder.CreateInsertValue(variant_value, fields[i].value, {(unsigned)i + 1});
 
         // bitcast to generic enum type
         auto enum_type = enum_types[enum_index];
@@ -215,7 +217,7 @@ namespace sg {
         auto tuple_type = get_tuple_type(field_types);
         llvm::Value* tuple_value = llvm::UndefValue::get(tuple_type->get_type());
         for (size_t i = 0; i < fields.size(); i++)
-            tuple_value = builder.CreateInsertValue(tuple_value, fields[i].value, vector<unsigned>{(unsigned)i});
+            tuple_value = builder.CreateInsertValue(tuple_value, fields[i].value, {(unsigned)i});
         return { tuple_value, tuple_type };
     }
 
@@ -224,23 +226,54 @@ namespace sg {
         auto array_type = get_array_type(value_type, fields.size());
         llvm::Value* array_value = llvm::UndefValue::get(array_type->get_type());
         for (size_t i = 0; i < fields.size(); i++)
-            array_value = builder.CreateInsertValue(array_value, fields[i].value, vector<unsigned>{(unsigned)i});
+            array_value = builder.CreateInsertValue(array_value, fields[i].value, {(unsigned)i});
         return { array_value, array_type };
     }
 
     code_generator::typed_llvm_value<> code_generator::make_empty_optional_value(ll_type* value_type, llvm::IRBuilderBase& builder) {
         auto optional_type = get_optional_type(value_type);
         llvm::Value* value = llvm::UndefValue::get(optional_type->get_type());
-        value = builder.CreateInsertValue(value, builder.getFalse(), vector<unsigned>{0});
+        value = builder.CreateInsertValue(value, builder.getFalse(), {0});
         return { value, optional_type };
     }
 
     code_generator::typed_llvm_value<> code_generator::make_filled_optional_value(typed_llvm_value<> value, llvm::IRBuilderBase& builder) {
         auto optional_type = get_optional_type(value.type);
         llvm::Value* optional_value = llvm::UndefValue::get(optional_type->get_type());
-        optional_value = builder.CreateInsertValue(optional_value, builder.getTrue(), vector<unsigned>{0});
-        optional_value = builder.CreateInsertValue(optional_value, value.value, vector<unsigned>{1});
+        optional_value = builder.CreateInsertValue(optional_value, builder.getTrue(), {0});
+        optional_value = builder.CreateInsertValue(optional_value, value.value, {1});
         return { optional_value, optional_type };
+    }
+
+    code_generator::typed_llvm_value<> code_generator::make_pointer_value(ll_type* type, llvm::Value* target, optional<llvm::Value*> ref_cnt, optional<llvm::Value*> owner, optional<llvm::Value*> slice_size, llvm::IRBuilderBase& builder) {
+        llvm::Value* value = llvm::UndefValue::get(type->get_type());
+        unsigned index = 0;
+        value = builder.CreateInsertValue(value, target, {index++});
+        if (ref_cnt)
+            value = builder.CreateInsertValue(value, *ref_cnt, {index++});
+        if (owner)
+            value = builder.CreateInsertValue(value, *owner, {index++});
+        if (slice_size)
+            value = builder.CreateInsertValue(value, *slice_size, {index++});
+        return { value, type };
+    }
+
+    llvm::Value* code_generator::extract_data_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+        return builder.CreateExtractValue(pointer.value, {0});
+    }
+
+    llvm::Value* code_generator::extract_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+        return builder.CreateExtractValue(pointer.value, {1});
+    }
+
+    llvm::Value* code_generator::extract_owner_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+        unsigned index = 1 + (GET(*pointer.type, POINTER).has_ref_cnt);
+        return builder.CreateExtractValue(pointer.value, {index});
+    }
+
+    llvm::Value* code_generator::extract_slice_len_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
+        unsigned index = 1 + (GET(*pointer.type, POINTER).has_ref_cnt) + (GET(*pointer.type, POINTER).owner.has_value());
+        return builder.CreateExtractValue(pointer.value, {index});
     }
 
     code_generator::typed_llvm_value<llvm::Function> code_generator::declare_function(const prog::global_func& func) {
@@ -425,12 +458,12 @@ namespace sg {
 
                 case prog::instr::TEST_OPTIONAL: {
                     auto& to_instr = *GET(*instr, TEST_OPTIONAL);
-                    regs[to_instr.result] = { builder.CreateExtractValue(regs[to_instr.value].value, vector<unsigned>{0}), gen.get_number_type(prog::number_type::BOOL) };
+                    regs[to_instr.result] = { builder.CreateExtractValue(regs[to_instr.value].value, {0}), gen.get_number_type(prog::number_type::BOOL) };
                 } break;
 
                 case prog::instr::TEST_VARIANT: {
                     auto& tv_instr = *GET(*instr, TEST_VARIANT);
-                    auto real_variant_field = builder.CreateExtractValue(regs[tv_instr.value].value, vector<unsigned>{0});
+                    auto real_variant_field = builder.CreateExtractValue(regs[tv_instr.value].value, {0});
                     auto result = builder.CreateICmpEQ(real_variant_field, builder.getInt64(tv_instr.variant));
                     regs[tv_instr.result] = { result, gen.get_number_type(prog::number_type::BOOL) };
                 } break;
@@ -447,13 +480,13 @@ namespace sg {
                         field_type = GET(*value.type, ARRAY).value;
                     else
                         UNREACHABLE;
-                    regs[ef_instr.result] = { builder.CreateExtractValue(value.value, vector<unsigned>{(unsigned)ef_instr.field}), field_type };
+                    regs[ef_instr.result] = { builder.CreateExtractValue(value.value, {(unsigned)ef_instr.field}), field_type };
                 } break;
 
                 case prog::instr::EXTRACT_OPTIONAL_VALUE: {
                     auto& eov_instr = *GET(*instr, EXTRACT_OPTIONAL_VALUE);
                     auto& value = regs[eov_instr.value];
-                    regs[eov_instr.result] = { builder.CreateExtractValue(value.value, vector<unsigned>{1}), value.type };
+                    regs[eov_instr.result] = { builder.CreateExtractValue(value.value, {1}), value.type };
                 } break;
 
                 case prog::instr::EXTRACT_VARIANT_FIELD: {
@@ -466,7 +499,7 @@ namespace sg {
                     builder.CreateStore(value.value, buffer_ptr);
                     auto buffer_ptr_casted = builder.CreateBitCast(buffer_ptr, llvm::PointerType::getUnqual(variant_type.tp));
                     auto value_casted = builder.CreateLoad(variant_type.tp, buffer_ptr_casted);
-                    auto field_value = builder.CreateExtractValue(value_casted, vector<unsigned>{(unsigned)evf_instr.field});
+                    auto field_value = builder.CreateExtractValue(value_casted, {(unsigned)evf_instr.field});
                     regs[evf_instr.result] = { field_value, variant_type.fields[evf_instr.field] };
                 } break;
 
@@ -685,6 +718,54 @@ namespace sg {
                     regs[nc_instr.result] = { builder.CreateFPToSI(regs[nc_instr.value].value, type->get_type()), type };
                 } break;
 
+                case prog::instr::ALLOC: {
+                    auto& a_instr = *GET(*instr, ALLOC);
+                    auto& value = regs[a_instr.value];
+
+                    auto heap_addr = gen.make_external_malloc_call(value.type->get_type(), builder.getInt64(1), builder);
+                    builder.CreateStore(value.value, heap_addr);
+
+                    auto ptr_type = gen.get_pointer_type(value.type, false, { }, false);
+                    regs[a_instr.result] = gen.make_pointer_value(ptr_type, heap_addr, { }, { }, { }, builder);
+                } break;
+
+                case prog::instr::ALLOC_SLICE: {
+                    auto& as_instr = *GET(*instr, ALLOC_SLICE);
+                    auto& value = regs[as_instr.value];
+
+                    auto heap_addr = gen.make_external_malloc_call(value.type->get_type(), regs[as_instr.size].value, builder);
+                    auto copy_item_proc = [&](llvm::BasicBlock* insert_block, llvm::BasicBlock*, llvm::Value* iterator) {
+                        llvm::IRBuilder<> inner_builder(insert_block);
+                        auto item_ptr = inner_builder.CreateGEP(value.type->get_type(), heap_addr, vector<llvm::Value*>{iterator});
+                        inner_builder.CreateStore(value.value, item_ptr);
+                    };
+                    auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    make_repeat(regs[as_instr.size], { }, copy_item_proc, builder.GetInsertBlock(), continuation_block);
+                    builder.SetInsertPoint(continuation_block);
+
+                    auto ptr_type = gen.get_pointer_type(value.type, false, { }, true);
+                    regs[as_instr.result] = gen.make_pointer_value(ptr_type, heap_addr, { }, { }, regs[as_instr.size].value, builder);
+                } break;
+
+                case prog::instr::PTR_READ: {
+                    auto& pr_instr = *GET(*instr, PTR_READ);
+                    auto data_ptr = gen.extract_data_ptr_from_pointer(regs[pr_instr.ptr], builder);
+                    auto target_type = GET(*regs[pr_instr.ptr].type, POINTER).target;
+                    regs[pr_instr.result] = { builder.CreateLoad(target_type->get_type(), data_ptr), target_type };
+                } break;
+
+                case prog::instr::PTR_WRITE: {
+                    auto& pw_instr = *GET(*instr, PTR_WRITE);
+                    auto data_ptr = gen.extract_data_ptr_from_pointer(regs[pw_instr.ptr], builder);
+                    builder.CreateStore(regs[pw_instr.value].value, data_ptr);
+                } break;
+
+                case prog::instr::DELETE: {
+                    auto reg = GET(*instr, DELETE);
+                    auto data_ptr = gen.extract_data_ptr_from_pointer(regs[reg], builder);
+                    gen.make_external_free_call(data_ptr, builder);
+                } break;
+
                 case prog::instr::BRANCH:
                 case prog::instr::VALUE_BRANCH: {
                     auto& b_instr = INDEX_EQ(*instr, BRANCH) ? *GET(*instr, BRANCH) : *GET(*instr, VALUE_BRANCH);
@@ -722,6 +803,16 @@ namespace sg {
                     builder.SetInsertPoint(continuation_block);
                 } break;
 
+                case prog::instr::REPEAT: {
+                    auto& r_instr = *GET(*instr, REPEAT);
+                    auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+                    auto body_generator = [&](llvm::BasicBlock* insert_block, llvm::BasicBlock* loop_block, llvm::Value*) {
+                        process_instr_block(*r_instr.block, insert_block, loop_block, loop_block, continuation_block);
+                    };
+                    make_repeat(regs[r_instr.count], r_instr.index, body_generator, builder.GetInsertBlock(), continuation_block);
+                    builder.SetInsertPoint(continuation_block);
+                } break;
+
                 case prog::instr::CONTINUE_LOOP: {
                     builder.CreateBr(loop_block);
                     terminated = true;
@@ -743,5 +834,27 @@ namespace sg {
             builder.SetInsertPoint(llvm::BasicBlock::Create(gen.ctx, "", llvm_function));
         builder.CreateBr(after_block);
         return builder.GetInsertBlock();
+    }
+
+    void function_code_generator::make_repeat(code_generator::typed_llvm_value<> count, optional<prog::reg_index> index, function<void(llvm::BasicBlock*,llvm::BasicBlock*,llvm::Value*)> loop_body, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block) {
+        llvm::IRBuilder<> builder(init_block);
+        auto counter_var = builder.CreateAlloca(count.type->get_type());
+        builder.CreateStore(llvm::ConstantInt::get(count.type->get_type(), 0), counter_var);
+
+        auto outer_loop_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+        auto inner_loop_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
+        builder.CreateBr(outer_loop_block);
+        builder.SetInsertPoint(outer_loop_block);
+
+        auto old_cnt_val = builder.CreateLoad(count.type->get_type(), counter_var);
+        if (index)
+            regs[*index] = { old_cnt_val, count.type };
+        auto break_cond = builder.CreateICmpEQ(old_cnt_val, count.value);
+        builder.CreateCondBr(break_cond, after_block, inner_loop_block);
+
+        builder.SetInsertPoint(inner_loop_block);
+        auto new_cnt_val = builder.CreateAdd(old_cnt_val, llvm::ConstantInt::get(count.type->get_type(), 1));
+        builder.CreateStore(new_cnt_val, counter_var);
+        loop_body(inner_loop_block, outer_loop_block, old_cnt_val);
     }
 }
