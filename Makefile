@@ -7,11 +7,12 @@ BISON = bison
 
 S = src
 T = src/compiler
+U = src/codegen
 I = include
 J = include/compiler
 B = build
 C = build/compiler
-CG = build/codegen
+D = build/codegen
 G = gen
 
 location_hpp = $I/location.hpp
@@ -23,10 +24,11 @@ diagcol_hpp = $I/diagcol.hpp $(location_hpp)
 parser_hpp = $G/parser.cpp $(location_hpp) $(input_hpp) $(diagcol_hpp) $(ast_hpp)
 
 compiler_hpp = $J/compiler.hpp $(ast_hpp) $(program_hpp) $(diagcol_hpp)
-compiler_utils_hpp = $J/utils.hpp $(compiler_hpp)
+compiler_utils_hpp = $J/compiler_utils.hpp $(compiler_hpp)
 types_hpp = $J/types.hpp $(compiler_hpp)
 constants_hpp = $J/constants.hpp $(compiler_hpp)
 functions_hpp = $J/functions.hpp $(compiler_hpp)
+function_utils_hpp = $J/function_utils.hpp $(functions_hpp)
 conversions_hpp = $J/conversions.hpp $(functions_hpp)
 copying_hpp = $J/copying.hpp $(functions_hpp)
 deletion_hpp = $J/deletion.hpp $(functions_hpp)
@@ -34,11 +36,11 @@ assignment_hpp = $J/assignment.hpp $(functions_hpp)
 statements_hpp = $J/statements.hpp $(functions_hpp)
 expressions_hpp = $J/expressions.hpp $(functions_hpp)
 
-diags_hpp = $I/diags.hpp $(diagcol_hpp) $(ast_hpp) $(program_hpp) $(compiler_hpp)
+diags_hpp = $I/diags.hpp $(diagcol_hpp) $(ast_hpp) $(program_hpp) $(compiler_hpp) $(functions_hpp)
 codegen_hpp = $I/codegen.hpp $(program_hpp) $(diagcol_hpp)
 
-compiler = $C/compiler.o $C/utils.o $C/types.o $C/constants.o $C/functions.o $C/conversions.o $C/copying.o $C/deletion.o $C/assignment.o $C/statements.o $C/expressions.o
-codegen = $(CG)/codegen.o $(CG)/types.o $(CG)/external.o $(CG)/builtin.o
+compiler = $C/compiler.o $C/compiler_utils.o $C/types.o $C/constants.o $C/functions.o $C/function_utils.o $C/conversions.o $C/copying.o $C/deletion.o $C/assignment.o $C/statements.o $C/expressions.o
+codegen = $D/codegen.o $D/types.o $D/external.o $D/builtin.o
 
 $B/snowglobe: $B/input.o $B/lexer.o $B/parser.o $B/program.o $(compiler) $B/diagcol.o $B/diags.o $(codegen) $B/main.o | $B $C
 	$(LINKER) $^ $(LLVM_LINKER_FLAGS) -o $@
@@ -64,7 +66,7 @@ $B/diagcol.o: $S/diagcol.cpp $(diagcol_hpp) | $B
 $B/diags.o: $S/diags.cpp $(diags_hpp) | $B
 	$(CXX) $< -o $@
 
-$(codegen): $(CG)/%.o: $S/codegen/%.cpp $(codegen_hpp) $(diags_hpp) $(utils_hpp) | $(CG)
+$(codegen): $D/%.o: $U/%.cpp $(codegen_hpp) $(diags_hpp) $(utils_hpp) | $D
 	$(CXX) $(LLVM_CXX_FLAGS) $< -o $@
 
 $G/lexer.cpp: $S/lexer.re | $G
@@ -73,37 +75,40 @@ $G/lexer.cpp: $S/lexer.re | $G
 $G/parser.cpp: $S/parser.y | $G
 	$(BISON) $< -o $@
 
-$C/compiler.o: $T/compiler.cpp $(compiler_hpp) $(types_hpp) $(constants_hpp) $(functions_hpp) $(conversions_hpp) $(compiler_utils_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/compiler.o: $T/compiler.cpp $(compiler_hpp) $(types_hpp) $(constants_hpp) $(functions_hpp) $(conversions_hpp) $(compiler_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/utils.o: $T/utils.cpp $(compiler_utils_hpp) $(functions_hpp) $(conversions_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/compiler_utils.o: $T/compiler_utils.cpp $(compiler_utils_hpp) $(functions_hpp) $(conversions_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/types.o: $T/types.cpp $(types_hpp) $(constants_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/types.o: $T/types.cpp $(types_hpp) $(constants_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/constants.o: $T/constants.cpp $(constants_hpp) $(expressions_hpp) $(compiler_utils_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/constants.o: $T/constants.cpp $(constants_hpp) $(expressions_hpp) $(compiler_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/functions.o: $T/functions.cpp $(functions_hpp) $(statements_hpp) $(expressions_hpp) $(copying_hpp) $(deletion_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/functions.o: $T/functions.cpp $(functions_hpp) $(statements_hpp) $(expressions_hpp) $(copying_hpp) $(deletion_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/conversions.o: $T/conversions.cpp $(conversions_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/function_utils.o: $T/function_utils.cpp $(function_utils_hpp) $(copying_hpp) $(deletion_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/copying.o: $T/copying.cpp $(copying_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/conversions.o: $T/conversions.cpp $(conversions_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/deletion.o: $T/deletion.cpp $(deletion_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/copying.o: $T/copying.cpp $(copying_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/assignment.o: $T/assignment.cpp $(assignment_hpp) $(conversions_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/deletion.o: $T/deletion.cpp $(deletion_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/statements.o: $T/statements.cpp $(statements_hpp) $(expressions_hpp) $(conversions_hpp) $(assignment_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/assignment.o: $T/assignment.cpp $(assignment_hpp) $(conversions_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/expressions.o: $T/expressions.cpp $(expressions_hpp) $(types_hpp) $(constants_hpp) $(constants_hpp) $(conversions_hpp) $(copying_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(diags_hpp) $(program_hpp) $(utils_hpp) | $C
+$C/statements.o: $T/statements.cpp $(statements_hpp) $(expressions_hpp) $(conversions_hpp) $(assignment_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+	$(CXX) $< -o $@
+
+$C/expressions.o: $T/expressions.cpp $(expressions_hpp) $(types_hpp) $(constants_hpp) $(conversions_hpp) $(copying_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
 $G:
@@ -115,8 +120,8 @@ $B:
 $C: | $B
 	mkdir $C
 
-$(CG): | $B
-	mkdir $(CG)
+$D: | $B
+	mkdir $D
 
 clean:
 	rm -rf $G

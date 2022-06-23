@@ -4,7 +4,8 @@
 #include "compiler/conversions.hpp"
 #include "compiler/copying.hpp"
 #include "compiler/deletion.hpp"
-#include "compiler/utils.hpp"
+#include "compiler/compiler_utils.hpp"
+#include "compiler/function_utils.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
 
@@ -29,7 +30,7 @@ namespace sg {
 
                 auto var_index = fclr.try_get_var(name);
                 if (var_index)
-                    return fclr.add_var_read(*var_index, confined, ast.loc);
+                    return function_utils(fclr).add_var_read(*var_index, confined, ast.loc);
 
                 return compile_global_name(name, confined, ast.loc);
             }
@@ -84,12 +85,12 @@ namespace sg {
             }
 
             case ast::expr::BREAK: {
-                fclr.add_break(ast.loc);
+                function_utils(fclr).add_break(ast.loc);
                 return { fclr.new_unit_reg(), copy_type_local(prog::NEVER_TYPE_LOCAL) };
             }
 
             case ast::expr::CONTINUE: {
-                fclr.add_continue(ast.loc);
+                function_utils(fclr).add_continue(ast.loc);
                 return { fclr.new_unit_reg(), copy_type_local(prog::NEVER_TYPE_LOCAL) };
             }
 
@@ -165,7 +166,7 @@ namespace sg {
 
                 if (!confined) {
                     if (type_copyable(prog, *var.tp))
-                        copy_compiler(fclr).add(result, *var.tp);
+                        copy_generator(fclr).add(result, *var.tp);
                     else
                         error(diags::global_variable_moved_out(loc));
                 }
@@ -242,9 +243,9 @@ namespace sg {
             type = copy_type_local(prog::UNIT_TYPE_LOCAL);
         }
 
-        result = conversion_compiler(fclr).convert(result, type, *fclr.func.return_tp, loc);
+        result = conversion_generator(fclr).convert(result, type, *fclr.func.return_tp, loc);
 
-        fclr.add_return(result, loc);
+        function_utils(fclr).add_return(result, loc);
 
         return { result, copy_type_local(prog::NEVER_TYPE_LOCAL) };
     }
@@ -279,7 +280,7 @@ namespace sg {
             common_type = compiler_utils(clr).common_supertype(common_type, type, loc);
 
         for (size_t index = 0; index < count; index++)
-            values[index] = conversion_compiler(fclr).convert(values[index], types[index], common_type, all_confined, value_asts[index].get().loc);
+            values[index] = conversion_generator(fclr).convert(values[index], types[index], common_type, all_confined, value_asts[index].get().loc);
 
         auto result = fclr.new_reg();
         auto instr = prog::make_array_instr { values, result };
@@ -310,7 +311,7 @@ namespace sg {
                 for (size_t index = 0; index < size; index++) {
                     auto& type = types[index];
                     auto& field_type = *st.fields[index]->tp;
-                    values[index] = conversion_compiler(fclr).convert(values[index], type, field_type, all_confined, value_asts[index].get().loc);
+                    values[index] = conversion_generator(fclr).convert(values[index], type, field_type, all_confined, value_asts[index].get().loc);
                 }
 
                 auto result = fclr.new_reg();
@@ -331,7 +332,7 @@ namespace sg {
                 for (size_t index = 0; index < size; index++) {
                     auto& type = types[index];
                     auto& field_type = *variant.tps[index];
-                    values[index] = conversion_compiler(fclr).convert(values[index], type, field_type, all_confined, value_asts[index].get().loc);
+                    values[index] = conversion_generator(fclr).convert(values[index], type, field_type, all_confined, value_asts[index].get().loc);
                 }
 
                 auto result = fclr.new_reg();
@@ -414,7 +415,7 @@ namespace sg {
 
         switch (ast.operation) {
             case unop::NOT: {
-                value = conversion_compiler(fclr).convert(value, type, prog::BOOL_TYPE, ast.value->loc);
+                value = conversion_generator(fclr).convert(value, type, prog::BOOL_TYPE, ast.value->loc);
                 auto instr = prog::unary_operation_instr { value, result };
                 fclr.add_instr(VARIANT(prog::instr, BOOL_NOT, into_ptr(instr)));
                 return { result, copy_type_local(prog::BOOL_TYPE_LOCAL) };
@@ -521,7 +522,7 @@ namespace sg {
             case binop::AND:
             case binop::OR: {
                 auto[left_value, left_type] = compile(*ast.left, true);
-                left_value = conversion_compiler(fclr).convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
+                left_value = conversion_generator(fclr).convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
                 prog::reg_index right_value;
                 auto result = fclr.new_reg();
 
@@ -529,15 +530,15 @@ namespace sg {
 
                 auto long_branch = [&](){
                     auto[right_raw_value, right_type] = compile(*ast.right, true);
-                    right_value = conversion_compiler(fclr).convert(right_raw_value, right_type, prog::BOOL_TYPE, ast.right->loc);
+                    right_value = conversion_generator(fclr).convert(right_raw_value, right_type, prog::BOOL_TYPE, ast.right->loc);
                 };
 
                 if (ast.operation == binop::AND) {
-                    auto branch_instr = fclr.make_branch(left_value, long_branch, short_branch);
+                    auto branch_instr = function_utils(fclr).make_branch(left_value, long_branch, short_branch);
                     auto value_branch_instr = prog::value_branch_instr{ move(branch_instr), right_value, left_value, result };
                     fclr.add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
                 } else {
-                    auto branch_instr = fclr.make_branch(left_value, short_branch, long_branch);
+                    auto branch_instr = function_utils(fclr).make_branch(left_value, short_branch, long_branch);
                     auto value_branch_instr = prog::value_branch_instr{ move(branch_instr), left_value, right_value, result };
                     fclr.add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
                 }
@@ -552,8 +553,8 @@ namespace sg {
 
                 auto common_type = compiler_utils(clr).common_supertype(*left_type.tp, *right_type.tp, ast.loc);
 
-                left_value = conversion_compiler(fclr).convert(left_value, *left_type.tp, common_type, ast.left->loc);
-                right_value = conversion_compiler(fclr).convert(right_value, *right_type.tp, common_type, ast.right->loc);
+                left_value = conversion_generator(fclr).convert(left_value, *left_type.tp, common_type, ast.left->loc);
+                right_value = conversion_generator(fclr).convert(right_value, *right_type.tp, common_type, ast.right->loc);
 
                 auto result = fclr.new_reg();
                 auto instr = prog::binary_operation_instr { left_value, right_value, result };
@@ -585,8 +586,8 @@ namespace sg {
                 if (!INDEX_EQ(common_type, NUMBER))
                     INVALID_BINARY_OP;
 
-                left_value = conversion_compiler(fclr).convert(left_value, *left_type.tp, common_type, ast.left->loc);
-                right_value = conversion_compiler(fclr).convert(right_value, *right_type.tp, common_type, ast.right->loc);
+                left_value = conversion_generator(fclr).convert(left_value, *left_type.tp, common_type, ast.left->loc);
+                right_value = conversion_generator(fclr).convert(right_value, *right_type.tp, common_type, ast.right->loc);
                 auto result = fclr.new_reg();
                 prog::numeric_binary_operation_instr::kind_t kind;
                 auto& ntype = *GET(common_type, NUMBER);
@@ -885,7 +886,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_conditional(const ast::conditional_expr& ast, bool confined) {
         auto [value, type] = compile(*ast.value, true);
-        auto cond = conversion_compiler(fclr).convert(value, type, prog::BOOL_TYPE, ast.value->loc);
+        auto cond = conversion_generator(fclr).convert(value, type, prog::BOOL_TYPE, ast.value->loc);
 
         prog::reg_index true_value, false_value;
         prog::type_local true_type, false_type;
@@ -899,7 +900,7 @@ namespace sg {
         };
 
         auto result = fclr.new_reg();
-        auto branch_instr = fclr.make_branch(cond, true_branch, false_branch);
+        auto branch_instr = function_utils(fclr).make_branch(cond, true_branch, false_branch);
         auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_value, false_value, result };
         fclr.add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
 
@@ -921,15 +922,15 @@ namespace sg {
         prog::reg_index true_conv_value, false_conv_value;
 
         auto true_conv_branch = [&] () {
-            true_conv_value = conversion_compiler(fclr).convert(result, true_type, common_type_local, ast.true_result->loc);
+            true_conv_value = conversion_generator(fclr).convert(result, true_type, common_type_local, ast.true_result->loc);
         };
 
         auto false_conv_branch = [&] () {
-            false_conv_value = conversion_compiler(fclr).convert(result, false_type, common_type_local, ast.false_result->loc);
+            false_conv_value = conversion_generator(fclr).convert(result, false_type, common_type_local, ast.false_result->loc);
         };
 
         auto conv_result = fclr.new_reg();
-        auto conv_branch_instr = fclr.make_branch(cond, true_conv_branch, false_conv_branch);
+        auto conv_branch_instr = function_utils(fclr).make_branch(cond, true_conv_branch, false_conv_branch);
         auto conv_value_branch_instr = prog::value_branch_instr { move(conv_branch_instr), true_conv_value, false_conv_value, conv_result };
         fclr.add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(conv_value_branch_instr)));
 
@@ -960,11 +961,11 @@ namespace sg {
         optional<prog::var_index> var_index;
 
         if (INDEX_EQ(ast, NAME) && (var_index = fclr.try_get_var(GET(ast, NAME))))
-            tie(value, type) = fclr.add_var_read(*var_index, true, ast.loc);
+            tie(value, type) = function_utils(fclr).add_var_read(*var_index, true, ast.loc);
         else
             tie(value, type) = compile(ast, true);
 
-        auto [ptr_value, ptr_type] = fclr.add_ptr_extraction(value, copy_type(*type.tp), ast.loc);
+        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, copy_type(*type.tp), ast.loc);
         auto& type_pointed = *ptr_type.target_tp;
         auto& target_type = *type_pointed.tp;
 
@@ -980,7 +981,7 @@ namespace sg {
                 error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE, ast.loc));
 
             if (type_copyable(prog, target_type))
-                copy_compiler(fclr).add(result, target_type);
+                copy_generator(fclr).add(result, target_type);
             else if (ptr_type.kind == prog::ptr_type::UNIQUE && !INDEX_EQ(*type.tp, INNER_PTR) && var_index && !fclr.vars[*var_index].type.confined) {
                 fclr.add_instr(VARIANT(prog::instr, DELETE, value));
                 fclr.move_out_var(*var_index, ast.loc);
@@ -999,7 +1000,7 @@ namespace sg {
         tie(value, type_local) = compile(ast, true);
         auto& type = *type_local.tp;
 
-        auto [ptr_value, ptr_type] = fclr.add_ptr_extraction(value, copy_type(type), ast.loc);
+        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, copy_type(type), ast.loc);
 
         if (ptr_type.kind != prog::ptr_type::WEAK)
             error(diags::invalid_type(prog, move(type), diags::type_kind::WEAK_POINTER, ast.loc));
@@ -1024,7 +1025,7 @@ namespace sg {
         };
 
         auto result = fclr.new_reg();
-        auto branch_instr = fclr.make_branch(test_result, true_branch, false_branch);
+        auto branch_instr = function_utils(fclr).make_branch(test_result, true_branch, false_branch);
         auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_result, false_result, result };
         fclr.add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
 
@@ -1059,19 +1060,19 @@ namespace sg {
             error(diags::confinement_mismatch(type_local.confined, ast.loc));
 
         auto [size_value, size_type] = compile(size_ast, true);
-        size_value = conversion_compiler(fclr).convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
+        size_value = conversion_generator(fclr).convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
 
         if (!type_copyable(prog, type))
             error(diags::type_not_copyable(prog, move(type), value_ast.loc));
 
         fclr.push_frame();
-        copy_compiler(fclr).add(value, type);
+        copy_generator(fclr).add(value, type);
         auto block = fclr.pop_frame();
 
         auto repeat_instr = prog::repeat_instr { size_value, fclr.new_reg(), into_ptr(block) };
         fclr.add_instr(VARIANT(prog::instr, REPEAT, into_ptr(repeat_instr)));
 
-        deletion_compiler(fclr).add(value, type);
+        deletion_generator(fclr).add(value, type);
 
         auto result = fclr.new_reg();
         auto instr = prog::alloc_slice_instr { value, size_value, result };
@@ -1094,7 +1095,7 @@ namespace sg {
             return { result, copy_type_local(prog::SIZE_TYPE_LOCAL) };
         }
 
-        auto [ptr_value, ptr_type] = fclr.add_ptr_extraction(value, copy_type(type), ast.loc);
+        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, copy_type(type), ast.loc);
         auto& type_pointed = *ptr_type.target_tp;
 
         if (!type_pointed.slice && !INDEX_EQ(*type_pointed.tp, ARRAY))
@@ -1132,7 +1133,7 @@ namespace sg {
                         error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE, extr_ast.loc));
 
                     if (type_copyable(prog, type))
-                        copy_compiler(fclr).add(result, type);
+                        copy_generator(fclr).add(result, type);
                     else
                         error(diags::type_not_copyable(prog, move(type), extr_ast.loc));
                 }
@@ -1149,7 +1150,7 @@ namespace sg {
                 auto [left_value, left_type_local] = compile(expr_ast, confined);
                 auto& left_type = *left_type_local.tp;
 
-                auto [ptr_value, ptr_type] = fclr.add_ptr_extraction(left_value, copy_type(left_type), expr_ast.loc);
+                auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, copy_type(left_type), expr_ast.loc);
                 auto slice = ptr_type.target_tp->slice;
                 auto& type = *ptr_type.target_tp->tp;
 
@@ -1208,7 +1209,7 @@ namespace sg {
                             error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                         auto [index_value, index_type] = compile(index_expr, true);
-                        index_value = conversion_compiler(fclr).convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
+                        index_value = conversion_generator(fclr).convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
 
                         auto check_result = fclr.new_reg();
                         auto check_instr = prog::check_index_instr { ptr_value, index_value, check_result };
@@ -1223,7 +1224,7 @@ namespace sg {
                             fclr.returned = true;
                         };
 
-                        fclr.add_branch(check_result, [] { }, false_branch);
+                        function_utils(fclr).add_branch(check_result, [] { }, false_branch);
 
                         target_ptr_value = fclr.new_reg();
 
@@ -1249,7 +1250,7 @@ namespace sg {
                         if (begin_expr) {
                             prog::type_local begin_type;
                             tie(begin_value, begin_type) = compile(*begin_expr, true);
-                            begin_value = conversion_compiler(fclr).convert(begin_value, begin_type, prog::SIZE_TYPE, begin_expr->get().loc);
+                            begin_value = conversion_generator(fclr).convert(begin_value, begin_type, prog::SIZE_TYPE, begin_expr->get().loc);
                         } else {
                             begin_value = fclr.new_reg();
                             auto zero = VARIANT(prog::constant, NUMBER, 0);
@@ -1260,7 +1261,7 @@ namespace sg {
                         if (end_expr) {
                             prog::type_local end_type;
                             tie(end_value, end_type) = compile(*end_expr, true);
-                            end_value = conversion_compiler(fclr).convert(end_value, end_type, prog::SIZE_TYPE, end_expr->get().loc);
+                            end_value = conversion_generator(fclr).convert(end_value, end_type, prog::SIZE_TYPE, end_expr->get().loc);
                         } else {
                             end_value = fclr.new_reg();
                             if (slice) {
@@ -1291,8 +1292,8 @@ namespace sg {
                             fclr.returned = true;
                         };
 
-                        fclr.add_branch(begin_check_result, [] { }, false_branch);
-                        fclr.add_branch(end_check_result, [] { }, false_branch);
+                        function_utils(fclr).add_branch(begin_check_result, [] { }, false_branch);
+                        function_utils(fclr).add_branch(end_check_result, [] { }, false_branch);
 
                         target_ptr_value = fclr.new_reg();
 
@@ -1406,7 +1407,7 @@ namespace sg {
             case ast::expr::DEREFERENCE: {
                 auto& expr_ast = *GET(ast, DEREFERENCE);
                 auto [value, type] = compile(expr_ast, true);
-                auto [ptr_value, ptr_type] = fclr.add_ptr_extraction(value, move(*type.tp), ast.loc);
+                auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, move(*type.tp), ast.loc);
                 auto& type_pointed = *ptr_type.target_tp;
                 auto& target_type = *type_pointed.tp;
 
@@ -1509,7 +1510,7 @@ namespace sg {
         auto [left_value, left_type_local] = compile(expr_ast, true);
         auto& left_type = *left_type_local.tp;
 
-        auto [ptr_value, ptr_type] = fclr.add_ptr_extraction(left_value, copy_type(left_type), expr_ast.loc);
+        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, copy_type(left_type), expr_ast.loc);
         auto slice = ptr_type.target_tp->slice;
         auto& type = *ptr_type.target_tp->tp;
 
@@ -1568,7 +1569,7 @@ namespace sg {
                     error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                 auto [index_value, index_type] = compile(index_expr, true);
-                index_value = conversion_compiler(fclr).convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
+                index_value = conversion_generator(fclr).convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
 
                 auto check_result = fclr.new_reg();
                 auto check_instr = prog::check_index_instr { ptr_value, index_value, check_result };
@@ -1583,7 +1584,7 @@ namespace sg {
                     fclr.returned = true;
                 };
 
-                fclr.add_branch(check_result, [] { }, false_branch);
+                function_utils(fclr).add_branch(check_result, [] { }, false_branch);
 
                 target_ptr_value = fclr.new_reg();
 
@@ -1665,7 +1666,7 @@ namespace sg {
         for (size_t index = 0; index < size; index++) {
             auto& type = types[index];
             auto& param_type = *ftype.param_tps[index];
-            values[index] = conversion_compiler(fclr).convert(values[index], type, param_type, value_asts[index].get().loc);
+            values[index] = conversion_generator(fclr).convert(values[index], type, param_type, value_asts[index].get().loc);
         }
 
         return values;

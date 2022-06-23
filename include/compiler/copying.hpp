@@ -4,12 +4,12 @@
 #include "compiler/functions.hpp"
 
 namespace sg {
-    class copy_compiler : compiler_base {
+    class copy_generator : compiler_base {
         function_compiler& fclr;
 
         public:
 
-        copy_compiler(function_compiler& fclr) : compiler_base(fclr), fclr(fclr) { }
+        copy_generator(function_compiler& fclr) : compiler_base(fclr), fclr(fclr) { }
 
         void add(prog::reg_index value, const prog::type& type);
 

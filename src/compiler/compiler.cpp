@@ -3,9 +3,8 @@
 #include "compiler/constants.hpp"
 #include "compiler/functions.hpp"
 #include "compiler/conversions.hpp"
-#include "compiler/utils.hpp"
+#include "compiler/compiler_utils.hpp"
 #include "diags.hpp"
-#include "program.hpp"
 #include "utils.hpp"
 
 namespace sg {

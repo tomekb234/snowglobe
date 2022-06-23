@@ -1,18 +1,19 @@
 #include "compiler/assignment.hpp"
 #include "compiler/conversions.hpp"
 #include "compiler/deletion.hpp"
-#include "compiler/utils.hpp"
+#include "compiler/compiler_utils.hpp"
+#include "compiler/function_utils.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
 
 namespace sg {
     using namespace sg::utils;
 
-    void assignment_compiler::add(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
+    void assignment_generator::add(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
         switch (INDEX(lval)) {
             case lvalue::IGNORED:
                 if (!type.confined)
-                    deletion_compiler(fclr).add(value, *type.tp);
+                    deletion_generator(fclr).add(value, *type.tp);
                 break;
 
             case lvalue::VAR: {
@@ -22,14 +23,14 @@ namespace sg {
                 if (type.confined && !type_trivial(prog, *type.tp) && var.outside_confinement > 0)
                     error(diags::variable_outside_confinement(var.name, loc));
 
-                fclr.add_var_deletion(var_index, loc);
+                function_utils(fclr).add_var_deletion(var_index, loc);
 
-                value = conversion_compiler(fclr).convert(value, type, var.type, loc);
+                value = conversion_generator(fclr).convert(value, type, var.type, loc);
 
                 auto write_instr = prog::write_var_instr { var_index, value };
                 fclr.add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
 
-                var.state = fclr.VAR_INITIALIZED;
+                var.state = VAR_INITIALIZED;
                 var.outside_loop = 0;
             } break;
 
@@ -40,9 +41,9 @@ namespace sg {
                 auto old_value = fclr.new_reg();
                 auto read_instr = prog::read_global_var_instr { var_index, old_value };
                 fclr.add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(read_instr)));
-                deletion_compiler(fclr).add(old_value, var_type);
+                deletion_generator(fclr).add(old_value, var_type);
 
-                value = conversion_compiler(fclr).convert(value, type, var_type, loc);
+                value = conversion_generator(fclr).convert(value, type, var_type, loc);
 
                 auto instr = prog::write_global_var_instr { var_index, value };
                 fclr.add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, into_ptr(instr)));
@@ -122,9 +123,9 @@ namespace sg {
                 auto old_value = fclr.new_reg();
                 auto read_instr = prog::ptr_read_instr { ptr_value, old_value };
                 fclr.add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(read_instr)));
-                deletion_compiler(fclr).add(old_value, target_type);
+                deletion_generator(fclr).add(old_value, target_type);
 
-                value = conversion_compiler(fclr).convert(value, type, target_type, loc);
+                value = conversion_generator(fclr).convert(value, type, target_type, loc);
 
                 auto write_instr = prog::ptr_write_instr { ptr_value, value };
                 fclr.add_instr(VARIANT(prog::instr, PTR_WRITE, into_ptr(write_instr)));
@@ -132,7 +133,7 @@ namespace sg {
         }
     }
 
-    pair<prog::reg_index, prog::type_local> assignment_compiler::add_read_for_swap(const lvalue& lval, location loc) {
+    pair<prog::reg_index, prog::type_local> assignment_generator::add_read_for_swap(const lvalue& lval, location loc) {
         auto fields = [&] (vector<cref<lvalue>> lvals) -> tuple<vector<prog::reg_index>, vector<prog::type>, bool> {
             vector<prog::reg_index> values;
             vector<prog::type> types;
@@ -167,8 +168,8 @@ namespace sg {
                 auto& var = fclr.vars[var_index];
                 auto& state = var.state;
 
-                if (state != fclr.VAR_INITIALIZED)
-                    error(diags::variable_not_usable(var.name, state & fclr.VAR_INITIALIZED, state & fclr.VAR_UNINITIALIZED, state & fclr.VAR_MOVED_OUT, loc));
+                if (state != VAR_INITIALIZED)
+                    error(diags::variable_not_usable(var.name, state, loc));
 
                 auto result = fclr.new_reg();
                 auto instr = prog::read_var_instr { var_index, result };
@@ -212,7 +213,7 @@ namespace sg {
                     common_type = compiler_utils(clr).common_supertype(common_type, type, loc);
 
                 for (size_t index = 0; index < count; index++)
-                    values[index] = conversion_compiler(fclr).convert(values[index], types[index], common_type, all_confined, loc);
+                    values[index] = conversion_generator(fclr).convert(values[index], types[index], common_type, all_confined, loc);
 
                 auto result = fclr.new_reg();
                 auto instr = prog::make_array_instr { move(values), result };
@@ -235,7 +236,7 @@ namespace sg {
                 for (size_t index = 0; index < count; index++) {
                     auto& type = types[index];
                     auto& field_type = *st.fields[index]->tp;
-                    values[index] = conversion_compiler(fclr).convert(values[index], type, field_type, all_confined, loc);
+                    values[index] = conversion_generator(fclr).convert(values[index], type, field_type, all_confined, loc);
                 }
 
                 auto result = fclr.new_reg();
@@ -263,7 +264,7 @@ namespace sg {
         UNREACHABLE;
     }
 
-    void assignment_compiler::add_write_from_swap(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
+    void assignment_generator::add_write_from_swap(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) {
         switch (INDEX(lval)) {
             case lvalue::VAR: {
                 auto var_index = GET(lval, VAR);
@@ -272,12 +273,12 @@ namespace sg {
                 if (type.confined && !type_trivial(prog, *type.tp) && var.outside_confinement > 0)
                     error(diags::variable_outside_confinement(var.name, loc));
 
-                value = conversion_compiler(fclr).convert(value, type, var.type, loc);
+                value = conversion_generator(fclr).convert(value, type, var.type, loc);
 
                 auto write_instr = prog::write_var_instr { var_index, value };
                 fclr.add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
 
-                var.state = fclr.VAR_INITIALIZED;
+                var.state = VAR_INITIALIZED;
                 var.outside_loop = 0;
             } break;
 
@@ -285,7 +286,7 @@ namespace sg {
                 auto var_index = GET(lval, GLOBAL_VAR);
                 auto& var_type = *prog.global_vars[var_index]->tp;
 
-                value = conversion_compiler(fclr).convert(value, type, var_type, loc);
+                value = conversion_generator(fclr).convert(value, type, var_type, loc);
 
                 auto instr = prog::write_global_var_instr { var_index, value };
                 fclr.add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, into_ptr(instr)));
@@ -362,7 +363,7 @@ namespace sg {
             case lvalue::DEREFERENCE: {
                 auto& [ptr_value, target_type] = GET(lval, DEREFERENCE);
 
-                value = conversion_compiler(fclr).convert(value, type, target_type, loc);
+                value = conversion_generator(fclr).convert(value, type, target_type, loc);
 
                 auto write_instr = prog::ptr_write_instr { ptr_value, value };
                 fclr.add_instr(VARIANT(prog::instr, PTR_WRITE, into_ptr(write_instr)));

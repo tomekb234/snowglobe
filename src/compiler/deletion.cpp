@@ -1,11 +1,12 @@
 #include "compiler/deletion.hpp"
+#include "compiler/function_utils.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
 
 namespace sg {
     using namespace sg::utils;
 
-    void deletion_compiler::add_struct_destructor(prog::reg_index value, const prog::struct_type& st) {
+    void deletion_generator::add_struct_destructor(prog::reg_index value, const prog::struct_type& st) {
         auto count = st.fields.size();
 
         for (size_t index = 0; index < count; index++) {
@@ -16,7 +17,7 @@ namespace sg {
         }
     }
 
-    void deletion_compiler::add_enum_variants_destructor(prog::reg_index value, const prog::enum_type& en, prog::variant_index variant_index) {
+    void deletion_generator::add_enum_variants_destructor(prog::reg_index value, const prog::enum_type& en, prog::variant_index variant_index) {
         auto variant_count = en.variants.size();
 
         auto test_result = fclr.new_reg();
@@ -40,10 +41,10 @@ namespace sg {
                 add_enum_variants_destructor(value, en, variant_index + 1);
         };
 
-        fclr.add_branch(test_result, true_branch, false_branch);
+        function_utils(fclr).add_branch(test_result, true_branch, false_branch);
     }
 
-    void deletion_compiler::add(prog::reg_index value, const prog::type& type) {
+    void deletion_generator::add(prog::reg_index value, const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::STRUCT: {
                 auto struct_index = GET(type, STRUCT);
@@ -98,17 +99,17 @@ namespace sg {
         }
     }
 
-    void deletion_compiler::add_for_struct(prog::reg_index value, const prog::struct_type& st) {
+    void deletion_generator::add_for_struct(prog::reg_index value, const prog::struct_type& st) {
         auto instr = prog::func_call_instr { st.destructor, { value }, fclr.new_reg() };
         fclr.add_instr(VARIANT(prog::instr, FUNC_CALL, into_ptr(instr)));
     }
 
-    void deletion_compiler::add_for_enum(prog::reg_index value, const prog::enum_type& en) {
+    void deletion_generator::add_for_enum(prog::reg_index value, const prog::enum_type& en) {
         auto instr = prog::func_call_instr { en.destructor, { value }, fclr.new_reg() };
         fclr.add_instr(VARIANT(prog::instr, FUNC_CALL, into_ptr(instr)));
     }
 
-    void deletion_compiler::add_for_tuple(prog::reg_index value, vector<cref<prog::type>> types) {
+    void deletion_generator::add_for_tuple(prog::reg_index value, vector<cref<prog::type>> types) {
         auto count = types.size();
 
         for (size_t index = 0; index < count; index++) {
@@ -119,7 +120,7 @@ namespace sg {
         }
     }
 
-    void deletion_compiler::add_for_array(prog::reg_index value, const prog::array_type& array_type) {
+    void deletion_generator::add_for_array(prog::reg_index value, const prog::array_type& array_type) {
         auto count = array_type.size;
         auto& type = *array_type.tp;
 
@@ -131,7 +132,7 @@ namespace sg {
         }
     }
 
-    void deletion_compiler::add_for_optional(prog::reg_index value, const prog::type& inner_type) {
+    void deletion_generator::add_for_optional(prog::reg_index value, const prog::type& inner_type) {
         auto test_result = fclr.new_reg();
         auto test_instr = prog::test_optional_instr { value, test_result };
         fclr.add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
@@ -143,10 +144,10 @@ namespace sg {
             add(extracted, inner_type);
         };
 
-        fclr.add_branch(test_result, true_branch, [] { });
+        function_utils(fclr).add_branch(test_result, true_branch, [] { });
     }
 
-    void deletion_compiler::add_for_ptr(prog::reg_index value, prog::ptr_type::kind_t kind, const prog::type_pointed& target_type) {
+    void deletion_generator::add_for_ptr(prog::reg_index value, prog::ptr_type::kind_t kind, const prog::type_pointed& target_type) {
         auto do_add = [&] () {
             if (target_type.slice) {
                 auto length = fclr.new_reg();
@@ -188,7 +189,7 @@ namespace sg {
             auto test_result = fclr.new_reg();
             auto test_instr = prog::test_ref_count_instr { value, test_result };
             fclr.add_instr(VARIANT(prog::instr, TEST_REF_COUNT, into_ptr(test_instr)));
-            fclr.add_branch(test_result, [] { }, do_add);
+            function_utils(fclr).add_branch(test_result, [] { }, do_add);
         } else if (kind == prog::ptr_type::WEAK)
             fclr.add_instr(VARIANT(prog::instr, DECR_WEAK_REF_COUNT, value));
 
@@ -196,7 +197,7 @@ namespace sg {
             auto test_result = fclr.new_reg();
             auto test_instr = prog::test_ref_count_instr { value, test_result };
             fclr.add_instr(VARIANT(prog::instr, TEST_ANY_REF_COUNT, into_ptr(test_instr)));
-            fclr.add_branch(test_result, [] { }, [&] () { fclr.add_instr(VARIANT(prog::instr, DELETE_REF_COUNTER, value)); });
+            function_utils(fclr).add_branch(test_result, [] { }, [&] () { fclr.add_instr(VARIANT(prog::instr, DELETE_REF_COUNTER, value)); });
         }
     }
 }

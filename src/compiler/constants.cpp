@@ -1,6 +1,6 @@
 #include "compiler/constants.hpp"
 #include "compiler/expressions.hpp"
-#include "compiler/utils.hpp"
+#include "compiler/compiler_utils.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
 

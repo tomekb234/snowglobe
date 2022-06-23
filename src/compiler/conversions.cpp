@@ -1,6 +1,5 @@
 #include "compiler/conversions.hpp"
 #include "diags.hpp"
-#include "program.hpp"
 #include "utils.hpp"
 
 namespace sg {
@@ -8,7 +7,7 @@ namespace sg {
 
     static bool ptr_kind_trivial(prog::ptr_type::kind_t kind, bool confined);
 
-    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined, location loc) {
+    prog::reg_index conversion_generator::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined, location loc) {
         auto result = try_convert(value, type, new_type, confined);
 
         if (!result)
@@ -17,25 +16,25 @@ namespace sg {
         return *result;
     }
 
-    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc) {
+    prog::reg_index conversion_generator::convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc) {
         return convert(value, type, new_type, false, loc);
     }
 
-    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc) {
+    prog::reg_index conversion_generator::convert(prog::reg_index value, const prog::type_local& type, const prog::type_local& new_type, location loc) {
         if (type.confined != new_type.confined && !type_trivial(prog, *type.tp))
             error(diags::confinement_mismatch(type.confined, loc));
 
         return convert(value, *type.tp, *new_type.tp, new_type.confined, loc);
     }
 
-    prog::reg_index conversion_compiler::convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc) {
+    prog::reg_index conversion_generator::convert(prog::reg_index value, const prog::type_local& type, const prog::type& new_type, location loc) {
         if (type.confined && !type_trivial(prog, *type.tp))
             error(diags::confinement_mismatch(type.confined, loc));
 
         return convert(value, *type.tp, new_type, false, loc);
     }
 
-    optional<prog::reg_index> conversion_compiler::try_convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined) {
+    optional<prog::reg_index> conversion_generator::try_convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined) {
         if (types_equal(type, new_type))
             return { value };
 
@@ -413,7 +412,7 @@ namespace sg {
         return { };
     }
 
-    optional<prog::reg_index> conversion_compiler::try_convert_ptr_kind(prog::reg_index value, prog::ptr_type::kind_t kind, prog::ptr_type::kind_t new_kind, bool confined) {
+    optional<prog::reg_index> conversion_generator::try_convert_ptr_kind(prog::reg_index value, prog::ptr_type::kind_t kind, prog::ptr_type::kind_t new_kind, bool confined) {
         if (kind == new_kind)
             return { value };
 
@@ -474,7 +473,7 @@ namespace sg {
         return { };
     }
 
-    optional<prog::reg_index> conversion_compiler::try_convert_ptr_target(prog::reg_index value, const prog::type_pointed& type, const prog::type_pointed& new_type) {
+    optional<prog::reg_index> conversion_generator::try_convert_ptr_target(prog::reg_index value, const prog::type_pointed& type, const prog::type_pointed& new_type) {
         if (type.slice == new_type.slice && types_equal(*type.tp, *new_type.tp))
             return { value };
 

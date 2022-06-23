@@ -1,11 +1,12 @@
 #include "compiler/copying.hpp"
+#include "compiler/function_utils.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
 
 namespace sg {
     using namespace sg::utils;
 
-    void copy_compiler::add(prog::reg_index value, const prog::type& type) {
+    void copy_generator::add(prog::reg_index value, const prog::type& type) {
         switch (INDEX(type)) {
             case prog::type::STRUCT: {
                 auto struct_index = GET(type, STRUCT);
@@ -60,7 +61,7 @@ namespace sg {
         }
     }
 
-    void copy_compiler::add_for_struct(prog::reg_index value, const prog::struct_type& st) {
+    void copy_generator::add_for_struct(prog::reg_index value, const prog::struct_type& st) {
         auto count = st.fields.size();
 
         for (size_t index = 0; index < count; index++) {
@@ -71,7 +72,7 @@ namespace sg {
         }
     }
 
-    void copy_compiler::add_for_enum_variants(prog::reg_index value, const prog::enum_type& en, prog::variant_index variant_index) {
+    void copy_generator::add_for_enum_variants(prog::reg_index value, const prog::enum_type& en, prog::variant_index variant_index) {
         auto variant_count = en.variants.size();
 
         auto test_result = fclr.new_reg();
@@ -95,10 +96,10 @@ namespace sg {
                 add_for_enum_variants(value, en, variant_index + 1);
         };
 
-        fclr.add_branch(test_result, true_branch, false_branch);
+        function_utils(fclr).add_branch(test_result, true_branch, false_branch);
     }
 
-    void copy_compiler::add_for_tuple(prog::reg_index value, vector<cref<prog::type>> types) {
+    void copy_generator::add_for_tuple(prog::reg_index value, vector<cref<prog::type>> types) {
         auto count = types.size();
 
         for (size_t index = 0; index < count; index++) {
@@ -109,7 +110,7 @@ namespace sg {
         }
     }
 
-    void copy_compiler::add_for_array(prog::reg_index value, const prog::array_type& array_type) {
+    void copy_generator::add_for_array(prog::reg_index value, const prog::array_type& array_type) {
         auto count = array_type.size;
         auto& type = *array_type.tp;
 
@@ -121,7 +122,7 @@ namespace sg {
         }
     }
 
-    void copy_compiler::add_for_optional(prog::reg_index value, const prog::type& inner_type) {
+    void copy_generator::add_for_optional(prog::reg_index value, const prog::type& inner_type) {
         auto test_result = fclr.new_reg();
         auto test_instr = prog::test_optional_instr { value, test_result };
         fclr.add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
@@ -133,10 +134,10 @@ namespace sg {
             add(extracted, inner_type);
         };
 
-        fclr.add_branch(test_result, true_branch, [] { });
+        function_utils(fclr).add_branch(test_result, true_branch, [] { });
     }
 
-    void copy_compiler::add_for_ptr(prog::reg_index value, prog::ptr_type::kind_t kind) {
+    void copy_generator::add_for_ptr(prog::reg_index value, prog::ptr_type::kind_t kind) {
         if (kind == prog::ptr_type::SHARED)
             fclr.add_instr(VARIANT(prog::instr, INCR_REF_COUNT, value));
         else if (kind == prog::ptr_type::WEAK)

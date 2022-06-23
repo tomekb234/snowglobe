@@ -4,12 +4,12 @@
 #include "compiler/functions.hpp"
 
 namespace sg {
-    class deletion_compiler : compiler_base {
+    class deletion_generator : compiler_base {
         function_compiler& fclr;
 
         public:
 
-        deletion_compiler(function_compiler& fclr) : compiler_base(fclr), fclr(fclr) { }
+        deletion_generator(function_compiler& fclr) : compiler_base(fclr), fclr(fclr) { }
 
         void add(prog::reg_index value, const prog::type& type);
 

@@ -1,8 +1,7 @@
-#include "compiler/utils.hpp"
+#include "compiler/compiler_utils.hpp"
 #include "compiler/functions.hpp"
 #include "compiler/conversions.hpp"
 #include "diags.hpp"
-#include "program.hpp"
 #include "utils.hpp"
 
 namespace sg {
@@ -11,7 +10,7 @@ namespace sg {
     prog::type compiler_utils::common_supertype(const prog::type& type_a, const prog::type& type_b, location loc) {
         prog::global_func dummy = { { }, { }, { }, make_ptr(copy_type(prog::UNIT_TYPE)), { }, { } };
         function_compiler fclr(clr, dummy);
-        conversion_compiler cclr(fclr);
+        conversion_generator cclr(fclr);
 
         fclr.init();
 
@@ -195,7 +194,7 @@ namespace sg {
 
         prog::global_func func = { { }, { }, { }, make_ptr(copy_type(prog::UNIT_TYPE)), { }, { } };
         function_compiler fclr(clr, func);
-        conversion_compiler cclr(fclr);
+        conversion_generator cclr(fclr);
 
         fclr.init();
         auto result = cclr.convert(0, type, new_type, loc);

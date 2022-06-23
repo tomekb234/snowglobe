@@ -333,13 +333,13 @@ namespace sg::diags {
         else
             stream << "An internal variable ";
         stream << "was ";
-        if (initialized)
+        if (state & VAR_INITIALIZED)
             stream << "potentially ";
-        if (uninitialized)
+        if (state & VAR_UNINITIALIZED)
             stream << "unitialized ";
-        if (uninitialized && moved_out)
+        if ((state & VAR_UNINITIALIZED) && (state & VAR_MOVED_OUT))
             stream << "or ";
-        if (moved_out)
+        if (state & VAR_MOVED_OUT)
             stream << "moved out";
         stream << endl;
     }
@@ -351,11 +351,11 @@ namespace sg::diags {
         else
             stream << "an internal variable ";
         stream << "cannot be deleted because it is either initialized";
-        if (uninitialized && moved_out)
+        if ((state & VAR_UNINITIALIZED) && (state & VAR_MOVED_OUT))
             stream << ", uninitialized or moved out";
-        else if (uninitialized)
+        else if (state & VAR_UNINITIALIZED)
             stream << " or uninitialized ";
-        else if (moved_out)
+        else if (state & VAR_MOVED_OUT)
             stream << " or moved out";
         stream << endl;
     }

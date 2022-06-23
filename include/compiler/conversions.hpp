@@ -4,13 +4,13 @@
 #include "compiler/functions.hpp"
 
 namespace sg {
-    class conversion_compiler : compiler_base {
+    class conversion_generator : compiler_base {
         function_compiler& fclr;
         compiler& clr;
 
         public:
 
-        conversion_compiler(function_compiler& fclr) : compiler_base(fclr), fclr(fclr), clr(fclr.clr) { }
+        conversion_generator(function_compiler& fclr) : compiler_base(fclr), fclr(fclr), clr(fclr.clr) { }
 
         prog::reg_index convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, bool confined, location loc);
         prog::reg_index convert(prog::reg_index value, const prog::type& type, const prog::type& new_type, location loc);

@@ -13,6 +13,12 @@ namespace sg {
     using std::variant;
     using std::pair;
 
+    typedef unsigned char var_state;
+
+    const var_state VAR_UNINITIALIZED = 1 << 0;
+    const var_state VAR_INITIALIZED = 1 << 1;
+    const var_state VAR_MOVED_OUT = 1 << 2;
+
     struct lvalue {
         enum {
             IGNORED,
@@ -36,16 +42,7 @@ namespace sg {
     };
 
     class function_compiler : compiler_base {
-        typedef unsigned char var_state;
         typedef size_t frame_index;
-
-        struct variable {
-            optional<string> name;
-            prog::type_local type;
-            var_state state;
-            size_t outside_loop;
-            size_t outside_confinement;
-        };
 
         struct frame {
             vector<prog::instr> instrs;
@@ -55,22 +52,27 @@ namespace sg {
             vector<function<void()>> cleanup_actions;
         };
 
-        static constexpr var_state VAR_UNINITIALIZED = 1 << 0;
-        static constexpr var_state VAR_INITIALIZED = 1 << 1;
-        static constexpr var_state VAR_MOVED_OUT = 1 << 2;
+        struct variable {
+            optional<string> name;
+            prog::type_local type;
+            var_state state;
+            size_t outside_loop;
+            size_t outside_confinement;
+        };
 
         compiler& clr;
         prog::global_func& func;
         prog::reg_index reg_counter = 0;
-        vector<variable> vars;
         vector<frame> frames;
+        vector<variable> vars;
         unordered_map<string, vector<prog::var_index>> var_names;
         bool returned = false;
 
-        friend class conversion_compiler;
-        friend class copy_compiler;
-        friend class deletion_compiler;
-        friend class assignment_compiler;
+        friend class function_utils;
+        friend class conversion_generator;
+        friend class copy_generator;
+        friend class deletion_generator;
+        friend class assignment_generator;
         friend class statement_compiler;
         friend class expression_compiler;
 
@@ -112,19 +114,6 @@ namespace sg {
         vector<var_state> backup_var_states();
         void restore_var_states(const vector<var_state>& states);
         void merge_var_states(const vector<var_state>& states);
-
-        pair<prog::reg_index, prog::type_local> add_var_read(prog::var_index var_index, bool confined, location loc);
-        pair<prog::reg_index, prog::type_local> add_var_confinement(prog::var_index var_index, location loc);
-        void add_var_deletion(prog::var_index index, location loc);
-
-        pair<prog::reg_index, prog::ptr_type> add_ptr_extraction(prog::reg_index value, prog::type&& type, location loc);
-
-        void add_return(prog::reg_index value, location loc);
-        void add_break(location loc);
-        void add_continue(location loc);
-        prog::branch_instr make_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
-        void add_branch(prog::reg_index cond, function<void()> true_branch, function<void()> false_branch);
-        void add_loop(function<prog::reg_index()> head, function<void()> true_branch, function<void()> false_branch, function<void()> end);
     };
 }
 

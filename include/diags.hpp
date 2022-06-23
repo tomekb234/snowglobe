@@ -5,6 +5,7 @@
 #include "ast.hpp"
 #include "program.hpp"
 #include "compiler/compiler.hpp"
+#include "compiler/functions.hpp"
 #include <ostream>
 #include <string>
 #include <optional>
@@ -156,8 +157,8 @@ namespace sg::diags {
     DIAG1(invalid_variable_name, error, string, name);
     DIAG1(variable_not_found, error, string, name);
     DIAG0(variable_without_type, error);
-    DIAG4(variable_not_usable, error, optional<string>, name, bool, initialized, bool, uninitialized, bool, moved_out);
-    DIAG3(variable_not_deletable, error, optional<string>, name, bool, uninitialized, bool, moved_out);
+    DIAG2(variable_not_usable, error, optional<string>, name, var_state, state);
+    DIAG2(variable_not_deletable, error, optional<string>, name, var_state, state);
     DIAG1(variable_moved_out_inside_loop, error, optional<string>, name);
     DIAG1(variable_outside_confinement, error, optional<string>, name);
     DIAG0(global_variable_moved_out, error);
@@ -167,7 +168,7 @@ namespace sg::diags {
     DIAG0(unreachable_code, warning);
 
     // Code generator diagnostics
-    
+
     DIAG1(code_generator_fail, error, string, text);
 }
 
