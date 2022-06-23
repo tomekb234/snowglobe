@@ -5,6 +5,8 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_os_ostream.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/Bitcode/BitcodeWriterPass.h>
 
 namespace sg {
     using namespace sg::utils;
@@ -14,18 +16,22 @@ namespace sg {
 
     void code_generator::generate_code(ostream& stream) {
         generate();
-        string str;
-        llvm::raw_string_ostream llvm_stream(str);
+        llvm::raw_os_ostream llvm_stream(stream);
         mod.print(llvm_stream, nullptr);
-        stream << str;
+        llvm_stream.flush();
     }
 
     void code_generator::generate_bitcode(ostream& stream) {
         generate();
-        error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+        llvm::raw_os_ostream llvm_stream(stream);
+        llvm::legacy::PassManager pass_manager;
+        pass_manager.add(llvm::createBitcodeWriterPass(llvm_stream));
+        pass_manager.run(mod);
+        llvm_stream.flush();
     }
 
     void code_generator::generate_executable(ostream& stream) {
+        (void)stream;
         generate();
         error(diags::not_implemented(DUMMY_LOCATION)); // TODO
     }
