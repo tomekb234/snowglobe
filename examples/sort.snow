@@ -1,0 +1,28 @@
+func sort(a: &[i32]) {
+    for var i in 0u8 .. #a {
+        var k = i;
+
+        for var j in i + 1u8 .. #a {
+            if a[j] < a[k] {
+                k = j;
+            }
+        }
+
+        swap a[i] with a[k];
+    }
+}
+
+func main() {
+    var n = read_uint();
+    var a = @[0i32; n];
+
+    for var i in 0u8 .. n {
+        a[i] = read_int() as i32;
+    }
+
+    sort(a);
+
+    for var i in 0u8 .. n {
+        print_int(a[i]);
+    }
+}

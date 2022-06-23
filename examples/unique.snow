@@ -1,0 +1,20 @@
+func f(p: !@i8) -> @i8 {
+    print_int(*p);
+    p
+}
+
+func g(p: &i8) {
+    *p += 1;
+    print_int(*p);
+}
+
+func main() {
+    var p = @123;
+
+    p = f(p);
+
+    g(p);
+    g(p);
+
+    f(p);
+}

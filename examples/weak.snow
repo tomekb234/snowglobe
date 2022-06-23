@@ -1,0 +1,26 @@
+func f(w: !~i8) {
+    if var p in ?w {
+        print_int(*p);
+    } else {
+        print_line("empty");
+    }
+}
+
+func main() {
+    var q: !*i8 = @123;
+    var w1: !~i8 = q;
+    var w2: !~i8 = w1;
+
+    f(w1);
+    f(w2);
+
+    if true {
+        var p: !*i8 = @123;
+        var p1 = p;
+        var p2 = p;
+        w2 = p;
+    }
+
+    f(w1);
+    f(w2);
+}

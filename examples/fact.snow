@@ -1,0 +1,15 @@
+func fact(n: i32) -> i32 {
+    var p: i32 = 1;
+
+    for var x in 1 .. n + 1 {
+        p *= x;
+    }
+
+    return p;
+}
+
+func main() {
+    var n = read_int() as i32;
+    var f = fact(n);
+    print_int(f);
+}
