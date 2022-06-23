@@ -12,6 +12,7 @@
 #include <iostream>
 #include <unordered_map>
 #include <algorithm>
+#include <filesystem>
 
 using std::string;
 using std::cout;
@@ -24,6 +25,9 @@ using std::vector;
 using std::optional;
 using std::unordered_map;
 using std::find;
+using std::filesystem::permissions;
+using std::filesystem::perms;
+using std::filesystem::perm_options;
 
 static void print_help(const char* name) {
     cout << "Usage: " << name << " file.snow [options]" << endl;
@@ -43,38 +47,37 @@ const unordered_map<string, size_t> OPTIONS = {
     { "--ir-bitcode", 0 },
 };
 
+const string BUILTIN_NAME = "builtin";
+
+const string BUILTINS = R"CODE(
+    /*var argv: $[$[u8]] = builtin;
+
+    func read(count: u64) -> @[u8] { builtin }
+    func read_word() -> @[u8] { builtin }
+    func read_line() -> @[u8] { builtin }
+    func read_int() -> i64 { builtin }
+    func read_uint() -> u64 { builtin }
+    func read_float() -> f64 { builtin }
+
+    func print(output: &[u8]) { builtin }
+    func print_word(output: &[u8]) { builtin }
+    func print_line(output: &[u8]) { builtin }
+    func print_int(output: i64) { builtin }
+    func print_uint(output: u64) { builtin }
+    func print_float(output: f64) { builtin }*/
+
+    func exit(status: i32) -> never { builtin }
+    /*func error(message: &[u8]) -> never { builtin }
+    func unreachable() -> never { builtin }*/
+)CODE";
+
 static bool validate_args(int argc, const char** argv);
 static bool option_present(int argc, const char** argv, vector<string> options);
 static optional<string> get_option_value(int argc, const char** argv, vector<string> options);
 static optional<string> get_arg(int argc, const char** argv);
-
-static string get_output_name(string& input_name);
-
-const string BUILTIN_NAME = "builtin";
-
-const string BUILTINS = R"CODE(
-/*  */
-/* var argv: $[$[u8]] = builtin; */
-/*  */
-/* func read(count: u64) -> @[u8] { builtin } */
-/* func read_word() -> @[u8] { builtin } */
-/* func read_line() -> @[u8] { builtin } */
-/* func read_int() -> i64 { builtin } */
-/* func read_uint() -> u64 { builtin } */
-/* func read_float() -> f64 { builtin } */
-/*  */
-/* func print(output: &[u8]) { builtin } */
-/* func print_word(output: &[u8]) { builtin } */
-/* func print_line(output: &[u8]) { builtin } */
-/* func print_int(output: i64) { builtin } */
-/* func print_uint(output: u64) { builtin } */
-/* func print_float(output: f64) { builtin } */
-/*  */
-func exit(status: i32) -> never { builtin }
-/* func error(message: &[u8]) -> never { builtin } */
-/* func unreachable() -> never { builtin } */
-/*  */
-)CODE";
+static string get_executable_name(string input_name);
+static string get_ir_code_name(string input_name);
+static string get_ir_bitcode_name(string input_name);
 
 int main(int argc, const char** argv) {
     if (!validate_args(argc, argv))
@@ -99,43 +102,79 @@ int main(int argc, const char** argv) {
         return 1;
     }
 
-    auto ok = true;
-
     sg::prog::program prog;
     sg::diagnostic_collector diags;
+    sg::compiler compiler(prog, diags);
 
-    istringstream builtins(BUILTINS);
+    auto compile_builtins = [&] () {
+        istringstream code(BUILTINS);
+        sg::lexer_input input(code, nullptr);
+        sg::ast::program ast;
+        yy::parser(input, diags, ast).parse();
+        compiler.compile_builtins(ast, BUILTIN_NAME);
+    };
 
-    sg::lexer_input builtins_input(builtins, nullptr);
-    sg::lexer_input source_input(file, &file_name);
+    auto compile = [&] () -> bool {
+        sg::lexer_input input(file, &file_name);
+        sg::ast::program ast;
 
-    sg::ast::program builtins_ast;
-    sg::ast::program source_ast;
+        if (yy::parser(input, diags, ast).parse() != 0)
+            return false;
 
-    yy::parser(builtins_input, diags, builtins_ast).parse();
+        if (!compiler.compile(ast))
+            return false;
 
-    if (yy::parser(source_input, diags, source_ast).parse() == 0) {
-        sg::compiler compiler(prog, diags);
+        if (option_present(argc, argv, { "-k", "--check" }))
+            return true;
 
-        compiler.compile_builtins(builtins_ast, BUILTIN_NAME);
+        auto gen_code = option_present(argc, argv, { "--ir-code" });
+        auto gen_bitcode = option_present(argc, argv, { "--ir-bitcode" });
 
-        if (compiler.compile(source_ast)) {
-            /* if (!option_present(argc, argv, { "-k", "--check" })) { */
-            /*     auto opt_output_name = get_option_value(argc, argv, { "-o", "--output" }); */
-            /*     auto output_name = opt_output_name ? *opt_output_name : get_output_name(file_name); */
-            /*     ofstream output(output_name); */
-            /*  */
-            /*     if (!output.is_open()) { */
-            /*         cerr << "Could not open file '" << output_name << "' for writing" << endl; */
-            /*         return 1; */
-            /*     } */
-            /* } */
+        if (gen_code && gen_bitcode) {
+            cerr << "The options '--ir-code' and '--ir-bitcode' are mutually exclusive" << endl;
+            return false;
+        }
 
-            sg::code_generator(prog, diags, "test_module").generate_code(std::cout);
-        } else
-            ok = false;
-    } else
-        ok = false;
+        auto opt_output_name = get_option_value(argc, argv, { "-o", "--output" });
+        string output_name;
+
+        if (opt_output_name)
+            output_name = *opt_output_name;
+        else if (gen_code)
+            output_name = get_ir_code_name(file_name);
+        else if (gen_bitcode)
+            output_name = get_ir_bitcode_name(file_name);
+        else
+            output_name = get_executable_name(file_name);
+
+        ofstream output(output_name);
+
+        if (!output.is_open()) {
+            cerr << "Could not open file '" << output_name << "' for writing" << endl;
+            return false;
+        }
+
+        sg::code_generator codegen(prog, diags, file_name);
+
+        try {
+        if (gen_code)
+            codegen.generate_code(output);
+        else if (gen_bitcode)
+            codegen.generate_bitcode(output);
+        else {
+            codegen.generate_executable(output);
+            auto exec = perms::owner_exec | perms::group_exec | perms::others_exec;
+            permissions(output_name, exec, perm_options::add);
+        }
+        } catch (...) {
+            return false;
+        }
+
+        return true;
+    };
+
+    compile_builtins();
+    auto ok = compile();
 
     diags.report_all(cerr, true, { { file_name, file } });
 
@@ -206,19 +245,44 @@ static optional<string> get_arg(int argc, const char** argv) {
     return { };
 }
 
-static string get_output_name(string& input_name) {
-    string result = input_name;
-    size_t slash = result.find_last_of("\\/");
-    if (slash != string::npos) {
-        result = result.substr(slash + 1);
-    }
+static void remove_directory(string& name) {
+    size_t slash = name.find_last_of('/');
+    if (slash != string::npos)
+        name = name.substr(slash + 1);
+}
 
-    size_t dot = result.find_last_of('.');
-    if (dot == string::npos) {
-        result += ".out";
-    } else {
-        result = result.substr(0, dot);
+static bool remove_extension(string& name) {
+    size_t dot = name.find_last_of('.');
+    if (dot == string::npos)
+        return false;
+    else {
+        name = name.substr(0, dot);
+        return true;
     }
+}
+
+static string get_executable_name(string name) {
+    string result = name;
+    remove_directory(result);
+
+    if (!remove_extension(result))
+        result += ".out";
 
     return result;
+}
+
+static string get_ir_code_name(string name) {
+    string result = name;
+    remove_directory(result);
+    remove_extension(result);
+
+    return result + ".ll";
+}
+
+static string get_ir_bitcode_name(string name) {
+    string result = name;
+    remove_directory(result);
+    remove_extension(result);
+
+    return result + ".bc";
 }

@@ -2,8 +2,8 @@
 #include "utils.hpp"
 #include "diags.hpp"
 
-#include <llvm-12/llvm/IR/IRBuilder.h>
-#include <llvm-12/llvm/IR/Verifier.h>
+#include <llvm/IR/IRBuilder.h>
+#include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_os_ostream.h>
 
 namespace sg {
