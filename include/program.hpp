@@ -72,6 +72,7 @@ namespace sg::prog {
     struct extract_optional_value_instr;
     struct extract_variant_field_instr;
     struct check_index_instr;
+    struct check_index_range_instr;
     struct numeric_conversion_instr;
     struct transform_instr;
     struct alloc_instr;
@@ -313,7 +314,9 @@ namespace sg::prog {
             EXTRACT_FUNC_PTR,
             EXTRACT_VALUE_PTR,
             CHECK_ARRAY_PTR_INDEX,
+            CHECK_ARRAY_PTR_INDEX_RANGE,
             CHECK_SLICE_INDEX,
+            CHECK_SLICE_INDEX_RANGE,
 
             BOOL_NOT,
             INT_NEG,
@@ -412,7 +415,9 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // EXTRACT_FUNC_PTR
             ptr<ptr_conversion_instr>, // EXTRACT_VALUE_PTR
             ptr<check_index_instr>, // CHECK_ARRAY_PTR_INDEX
+            ptr<check_index_range_instr>, // CHECK_ARRAY_PTR_INDEX_RANGE
             ptr<check_index_instr>, // CHECK_SLICE_INDEX
+            ptr<check_index_range_instr>, // CHECK_SLICE_INDEX_RANGE
 
             ptr<unary_operation_instr>, // BOOL_NOT
             ptr<unary_operation_instr>, // INT_NEG
@@ -628,6 +633,13 @@ namespace sg::prog {
     struct check_index_instr {
         reg_index value;
         reg_index index;
+        reg_index result;
+    };
+
+    struct check_index_range_instr {
+        reg_index value;
+        reg_index begin;
+        reg_index end;
         reg_index result;
     };
 

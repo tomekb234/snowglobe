@@ -1272,26 +1272,20 @@ namespace sg {
                             }
                         }
 
-                        auto begin_check_result = fclr.new_reg();
-                        auto end_check_result = fclr.new_reg();
-                        auto begin_check_instr = prog::check_index_instr { ptr_value, begin_value, begin_check_result };
-                        auto end_check_instr = prog::check_index_instr { ptr_value, end_value, end_check_result };
+                        auto check_result = fclr.new_reg();
+                        auto check_instr = prog::check_index_range_instr { ptr_value, begin_value, end_value, check_result };
 
-                        if (slice) {
-                            fclr.add_instr(VARIANT(prog::instr, CHECK_SLICE_INDEX, into_ptr(begin_check_instr)));
-                            fclr.add_instr(VARIANT(prog::instr, CHECK_SLICE_INDEX, into_ptr(end_check_instr)));
-                        } else {
-                            fclr.add_instr(VARIANT(prog::instr, CHECK_ARRAY_PTR_INDEX, into_ptr(begin_check_instr)));
-                            fclr.add_instr(VARIANT(prog::instr, CHECK_ARRAY_PTR_INDEX, into_ptr(end_check_instr)));
-                        }
+                        if (slice)
+                            fclr.add_instr(VARIANT(prog::instr, CHECK_SLICE_INDEX_RANGE, into_ptr(check_instr)));
+                        else
+                            fclr.add_instr(VARIANT(prog::instr, CHECK_ARRAY_PTR_INDEX_RANGE, into_ptr(check_instr)));
 
                         auto false_branch = [&] () {
                             fclr.add_instr(VARIANT(prog::instr, ABORT, monostate()));
                             fclr.returned = true;
                         };
 
-                        function_utils(fclr).add_branch(begin_check_result, [] { }, false_branch);
-                        function_utils(fclr).add_branch(end_check_result, [] { }, false_branch);
+                        function_utils(fclr).add_branch(check_result, [] { }, false_branch);
 
                         target_ptr_value = fclr.new_reg();
 
