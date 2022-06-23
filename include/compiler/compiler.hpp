@@ -63,8 +63,9 @@ namespace sg {
         friend class function_utils;
         friend class conversion_generator;
         friend class assignment_generator;
-        friend class expression_compiler;
         friend class statement_compiler;
+        friend class expression_compiler;
+        friend class lvalue_compiler;
 
         public:
 

@@ -35,11 +35,12 @@ deletion_hpp = $J/deletion.hpp $(functions_hpp)
 assignment_hpp = $J/assignment.hpp $(functions_hpp)
 statements_hpp = $J/statements.hpp $(functions_hpp)
 expressions_hpp = $J/expressions.hpp $(functions_hpp)
+lvalues_hpp = $J/lvalues.hpp $(functions_hpp)
 
 diags_hpp = $I/diags.hpp $(diagcol_hpp) $(ast_hpp) $(program_hpp) $(compiler_hpp) $(functions_hpp)
 codegen_hpp = $I/codegen.hpp $(program_hpp) $(diagcol_hpp)
 
-compiler = $C/compiler.o $C/compiler_utils.o $C/types.o $C/constants.o $C/functions.o $C/function_utils.o $C/conversions.o $C/copying.o $C/deletion.o $C/assignment.o $C/statements.o $C/expressions.o
+compiler = $C/compiler.o $C/compiler_utils.o $C/types.o $C/constants.o $C/functions.o $C/function_utils.o $C/conversions.o $C/copying.o $C/deletion.o $C/assignment.o $C/statements.o $C/expressions.o $C/lvalues.o
 codegen = $D/codegen.o $D/types.o $D/external.o $D/builtin.o
 
 $B/snowglobe: $B/input.o $B/lexer.o $B/parser.o $B/program.o $(compiler) $B/diagcol.o $B/diags.o $(codegen) $B/main.o | $B $C
@@ -105,10 +106,13 @@ $C/deletion.o: $T/deletion.cpp $(deletion_hpp) $(function_utils_hpp) $(diags_hpp
 $C/assignment.o: $T/assignment.cpp $(assignment_hpp) $(conversions_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/statements.o: $T/statements.cpp $(statements_hpp) $(expressions_hpp) $(conversions_hpp) $(assignment_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/statements.o: $T/statements.cpp $(statements_hpp) $(expressions_hpp) $(lvalues_hpp) $(conversions_hpp) $(assignment_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
 $C/expressions.o: $T/expressions.cpp $(expressions_hpp) $(types_hpp) $(constants_hpp) $(conversions_hpp) $(copying_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+	$(CXX) $< -o $@
+
+$C/lvalues.o: $T/lvalues.cpp $(lvalues_hpp) $(expressions_hpp) $(conversions_hpp) $(types_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp)
 	$(CXX) $< -o $@
 
 $G:

@@ -12,127 +12,100 @@
 namespace sg {
     using namespace sg::utils;
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile(const ast::expr& ast, bool confined) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile(const ast::expr& ast) {
         switch (INDEX(ast)) {
-            case ast::expr::TUPLE:
-                return compile_tuple(as_cref_vector(GET(ast, TUPLE)), confined, ast.loc);
+            case ast::expr::TUPLE: {
+                auto tuple_asts = as_cref_vector(GET(ast, TUPLE));
+                return compile_tuple(tuple_asts, ast.loc);
+            }
 
-            case ast::expr::ARRAY:
-                return compile_array(as_cref_vector(GET(ast, ARRAY)), confined, ast.loc);
+            case ast::expr::ARRAY: {
+                auto array_asts = as_cref_vector(GET(ast, ARRAY));
+                return compile_array(array_asts, ast.loc);
+            }
 
             case ast::expr::APPLICATION: {
                 auto& [receiver_ast_ptr, arg_ast_ptrs] = GET(ast, APPLICATION);
-                return compile_application(*receiver_ast_ptr, as_cref_vector(arg_ast_ptrs), confined, ast.loc);
+                return compile_application(*receiver_ast_ptr, as_cref_vector(arg_ast_ptrs), ast.loc);
             }
 
             case ast::expr::NAME: {
-                auto& name = GET(ast, NAME);
-
-                auto var_index = fclr.try_get_var(name);
-                if (var_index)
-                    return function_utils(fclr).add_var_read(*var_index, confined, ast.loc);
-
-                return compile_global_name(name, confined, ast.loc);
+                auto name = GET(ast, NAME);
+                return compile_name(name, ast.loc);
             }
 
             case ast::expr::VARIANT_NAME: {
                 auto& [name, variant_name] = GET(ast, VARIANT_NAME);
-                return compile_variant_name(name, variant_name, confined, ast.loc);
+                return compile_variant_name(name, variant_name, ast.loc);
             }
 
             case ast::expr::LITERAL: {
                 auto& literal_ast = *GET(ast, LITERAL);
-                auto [value, value_type] = constant_compiler(clr).compile_literal(literal_ast);
-
-                auto result = fclr.new_reg();
-                auto instr = prog::make_const_instr { into_ptr(value), make_ptr(copy_type(value_type)), result };
-                fclr.add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
-
-                auto type = prog::type_local { into_ptr(value_type), false };
-                return { result, move(type) };
+                return compile_literal(literal_ast);
             }
 
-            case ast::expr::UNARY_OPERATION:
-                return compile_unary_operation(*GET(ast, UNARY_OPERATION));
-
-            case ast::expr::BINARY_OPERATION:
-                return compile_binary_operation(*GET(ast, BINARY_OPERATION));
-
-            case ast::expr::NUMERIC_CAST:
-                return compile_numeric_cast(*GET(ast, NUMERIC_CAST));
-
-            case ast::expr::NONE: {
-                auto result = fclr.new_reg();
-                auto instr = prog::make_optional_instr { { }, result };
-                fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(instr)));
-                auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate())))), false };
-                return { result, move(type) };
+            case ast::expr::UNARY_OPERATION: {
+                auto& unop_ast = *GET(ast, UNARY_OPERATION);
+                return compile_unary_operation(unop_ast);
             }
+
+            case ast::expr::BINARY_OPERATION: {
+                auto& binop_ast = *GET(ast, BINARY_OPERATION);
+                return compile_binary_operation(binop_ast);
+            }
+
+            case ast::expr::NUMERIC_CAST: {
+                auto& cast_ast = *GET(ast, NUMERIC_CAST);
+                return compile_numeric_cast(cast_ast);
+            }
+
+            case ast::expr::NONE:
+                return compile_none();
 
             case ast::expr::SOME: {
                 auto& expr_ast = *GET(ast, SOME);
-                auto [value, value_type] = compile(expr_ast, confined);
-                auto result = fclr.new_reg();
-                auto instr = prog::make_optional_instr { { value }, result };
-                fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(instr)));
-                auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, move(value_type.tp))), value_type.confined };
-                return { result, move(type) };
+                return compile_some(expr_ast);
             }
 
             case ast::expr::RETURN: {
-                auto return_ast = as_optional_cref(GET(ast, RETURN));
-                return compile_return(return_ast, return_ast ? (*return_ast).get().loc : ast.loc);
+                auto expr_ast = as_optional_cref(GET(ast, RETURN));
+                return compile_return(expr_ast, ast.loc);
             }
 
-            case ast::expr::BREAK: {
-                function_utils(fclr).add_break(ast.loc);
-                return { fclr.new_unit_reg(), copy_type_local(prog::NEVER_TYPE_LOCAL) };
-            }
+            case ast::expr::BREAK:
+                return compile_break(ast.loc);
 
-            case ast::expr::CONTINUE: {
-                function_utils(fclr).add_continue(ast.loc);
-                return { fclr.new_unit_reg(), copy_type_local(prog::NEVER_TYPE_LOCAL) };
-            }
+            case ast::expr::CONTINUE:
+                return compile_continue(ast.loc);
 
             case ast::expr::CONDITIONAL: {
                 auto& conditional_ast = *GET(ast, CONDITIONAL);
-                return compile_conditional(conditional_ast, confined);
+                return compile_conditional(conditional_ast);
             }
 
             case ast::expr::GLOBAL_VAR_REF: {
                 auto name = GET(ast, GLOBAL_VAR_REF);
-                auto var_index = clr.get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
-
-                auto& var_type = *prog.global_vars[var_index]->tp;
-                auto type = prog::type_local { make_ptr(prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false)), false };
-
-                auto result = fclr.new_reg();
-                auto constant = VARIANT(prog::constant, GLOBAL_VAR_PTR, var_index);
-                auto ptr_type = prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false);
-                auto instr = prog::make_const_instr { into_ptr(constant), into_ptr(ptr_type), result };
-                fclr.add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
-
-                return { result, move(type) };
+                return compile_global_var_ref(name, ast.loc);
             }
 
             case ast::expr::HEAP_ALLOC: {
                 auto& expr_ast = *GET(ast, HEAP_ALLOC);
-                return compile_heap_alloc(expr_ast, confined);
+                return compile_heap_alloc(expr_ast);
             }
 
             case ast::expr::DEREFERENCE: {
                 auto& expr_ast = *GET(ast, DEREFERENCE);
-                return compile_dereference(expr_ast, confined);
+                return compile_dereference(expr_ast);
             }
 
             case ast::expr::WEAK_PTR_TEST: {
                 auto& expr_ast = *GET(ast, WEAK_PTR_TEST);
-                return compile_weak_ptr_test(expr_ast, confined);
+                return compile_weak_ptr_test(expr_ast);
             }
 
             case ast::expr::HEAP_SLICE_ALLOC: {
                 auto& alloc_ast = *GET(ast, HEAP_SLICE_ALLOC);
-                return compile_heap_slice_alloc(alloc_ast, confined);
+                return compile_heap_slice_alloc(alloc_ast);
             }
 
             case ast::expr::LENGTH: {
@@ -142,7 +115,7 @@ namespace sg {
 
             case ast::expr::EXTRACTION: {
                 auto& [expr_ast_ptr, extr_ast_ptr] = GET(ast, EXTRACTION);
-                return compile_extraction(*expr_ast_ptr, *extr_ast_ptr, confined);
+                return compile_extraction(*expr_ast_ptr, *extr_ast_ptr);
             }
 
             case ast::expr::LAMBDA:
@@ -155,7 +128,12 @@ namespace sg {
         UNREACHABLE;
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_global_name(string name, bool confined, location loc) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_name(string name, location loc) {
+        auto var_index = fclr.try_get_var(name);
+
+        if (var_index)
+            return function_utils(fclr).add_var_read(*var_index, confined, loc);
+
         auto& gname = clr.get_global_name(name, loc);
 
         switch (gname.kind) {
@@ -209,7 +187,7 @@ namespace sg {
         UNREACHABLE;
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_variant_name(string name, string variant_name, bool confined, location loc) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_variant_name(string name, string variant_name, location loc) {
         if (fclr.try_get_var(name))
             error(diags::expected_enum_name(loc));
 
@@ -234,12 +212,23 @@ namespace sg {
         return { fclr.new_unit_reg(), move(type) };
     }
 
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_literal(const ast::literal_expr& ast) {
+        auto [value, value_type] = constant_compiler(clr).compile_literal(ast);
+
+        auto result = fclr.new_reg();
+        auto instr = prog::make_const_instr { into_ptr(value), make_ptr(copy_type(value_type)), result };
+        fclr.add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
+
+        auto type = prog::type_local { into_ptr(value_type), false };
+        return { result, move(type) };
+    }
+
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_return(optional<cref<ast::expr>> ast, location loc) {
         prog::reg_index result;
         prog::type_local type;
 
         if (ast)
-            tie(result, type) = compile(*ast, false);
+            tie(result, type) = expression_compiler(fclr, false).compile(*ast);
         else {
             result = fclr.new_unit_reg();
             type = copy_type_local(prog::UNIT_TYPE_LOCAL);
@@ -252,8 +241,8 @@ namespace sg {
         return { result, copy_type_local(prog::NEVER_TYPE_LOCAL) };
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_tuple(vector<cref<ast::expr_marked>> asts, bool confined, location loc) {
-        auto [value_asts, values, types, all_confined] = compile_args(asts, { }, { }, confined, loc);
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_tuple(vector<cref<ast::expr_marked>> asts, location loc) {
+        auto [value_asts, values, types, all_confined] = compile_args(asts, { }, { }, loc);
         auto count = values.size();
 
         if (count == 0)
@@ -272,8 +261,8 @@ namespace sg {
         return { result, move(type) };
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_array(vector<cref<ast::expr_marked>> asts, bool confined, location loc) {
-        auto [value_asts, values, types, all_confined] = compile_args(asts, { }, { }, confined, loc);
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_array(vector<cref<ast::expr_marked>> asts, location loc) {
+        auto [value_asts, values, types, all_confined] = compile_args(asts, { }, { }, loc);
         auto count = values.size();
 
         auto common_type = VARIANT(prog::type, NEVER, monostate());
@@ -291,8 +280,8 @@ namespace sg {
         return { result, move(type) };
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, bool confined, location loc) {
-        auto[receiver, receiver_type_local] = compile(receiver_ast, true);
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, location loc) {
+        auto[receiver, receiver_type_local] = expression_compiler(fclr, true).compile(receiver_ast);
         auto& receiver_type = *receiver_type_local.tp;
 
         switch (INDEX(receiver_type)) {
@@ -308,7 +297,7 @@ namespace sg {
                     return iter->second;
                 };
 
-                auto [value_asts, values, types, all_confined] = compile_args(arg_asts, { arg_with_name }, { size }, confined, loc);
+                auto [value_asts, values, types, all_confined] = compile_args(arg_asts, { arg_with_name }, { size }, loc);
 
                 for (size_t index = 0; index < size; index++) {
                     auto& type = types[index];
@@ -329,7 +318,7 @@ namespace sg {
                 auto& variant = *en.variants[variant_index];
                 auto size = variant.tps.size();
 
-                auto [value_asts, values, types, all_confined] = compile_args(arg_asts, { }, { size }, confined, loc);
+                auto [value_asts, values, types, all_confined] = compile_args(arg_asts, { }, { size }, loc);
 
                 for (size_t index = 0; index < size; index++) {
                     auto& type = types[index];
@@ -409,7 +398,7 @@ namespace sg {
     }
 
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_unary_operation(const ast::unary_operation_expr& ast) {
-        auto [value, type] = compile(*ast.value, true);
+        auto [value, type] = expression_compiler(fclr, true).compile(*ast.value);
         auto result = fclr.new_reg();
 
         using num = prog::number_type;
@@ -428,16 +417,12 @@ namespace sg {
                     error(diags::invalid_unary_operation(prog, ast.operation, move(*type.tp), ast.loc));
 
                 switch (GET(*type.tp, NUMBER)->tp) {
-                    case num::I8:
-                    case num::I16:
-                    case num::I32:
-                    case num::I64: {
+                    case num::I8: case num::I16: case num::I32: case num::I64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         fclr.add_instr(VARIANT(prog::instr, INT_NEG, into_ptr(instr)));
                     } break;
 
-                    case num::F32:
-                    case num::F64: {
+                    case num::F32: case num::F64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         fclr.add_instr(VARIANT(prog::instr, FLOAT_NEG, into_ptr(instr)));
                     } break;
@@ -454,14 +439,8 @@ namespace sg {
                     error(diags::invalid_unary_operation(prog, ast.operation, move(*type.tp), ast.loc));
 
                 switch (GET(*type.tp, NUMBER)->tp) {
-                    case num::I8:
-                    case num::I16:
-                    case num::I32:
-                    case num::I64:
-                    case num::U8:
-                    case num::U16:
-                    case num::U32:
-                    case num::U64: {
+                    case num::I8: case num::I16: case num::I32: case num::I64:
+                    case num::U8: case num::U16: case num::U32: case num::U64: {
                         auto instr = prog::unary_operation_instr{ value, result };
                         fclr.add_instr(VARIANT(prog::instr, BIT_NEG, into_ptr(instr)));
                         return { result, move(type) };
@@ -486,10 +465,7 @@ namespace sg {
 
         auto is_uint = [&] (const prog::number_type& tp) -> bool {
             switch (tp.tp) {
-                case num::U8:
-                case num::U16:
-                case num::U32:
-                case num::U64:
+                case num::U8: case num::U16: case num::U32: case num::U64:
                     return true;
                 default:
                     return false;
@@ -498,10 +474,7 @@ namespace sg {
 
         auto is_sint = [&] (const prog::number_type& tp) -> bool {
             switch (tp.tp) {
-                case num::I8:
-                case num::I16:
-                case num::I32:
-                case num::I64:
+                case num::I8: case num::I16: case num::I32: case num::I64:
                     return true;
                 default:
                     return false;
@@ -510,8 +483,7 @@ namespace sg {
 
         auto is_float = [&] (const prog::number_type& tp) -> bool {
             switch (tp.tp) {
-                case num::F32:
-                case num::F64:
+                case num::F32: case num::F64:
                     return true;
                 default:
                     return false;
@@ -523,7 +495,7 @@ namespace sg {
         switch (ast.operation) {
             case binop::AND:
             case binop::OR: {
-                auto[left_value, left_type] = compile(*ast.left, true);
+                auto[left_value, left_type] = expression_compiler(fclr, true).compile(*ast.left);
                 left_value = conversion_generator(fclr, left_value, prog::BOOL_TYPE).convert_from(left_type, ast.left->loc);
                 prog::reg_index right_value;
                 auto result = fclr.new_reg();
@@ -531,7 +503,7 @@ namespace sg {
                 auto short_branch = [&](){};
 
                 auto long_branch = [&](){
-                    auto[right_raw_value, right_type] = compile(*ast.right, true);
+                    auto[right_raw_value, right_type] = expression_compiler(fclr, true).compile(*ast.right);
                     right_value = conversion_generator(fclr, right_raw_value, prog::BOOL_TYPE).convert_from(right_type, ast.right->loc);
                 };
 
@@ -550,8 +522,8 @@ namespace sg {
 
             case binop::EQ:
             case binop::NEQ: {
-                auto [left_value, left_type] = compile(*ast.left, true);
-                auto [right_value, right_type] = compile(*ast.right, true);
+                auto [left_value, left_type] = expression_compiler(fclr, true).compile(*ast.left);
+                auto [right_value, right_type] = expression_compiler(fclr, true).compile(*ast.right);
 
                 auto common_type = compiler_utils(clr).common_supertype(*left_type.tp, *right_type.tp, ast.loc);
 
@@ -581,8 +553,8 @@ namespace sg {
             case binop::BIT_AND:
             case binop::BIT_OR:
             case binop::BIT_XOR: {
-                auto[left_value, left_type] = compile(*ast.left, true);
-                auto[right_value, right_type] = compile(*ast.right, true);
+                auto[left_value, left_type] = expression_compiler(fclr, true).compile(*ast.left);
+                auto[right_value, right_type] = expression_compiler(fclr, true).compile(*ast.right);
                 auto common_type = compiler_utils(clr).common_supertype(*left_type.tp, *right_type.tp, ast.loc);
 
                 if (!INDEX_EQ(common_type, NUMBER))
@@ -677,8 +649,8 @@ namespace sg {
 
             case binop::BIT_LSH:
             case binop::BIT_RSH: {
-                auto[left_value, left_type] = compile(*ast.left, true);
-                auto[right_value, right_type] = compile(*ast.right, true);
+                auto[left_value, left_type] = expression_compiler(fclr, true).compile(*ast.left);
+                auto[right_value, right_type] = expression_compiler(fclr, true).compile(*ast.right);
 
                 if (!INDEX_EQ(*left_type.tp, NUMBER) || !INDEX_EQ(*right_type.tp, NUMBER) || !is_uint(*GET(*right_type.tp, NUMBER)))
                     INVALID_BINARY_OP;
@@ -711,7 +683,7 @@ namespace sg {
     }
 
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_numeric_cast(const ast::numeric_cast_expr& ast) {
-        auto [value, type] = compile(*ast.value, true);
+        auto [value, type] = expression_compiler(fclr, true).compile(*ast.value);
         auto new_type = type_compiler(clr, false).compile_local(*ast.tp);
 
         if (!INDEX_EQ(*type.tp, NUMBER))
@@ -740,7 +712,8 @@ namespace sg {
                 switch (new_ntype.tp) {
                     case num::BOOL:
                         PASS;
-                    case num::I8: case num::I16: case num::I32: case num::I64: case num::U8: case num::U16: case num::U32: case num::U64:
+                    case num::I8: case num::I16: case num::I32: case num::I64:
+                    case num::U8: case num::U16: case num::U32: case num::U64:
                         CAST(ZERO_EXT);
                     case num::F32: case num::F64:
                         CAST(UINT_TO_FLOAT);
@@ -753,7 +726,8 @@ namespace sg {
                         PASS;
                     case num::BOOL:
                         CAST(TRUNC);
-                    case num::U16: case num::U32: case num::U64:
+                    case num::U16:
+                    case num::U32: case num::U64:
                         CAST(ZERO_EXT);
                     case num::I16: case num::I32: case num::I64:
                         CAST(SIGNED_EXT);
@@ -781,7 +755,8 @@ namespace sg {
                 switch (new_ntype.tp) {
                     case num::I32: case num::U32:
                         PASS;
-                    case num::BOOL: case num::I8: case num::I16: case num::U8: case num::U16:
+                    case num::BOOL: case num::I8: case num::I16:
+                    case num::U8: case num::U16:
                         CAST(TRUNC);
                     case num::U64:
                         CAST(ZERO_EXT);
@@ -796,7 +771,9 @@ namespace sg {
                 switch (new_ntype.tp) {
                     case num::I64: case num::U64:
                         PASS;
-                    case num::BOOL: case num::I8: case num::I16: case num::I32: case num::U8: case num::U16: case num::U32:
+                    case num::BOOL:
+                    case num::I8: case num::I16: case num::I32:
+                    case num::U8: case num::U16: case num::U32:
                         CAST(TRUNC);
                     case num::F32: case num::F64:
                         CAST(SINT_TO_FLOAT);
@@ -809,7 +786,8 @@ namespace sg {
                         PASS;
                     case num::BOOL:
                         CAST(TRUNC);
-                    case num::I16: case num::I32: case num::I64: case num::U16: case num::U32: case num::U64:
+                    case num::I16: case num::I32: case num::I64:
+                    case num::U16: case num::U32: case num::U64:
                         CAST(ZERO_EXT);
                     case num::F32: case num::F64:
                         CAST(UINT_TO_FLOAT);
@@ -822,7 +800,8 @@ namespace sg {
                         PASS;
                     case num::BOOL: case num::I8: case num::U8:
                         CAST(TRUNC);
-                    case num::I32: case num::I64: case num::U32: case num::U64:
+                    case num::I32: case num::I64:
+                    case num::U32: case num::U64:
                         CAST(ZERO_EXT);
                     case num::F32: case num::F64:
                         CAST(UINT_TO_FLOAT);
@@ -833,7 +812,9 @@ namespace sg {
                 switch (new_ntype.tp) {
                     case num::I32: case num::U32:
                         PASS;
-                    case num::BOOL: case num::I8: case num::I16: case num::U8: case num::U16:
+                    case num::BOOL:
+                    case num::I8: case num::I16:
+                    case num::U8: case num::U16:
                         CAST(TRUNC);
                     case num::I64: case num::U64:
                         CAST(ZERO_EXT);
@@ -846,7 +827,9 @@ namespace sg {
                 switch (new_ntype.tp) {
                     case num::I64: case num::U64:
                         PASS;
-                    case num::BOOL: case num::I8: case num::I16: case num::I32: case num::U8: case num::U16: case num::U32:
+                    case num::BOOL:
+                    case num::I8: case num::I16: case num::I32:
+                    case num::U8: case num::U16: case num::U32:
                         CAST(TRUNC);
                     case num::F32: case num::F64:
                         CAST(UINT_TO_FLOAT);
@@ -859,7 +842,9 @@ namespace sg {
                         PASS;
                     case num::F64:
                         CAST(FLOAT_EXT);
-                    case num::BOOL: case num::U8: case num::U16: case num::U32: case num::U64:
+                    case num::BOOL:
+                    case num::U8: case num::U16:
+                    case num::U32: case num::U64:
                         CAST(FLOAT_TO_UINT);
                     case num::I8: case num::I16: case num::I32: case num::I64:
                         CAST(FLOAT_TO_SINT);
@@ -872,7 +857,8 @@ namespace sg {
                         PASS;
                     case num::F32:
                         CAST(FLOAT_TRUNC);
-                    case num::BOOL: case num::U8: case num::U16: case num::U32: case num::U64:
+                    case num::BOOL:
+                    case num::U8: case num::U16: case num::U32: case num::U64:
                         CAST(FLOAT_TO_UINT);
                     case num::I8: case num::I16: case num::I32: case num::I64:
                         CAST(FLOAT_TO_SINT);
@@ -886,19 +872,46 @@ namespace sg {
         #undef CAST
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_conditional(const ast::conditional_expr& ast, bool confined) {
-        auto [value, type] = compile(*ast.value, true);
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_none() {
+        auto result = fclr.new_reg();
+        auto instr = prog::make_optional_instr { { }, result };
+        fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(instr)));
+        auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate())))), false };
+        return { result, move(type) };
+    }
+
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_some(const ast::expr& ast) {
+        auto [value, value_type] = expression_compiler(fclr, confined).compile(ast);
+        auto result = fclr.new_reg();
+        auto instr = prog::make_optional_instr { { value }, result };
+        fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(instr)));
+        auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, move(value_type.tp))), value_type.confined };
+        return { result, move(type) };
+    }
+
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_break(location loc) {
+        function_utils(fclr).add_break(loc);
+        return { fclr.new_unit_reg(), copy_type_local(prog::NEVER_TYPE_LOCAL) };
+    }
+
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_continue(location loc) {
+        function_utils(fclr).add_continue(loc);
+        return { fclr.new_unit_reg(), copy_type_local(prog::NEVER_TYPE_LOCAL) };
+    }
+
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_conditional(const ast::conditional_expr& ast) {
+        auto [value, type] = expression_compiler(fclr, true).compile(*ast.value);
         auto cond = conversion_generator(fclr, value, prog::BOOL_TYPE).convert_from(type, ast.value->loc);
 
         prog::reg_index true_value, false_value;
         prog::type_local true_type, false_type;
 
         auto true_branch = [&] () {
-            tie(true_value, true_type) = compile(*ast.true_result, confined);
+            tie(true_value, true_type) = expression_compiler(fclr, confined).compile(*ast.true_result);
         };
 
         auto false_branch = [&] () {
-            tie(false_value, false_type) = compile(*ast.false_result, confined);
+            tie(false_value, false_type) = expression_compiler(fclr, confined).compile(*ast.false_result);
         };
 
         auto result = fclr.new_reg();
@@ -939,11 +952,26 @@ namespace sg {
         return { conv_result, move(common_type_local) };
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_heap_alloc(const ast::expr& ast, bool confined) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_global_var_ref(string name, location loc) {
+        auto var_index = clr.get_global_name(name, { global_name_kind::VAR }, loc).index;
+
+        auto& var_type = *prog.global_vars[var_index]->tp;
+        auto type = prog::type_local { make_ptr(prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false)), false };
+
+        auto result = fclr.new_reg();
+        auto constant = VARIANT(prog::constant, GLOBAL_VAR_PTR, var_index);
+        auto ptr_type = prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false);
+        auto instr = prog::make_const_instr { into_ptr(constant), into_ptr(ptr_type), result };
+        fclr.add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
+
+        return { result, move(type) };
+    }
+
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_heap_alloc(const ast::expr& ast) {
         if (confined)
             error(diags::not_allowed_in_confined_context(diags::value_kind::ALLOCATION, ast.loc));
 
-        auto [value, value_type] = compile(ast, false);
+        auto [value, value_type] = expression_compiler(fclr, false).compile(ast);
 
         if (value_type.confined && !type_trivial(prog, *value_type.tp))
             error(diags::confinement_mismatch(value_type.confined, ast.loc));
@@ -957,7 +985,7 @@ namespace sg {
         return { result, move(result_type) };
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_dereference(const ast::expr& ast, bool confined) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_dereference(const ast::expr& ast) {
         prog::reg_index value;
         prog::type_local type;
         optional<prog::var_index> var_index;
@@ -965,7 +993,7 @@ namespace sg {
         if (INDEX_EQ(ast, NAME) && (var_index = fclr.try_get_var(GET(ast, NAME))))
             tie(value, type) = function_utils(fclr).add_var_read(*var_index, true, ast.loc);
         else
-            tie(value, type) = compile(ast, true);
+            tie(value, type) = expression_compiler(fclr, true).compile(ast);
 
         auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, *type.tp, ast.loc);
         auto& type_pointed = *ptr_type.target_tp;
@@ -998,10 +1026,10 @@ namespace sg {
         return { result, move(target_type_local) };
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_weak_ptr_test(const ast::expr& ast, bool confined) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_weak_ptr_test(const ast::expr& ast) {
         prog::reg_index value;
         prog::type_local type_local;
-        tie(value, type_local) = compile(ast, true);
+        tie(value, type_local) = expression_compiler(fclr, true).compile(ast);
         auto& type = *type_local.tp;
 
         auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, type, ast.loc);
@@ -1050,20 +1078,20 @@ namespace sg {
         return { result, move(result_type) };
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast, bool confined) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_heap_slice_alloc(const ast::heap_slice_alloc_expr& ast) {
         if (confined)
             error(diags::not_allowed_in_confined_context(diags::value_kind::ALLOCATION, ast.loc));
 
         auto& value_ast = *ast.value;
         auto& size_ast = *ast.size;
 
-        auto [value, type_local] = compile(value_ast, false);
+        auto [value, type_local] = expression_compiler(fclr, false).compile(value_ast);
         auto& type = *type_local.tp;
 
         if (type_local.confined && !type_trivial(prog, *type_local.tp))
             error(diags::confinement_mismatch(type_local.confined, ast.loc));
 
-        auto [size_value, size_type] = compile(size_ast, true);
+        auto [size_value, size_type] = expression_compiler(fclr, true).compile(size_ast);
         size_value = conversion_generator(fclr, size_value, prog::SIZE_TYPE).convert_from(size_type, size_ast.loc);
 
         if (!type_copyable(prog, type))
@@ -1088,7 +1116,7 @@ namespace sg {
     }
 
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_length(const ast::expr& ast) {
-        auto [value, type_local] = compile(ast, true);
+        auto [value, type_local] = expression_compiler(fclr, true).compile(ast);
         auto& type = *type_local.tp;
 
         if (INDEX_EQ(type, ARRAY)) {
@@ -1120,29 +1148,118 @@ namespace sg {
         }
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_extraction(const ast::expr& expr_ast, const ast::extraction_expr& extr_ast, bool confined) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_extraction(const ast::expr& expr_ast, const ast::extraction_expr& extr_ast) {
         switch (INDEX(extr_ast)) {
             case ast::extraction_expr::FIELD:
             case ast::extraction_expr::INDEX:
             case ast::extraction_expr::ITEM: {
-                auto lval = compile_left_extraction(expr_ast, extr_ast);
-                auto [ptr_value, type] = move(GET(lval, DEREFERENCE));
+                auto [left_value, left_type_local] = expression_compiler(fclr, true).compile(expr_ast);
+                auto& left_type = *left_type_local.tp;
+
+                auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, left_type, expr_ast.loc);
+                auto slice = ptr_type.target_tp->slice;
+                auto& type = *ptr_type.target_tp->tp;
+
+                if (ptr_type.kind == prog::ptr_type::WEAK)
+                    error(diags::weak_pointer_dereference(expr_ast.loc));
+
+                prog::reg_index target_ptr_value;
+                prog::type_pointed target_type;
+
+                switch (INDEX(extr_ast)) {
+                    case ast::extraction_expr::FIELD: {
+                        auto name = GET(extr_ast, FIELD);
+
+                        if (slice || !INDEX_EQ(type, STRUCT))
+                            error(diags::invalid_type(prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
+
+                        auto struct_index = GET(type, STRUCT);
+                        auto& st = *prog.struct_types[struct_index];
+
+                        auto iter = st.field_names.find(name);
+                        if (iter == st.field_names.end())
+                            error(diags::unknown_struct_field(st, name, extr_ast.loc));
+
+                        auto field = iter->second;
+
+                        target_ptr_value = fclr.new_reg();
+                        target_type = prog::type_pointed { make_ptr(copy_type(*st.fields[field]->tp)), false };
+
+                        auto instr = prog::get_field_ptr_instr { ptr_value, field, target_ptr_value };
+                        fclr.add_instr(VARIANT(prog::instr, GET_FIELD_PTR, into_ptr(instr)));
+                    } break;
+
+                    case ast::extraction_expr::INDEX: {
+                        auto field = GET(extr_ast, INDEX);
+
+                        if (slice || !INDEX_EQ(type, TUPLE))
+                            error(diags::invalid_type(prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
+
+                        auto types = as_cref_vector(GET(type, TUPLE));
+
+                        if (field >= types.size())
+                            error(diags::invalid_tuple_index(field, types.size(), extr_ast.loc));
+
+                        target_ptr_value = fclr.new_reg();
+                        target_type = prog::type_pointed { make_ptr(copy_type(types[field])), false };
+
+                        auto instr = prog::get_field_ptr_instr { ptr_value, field, target_ptr_value };
+                        fclr.add_instr(VARIANT(prog::instr, GET_FIELD_PTR, into_ptr(instr)));
+                    } break;
+
+                    case ast::extraction_expr::ITEM: {
+                        auto& index_expr = *GET(extr_ast, ITEM);
+
+                        if (!slice && !INDEX_EQ(type, ARRAY))
+                            error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
+
+                        auto [index_value, index_type] = expression_compiler(fclr, true).compile(index_expr);
+                        index_value = conversion_generator(fclr, index_value, prog::SIZE_TYPE).convert_from(index_type, index_expr.loc);
+
+                        auto check_result = fclr.new_reg();
+                        auto check_instr = prog::check_index_instr { ptr_value, index_value, check_result };
+
+                        if (slice)
+                            fclr.add_instr(VARIANT(prog::instr, CHECK_SLICE_INDEX, into_ptr(check_instr)));
+                        else
+                            fclr.add_instr(VARIANT(prog::instr, CHECK_ARRAY_PTR_INDEX, into_ptr(check_instr)));
+
+                        auto false_branch = [&] () {
+                            fclr.add_instr(VARIANT(prog::instr, ABORT, monostate()));
+                            fclr.returned = true;
+                        };
+
+                        function_utils(fclr).add_branch(check_result, [] { }, false_branch);
+
+                        target_ptr_value = fclr.new_reg();
+
+                        if (slice)
+                            target_type = prog::type_pointed { into_ptr(type), false };
+                        else
+                            target_type = prog::type_pointed { into_ptr(*GET(type, ARRAY)->tp), false };
+
+                        auto instr = prog::get_item_ptr_instr { ptr_value, index_value, target_ptr_value };
+                        fclr.add_instr(VARIANT(prog::instr, GET_ITEM_PTR, into_ptr(instr)));
+                    } break;
+                }
 
                 auto result = fclr.new_reg();
-                auto read_instr = prog::ptr_read_instr { ptr_value, result };
+                auto read_instr = prog::ptr_read_instr { target_ptr_value, result };
                 fclr.add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(read_instr)));
 
-                if (!type_trivial(prog, type)) {
+                auto& value_type = *target_type.tp;
+
+                if (!type_trivial(prog, value_type)) {
                     if (confined)
                         error(diags::not_allowed_in_confined_context(diags::value_kind::DEREFERENCE, extr_ast.loc));
 
-                    if (type_copyable(prog, type))
-                        copy_generator(fclr, result).add(type);
+                    if (type_copyable(prog, value_type))
+                        copy_generator(fclr, result).add(value_type);
                     else
-                        error(diags::type_not_copyable(prog, move(type), extr_ast.loc));
+                        error(diags::type_not_copyable(prog, move(value_type), extr_ast.loc));
                 }
 
-                auto result_type = prog::type_local { into_ptr(type), false };
+                auto result_type = prog::type_local { into_ptr(value_type), false };
 
                 return { result, move(result_type) };
             }
@@ -1151,7 +1268,7 @@ namespace sg {
             case ast::extraction_expr::INDEX_REF:
             case ast::extraction_expr::ITEM_REF:
             case ast::extraction_expr::ITEM_RANGE_REF: {
-                auto [left_value, left_type_local] = compile(expr_ast, confined);
+                auto [left_value, left_type_local] = expression_compiler(fclr, confined).compile(expr_ast);
                 auto& left_type = *left_type_local.tp;
 
                 auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, left_type, expr_ast.loc);
@@ -1208,7 +1325,7 @@ namespace sg {
                         if (!slice && !INDEX_EQ(type, ARRAY))
                             error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
-                        auto [index_value, index_type] = compile(index_expr, true);
+                        auto [index_value, index_type] = expression_compiler(fclr, true).compile(index_expr);
                         index_value = conversion_generator(fclr, index_value, prog::SIZE_TYPE).convert_from(index_type, index_expr.loc);
 
                         auto check_result = fclr.new_reg();
@@ -1249,7 +1366,7 @@ namespace sg {
 
                         if (begin_expr) {
                             prog::type_local begin_type;
-                            tie(begin_value, begin_type) = compile(*begin_expr, true);
+                            tie(begin_value, begin_type) = expression_compiler(fclr, true).compile(*begin_expr);
                             begin_value = conversion_generator(fclr, begin_value, prog::SIZE_TYPE).convert_from(begin_type, begin_expr->get().loc);
                         } else {
                             begin_value = fclr.new_reg();
@@ -1260,7 +1377,7 @@ namespace sg {
 
                         if (end_expr) {
                             prog::type_local end_type;
-                            tie(end_value, end_type) = compile(*end_expr, true);
+                            tie(end_value, end_type) = expression_compiler(fclr, true).compile(*end_expr);
                             end_value = conversion_generator(fclr, end_value, prog::SIZE_TYPE).convert_from(end_type, end_expr->get().loc);
                         } else {
                             end_value = fclr.new_reg();
@@ -1335,7 +1452,7 @@ namespace sg {
             }
 
             case ast::extraction_expr::OWNER_REF: {
-                auto [value, type_local] = compile(expr_ast, confined);
+                auto [value, type_local] = expression_compiler(fclr, confined).compile(expr_ast);
                 auto& type = *type_local.tp;
 
                 if (!INDEX_EQ(type, INNER_PTR))
@@ -1356,254 +1473,10 @@ namespace sg {
         UNREACHABLE;
     }
 
-    lvalue expression_compiler::compile_left(const ast::expr& ast, optional<cref<prog::type_local>> implicit_type) {
-        switch (INDEX(ast)) {
-            case ast::expr::TUPLE:
-                return compile_left_tuple(as_cref_vector(GET(ast, TUPLE)), implicit_type, ast.loc);
-
-            case ast::expr::ARRAY:
-                return compile_left_array(as_cref_vector(GET(ast, ARRAY)), implicit_type, ast.loc);
-
-            case ast::expr::APPLICATION: {
-                auto& [receiver_ast_ptr, arg_ast_ptrs] = GET(ast, APPLICATION);
-                return compile_left_application(*receiver_ast_ptr, as_cref_vector(arg_ast_ptrs), implicit_type, ast.loc);
-            }
-
-            case ast::expr::NAME: {
-                auto name = GET(ast, NAME);
-
-                if (name == ast::IGNORED_PLACEHOLDER)
-                    return VARIANT(lvalue, IGNORED, monostate());
-
-                auto var = fclr.try_get_var(name);
-                if (var)
-                    return VARIANT(lvalue, VAR, *var);
-
-                auto index = clr.get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
-                return VARIANT(lvalue, GLOBAL_VAR, index);
-            }
-
-            case ast::expr::VAR_DECL: {
-                auto& var_decl_ast = *GET(ast, VAR_DECL);
-                if (!var_decl_ast.tp && !implicit_type)
-                    error(diags::variable_without_type(var_decl_ast.loc));
-
-                auto name = var_decl_ast.name;
-                if (name == ast::IGNORED_PLACEHOLDER)
-                    error(diags::invalid_variable_name(name, var_decl_ast.loc));
-
-                auto type = var_decl_ast.tp ? type_compiler(clr, false).compile_local(**var_decl_ast.tp) : copy_type_local(*implicit_type);
-
-                auto var = fclr.add_var(name, move(type));
-                return VARIANT(lvalue, VAR, var);
-            }
-
-            case ast::expr::DEREFERENCE: {
-                auto& expr_ast = *GET(ast, DEREFERENCE);
-                auto [value, type] = compile(expr_ast, true);
-                auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, *type.tp, ast.loc);
-                auto& type_pointed = *ptr_type.target_tp;
-                auto& target_type = *type_pointed.tp;
-
-                if (ptr_type.kind == prog::ptr_type::WEAK)
-                    error(diags::weak_pointer_dereference(ast.loc));
-                if (type_pointed.slice)
-                    error(diags::slice_dereference(ast.loc));
-
-                return VARIANT(lvalue, DEREFERENCE, make_pair(ptr_value, move(target_type)));
-            }
-
-            case ast::expr::EXTRACTION: {
-                auto& [expr_ast_ptr, extr_ast_ptr] = GET(ast, EXTRACTION);
-                return compile_left_extraction(*expr_ast_ptr, *extr_ast_ptr);
-            }
-
-            default:
-                error(diags::expression_not_assignable(ast.loc));
-        }
-    }
-
-    lvalue expression_compiler::compile_left_tuple(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc) {
-        auto value_asts = compiler_utils(clr).order_args(asts, { }, { }, loc);
-        auto count = value_asts.size();
-
-        if (count == 0)
-            error(diags::expression_not_assignable(loc));
-
-        if (count == 1)
-            return compile_left(value_asts[0], implicit_type);
-
-        vector<prog::type_local> implicit_types;
-        if (implicit_type && INDEX_EQ(*implicit_type->get().tp, TUPLE)) {
-            auto confined = implicit_type->get().confined;
-            for (const prog::type& type : as_cref_vector(GET(*implicit_type->get().tp, TUPLE)))
-                implicit_types.push_back({ make_ptr(copy_type(type)), confined });
-        }
-
-        vector<lvalue> lvals;
-        for (size_t index = 0; index < count; index++) {
-            auto& value_ast = value_asts[index];
-            if (index < implicit_types.size())
-                lvals.push_back(compile_left(value_ast, { implicit_types[index] }));
-            else
-                lvals.push_back(compile_left(value_ast, { }));
-        }
-
-        return VARIANT(lvalue, TUPLE, into_ptr_vector(lvals));
-    }
-
-    lvalue expression_compiler::compile_left_array(vector<cref<ast::expr_marked>> asts, optional<cref<prog::type_local>> implicit_type, location loc) {
-        auto value_asts = compiler_utils(clr).order_args(asts, { }, { }, loc);
-
-        vector<lvalue> lvals;
-        for (auto& value_ast : value_asts) {
-            if (implicit_type && INDEX_EQ(*implicit_type->get().tp, ARRAY)) {
-                auto& type = *GET(*implicit_type->get().tp, ARRAY)->tp;
-                auto confined = implicit_type->get().confined;
-                auto type_local = prog::type_local { make_ptr(copy_type(type)), confined };
-                lvals.push_back(compile_left(value_ast, { type_local }));
-            } else
-                lvals.push_back(compile_left(value_ast, { }));
-        }
-
-        return VARIANT(lvalue, ARRAY, into_ptr_vector(lvals));
-    }
-
-    lvalue expression_compiler::compile_left_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, optional<cref<prog::type_local>> implicit_type, location loc) {
-        if (!INDEX_EQ(receiver_ast, NAME))
-            error(diags::expression_not_assignable(receiver_ast.loc));
-
-        auto name = GET(receiver_ast, NAME);
-        auto struct_index = clr.get_global_name(name, { global_name_kind::STRUCT }, receiver_ast.loc).index;
-        auto& st = *prog.struct_types[struct_index];
-        auto count = st.fields.size();
-
-        auto arg_with_name = [&] (string name, location loc) -> size_t {
-            auto iter = st.field_names.find(name);
-            if (iter == st.field_names.end())
-                error(diags::unknown_struct_field(st, name, loc));
-            return iter->second;
-        };
-
-        auto value_asts = compiler_utils(clr).order_args(arg_asts, arg_with_name, { count }, loc);
-        vector<lvalue> lvals;
-
-        for (size_t index = 0; index < count; index++) {
-            auto& value_ast = value_asts[index].get();
-            if (implicit_type && INDEX_EQ(*implicit_type->get().tp, STRUCT) && GET(*implicit_type->get().tp, STRUCT) == struct_index) {
-                auto& type = *st.fields[index]->tp;
-                auto confined = implicit_type->get().confined;
-                auto type_local = prog::type_local { make_ptr(copy_type(type)), confined };
-                lvals.push_back(compile_left(value_ast, { type_local }));
-            } else
-                lvals.push_back(compile_left(value_ast, { }));
-        }
-
-        return VARIANT(lvalue, STRUCT, make_pair(struct_index, into_ptr_vector(lvals)));
-    }
-
-    lvalue expression_compiler::compile_left_extraction(const ast::expr& expr_ast, const ast::extraction_expr& extr_ast) {
-        auto [left_value, left_type_local] = compile(expr_ast, true);
-        auto& left_type = *left_type_local.tp;
-
-        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, left_type, expr_ast.loc);
-        auto slice = ptr_type.target_tp->slice;
-        auto& type = *ptr_type.target_tp->tp;
-
-        if (ptr_type.kind == prog::ptr_type::WEAK)
-            error(diags::weak_pointer_dereference(expr_ast.loc));
-
-        prog::reg_index target_ptr_value;
-        prog::type_pointed target_type;
-
-        switch (INDEX(extr_ast)) {
-            case ast::extraction_expr::FIELD: {
-                auto name = GET(extr_ast, FIELD);
-
-                if (slice || !INDEX_EQ(type, STRUCT))
-                    error(diags::invalid_type(prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
-
-                auto struct_index = GET(type, STRUCT);
-                auto& st = *prog.struct_types[struct_index];
-
-                auto iter = st.field_names.find(name);
-                if (iter == st.field_names.end())
-                    error(diags::unknown_struct_field(st, name, extr_ast.loc));
-
-                auto field = iter->second;
-
-                target_ptr_value = fclr.new_reg();
-                target_type = prog::type_pointed { make_ptr(copy_type(*st.fields[field]->tp)), false };
-
-                auto instr = prog::get_field_ptr_instr { ptr_value, field, target_ptr_value };
-                fclr.add_instr(VARIANT(prog::instr, GET_FIELD_PTR, into_ptr(instr)));
-            } break;
-
-            case ast::extraction_expr::INDEX: {
-                auto field = GET(extr_ast, INDEX);
-
-                if (slice || !INDEX_EQ(type, TUPLE))
-                    error(diags::invalid_type(prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
-
-                auto types = as_cref_vector(GET(type, TUPLE));
-
-                if (field >= types.size())
-                    error(diags::invalid_tuple_index(field, types.size(), extr_ast.loc));
-
-                target_ptr_value = fclr.new_reg();
-                target_type = prog::type_pointed { make_ptr(copy_type(types[field])), false };
-
-                auto instr = prog::get_field_ptr_instr { ptr_value, field, target_ptr_value };
-                fclr.add_instr(VARIANT(prog::instr, GET_FIELD_PTR, into_ptr(instr)));
-            } break;
-
-            case ast::extraction_expr::ITEM: {
-                auto& index_expr = *GET(extr_ast, ITEM);
-
-                if (!slice && !INDEX_EQ(type, ARRAY))
-                    error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
-
-                auto [index_value, index_type] = compile(index_expr, true);
-                index_value = conversion_generator(fclr, index_value, prog::SIZE_TYPE).convert_from(index_type, index_expr.loc);
-
-                auto check_result = fclr.new_reg();
-                auto check_instr = prog::check_index_instr { ptr_value, index_value, check_result };
-
-                if (slice)
-                    fclr.add_instr(VARIANT(prog::instr, CHECK_SLICE_INDEX, into_ptr(check_instr)));
-                else
-                    fclr.add_instr(VARIANT(prog::instr, CHECK_ARRAY_PTR_INDEX, into_ptr(check_instr)));
-
-                auto false_branch = [&] () {
-                    fclr.add_instr(VARIANT(prog::instr, ABORT, monostate()));
-                    fclr.returned = true;
-                };
-
-                function_utils(fclr).add_branch(check_result, [] { }, false_branch);
-
-                target_ptr_value = fclr.new_reg();
-
-                if (slice)
-                    target_type = prog::type_pointed { into_ptr(type), false };
-                else
-                    target_type = prog::type_pointed { into_ptr(*GET(type, ARRAY)->tp), false };
-
-                auto instr = prog::get_item_ptr_instr { ptr_value, index_value, target_ptr_value };
-                fclr.add_instr(VARIANT(prog::instr, GET_ITEM_PTR, into_ptr(instr)));
-            } break;
-
-            default:
-                error(diags::expression_not_assignable(extr_ast.loc));
-        }
-
-        return VARIANT(lvalue, DEREFERENCE, make_pair(target_ptr_value, move(*target_type.tp)));
-    }
-
     tuple<vector<cref<ast::expr>>, vector<prog::reg_index>, vector<prog::type>, bool> expression_compiler::compile_args(
             vector<cref<ast::expr_marked>> asts,
             optional<function<size_t(string, location)>> arg_with_name,
             optional<size_t> expected_count,
-            bool confined,
             location loc) {
         auto value_asts = compiler_utils(clr).order_args(asts, arg_with_name, expected_count, loc);
 
@@ -1612,7 +1485,7 @@ namespace sg {
         optional<bool> all_confined;
 
         for (auto& value_ast : value_asts) {
-            auto [value, type] = compile(value_ast, confined);
+            auto [value, type] = expression_compiler(fclr, confined).compile(value_ast);
 
             if (!type_trivial(prog, *type.tp)) {
                 if (!all_confined)
@@ -1653,7 +1526,7 @@ namespace sg {
         for (size_t index = 0; index < size; index++) {
             auto& value_ast = value_asts[index];
             auto confined = ftype.param_tps[index]->confined;
-            auto [value, type] = compile(value_ast, confined);
+            auto [value, type] = expression_compiler(fclr, confined).compile(value_ast);
             values.push_back(value);
             types.push_back(move(type));
         }
@@ -1666,5 +1539,4 @@ namespace sg {
 
         return values;
     }
-
 }

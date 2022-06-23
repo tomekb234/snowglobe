@@ -43,7 +43,7 @@ namespace sg {
         if (ast.body->return_value) {
             if (returned)
                 warning(diags::unreachable_code((*ast.body->return_value)->loc));
-            expression_compiler(*this).compile_return(as_optional_cref(ast.body->return_value), (*ast.body->return_value)->loc);
+            expression_compiler(*this, false).compile_return(as_optional_cref(ast.body->return_value), (*ast.body->return_value)->loc);
         } else if (!returned) {
             if (!INDEX_EQ(*func.return_tp, UNIT))
                 error(diags::missing_return(ast.body->block->end_loc));

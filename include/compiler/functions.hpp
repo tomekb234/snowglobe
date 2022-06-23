@@ -75,6 +75,7 @@ namespace sg {
         friend class assignment_generator;
         friend class statement_compiler;
         friend class expression_compiler;
+        friend class lvalue_compiler;
 
         public:
 
