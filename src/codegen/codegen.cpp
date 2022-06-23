@@ -12,65 +12,70 @@ namespace sg {
     const string normal_func_prefix = "f.";
     const string internal_func_prefix = "if.";
 
-    bool code_generator::generate() {
-        try {
-            // declare external functions
-            declare_external_functions();
-
-            // prepare struct/enum types
-            for (size_t i = 0; i < prog.struct_types.size(); i++)
-                struct_types.push_back(declare_struct_type(i));
-            for (size_t i = 0; i < prog.enum_types.size(); i++) {
-                enum_types.push_back(declare_enum_type(i));
-                variant_types.push_back({ });
-                for (size_t j = 0; j < prog.enum_types[i]->variants.size(); j++)
-                    variant_types[i].push_back(declare_enum_variant_type(i, j));
-            }
-
-            for (size_t i = 0; i < prog.struct_types.size(); i++)
-                define_struct_type(*prog.struct_types[i], &GET(*struct_types[i], STRUCT));
-            for (size_t i = 0; i < prog.enum_types.size(); i++) {
-                vector<ll_enum_variant_type*> enum_variants;
-                for (auto enum_variant : variant_types[i])
-                    enum_variants.push_back(&GET(*enum_variant, ENUM_VARIANT));
-                define_enum_type_with_variants(*prog.enum_types[i], &GET(*enum_types[i], ENUM), enum_variants);
-            }
-
-            // declare all functions
-            functions.resize(prog.global_funcs.size());
-            for (size_t i = 0; i < prog.global_funcs.size(); i++)
-                functions[i] = declare_function(*prog.global_funcs[i]);
-
-            // define global variables and init function
-            global_vars.resize(prog.global_vars.size());
-            for (size_t i = 0; i < prog.global_vars.size(); i++)
-                global_vars[i] = define_global_variable(*prog.global_vars[i]);
-            auto init_func = define_init_function();
-
-            // generate function code
-            for (size_t i = 0; i < prog.global_funcs.size(); i++) {
-                auto& func_name = prog.global_funcs[i]->name;
-                if (func_name && builtin_ctors.count(*func_name))
-                    (this->*builtin_ctors.at(*func_name))(functions[i].value);
-                else
-                    function_code_generator(*this, *prog.global_funcs[i], functions[i]).generate();
-            }
-            define_internal_main_function(init_func, functions[prog.entry_func].value, functions[prog.cleanup_func].value);
-
-            // verify module well-formedness
-            llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyModule(mod, stream); });
-        } catch (generator_error) {
-            return false;
-        }
-
-        return true;
+    void code_generator::generate_code(ostream& stream) {
+        generate();
+        string str;
+        llvm::raw_string_ostream llvm_stream(str);
+        mod.print(llvm_stream, nullptr);
+        stream << str;
     }
 
-    string code_generator::get_code() {
-        string code;
-        llvm::raw_string_ostream stream(code);
-        mod.print(stream, nullptr);
-        return code;
+    void code_generator::generate_bitcode(ostream& stream) {
+        generate();
+        error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+    }
+
+    void code_generator::generate_executable(ostream& stream) {
+        generate();
+        error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+    }
+
+    void code_generator::generate() {
+        // declare external functions
+        declare_external_functions();
+
+        // prepare struct/enum types
+        for (size_t i = 0; i < prog.struct_types.size(); i++)
+            struct_types.push_back(declare_struct_type(i));
+        for (size_t i = 0; i < prog.enum_types.size(); i++) {
+            enum_types.push_back(declare_enum_type(i));
+            variant_types.push_back({ });
+            for (size_t j = 0; j < prog.enum_types[i]->variants.size(); j++)
+                variant_types[i].push_back(declare_enum_variant_type(i, j));
+        }
+
+        for (size_t i = 0; i < prog.struct_types.size(); i++)
+            define_struct_type(*prog.struct_types[i], &GET(*struct_types[i], STRUCT));
+        for (size_t i = 0; i < prog.enum_types.size(); i++) {
+            vector<ll_enum_variant_type*> enum_variants;
+            for (auto enum_variant : variant_types[i])
+                enum_variants.push_back(&GET(*enum_variant, ENUM_VARIANT));
+            define_enum_type_with_variants(*prog.enum_types[i], &GET(*enum_types[i], ENUM), enum_variants);
+        }
+
+        // declare all functions
+        functions.resize(prog.global_funcs.size());
+        for (size_t i = 0; i < prog.global_funcs.size(); i++)
+            functions[i] = declare_function(*prog.global_funcs[i]);
+
+        // define global variables and init function
+        global_vars.resize(prog.global_vars.size());
+        for (size_t i = 0; i < prog.global_vars.size(); i++)
+            global_vars[i] = define_global_variable(*prog.global_vars[i]);
+        auto init_func = define_init_function();
+
+        // generate function code
+        for (size_t i = 0; i < prog.global_funcs.size(); i++) {
+            auto& func_name = prog.global_funcs[i]->name;
+            if (func_name && builtin_ctors.count(*func_name))
+                (this->*builtin_ctors.at(*func_name))(functions[i].value);
+            else
+                function_code_generator(*this, *prog.global_funcs[i], functions[i]).generate();
+        }
+        define_internal_main_function(init_func, functions[prog.entry_func].value, functions[prog.cleanup_func].value);
+
+        // verify module well-formedness
+        llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyModule(mod, stream); });
     }
 
     void code_generator::llvm_verify(function<bool(llvm::raw_ostream*)> func) {

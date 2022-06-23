@@ -130,13 +130,8 @@ int main(int argc, const char** argv) {
             /*         return 1; */
             /*     } */
             /* } */
-            
-            sg::code_generator codegen(prog, diags, "test_module");
-        
-            if (codegen.generate())
-                std::cout << codegen.get_code();
-            else
-                ok = false;
+
+            sg::code_generator(prog, diags, "test_module").generate_code(std::cout);
         } else
             ok = false;
     } else

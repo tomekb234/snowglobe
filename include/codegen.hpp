@@ -140,7 +140,6 @@ namespace sg {
             T* value;
             ll_type* type;
         };
-        struct generator_error { };
 
         // internal variables
         const prog::program& prog;
@@ -160,11 +159,16 @@ namespace sg {
 
         public:
 
+        struct generator_error { };
+
         code_generator(const prog::program& prog, diagnostic_collector& diags, string name) : prog(prog), diags(diags), ctx(), mod(name, ctx) {}
-        bool generate();
-        string get_code();
+        void generate_code(ostream& stream);
+        void generate_bitcode(ostream& stream);
+        void generate_executable(ostream& stream);
 
         private:
+
+        void generate();
 
         // diagnostic helpers
         void llvm_verify(function<bool(llvm::raw_ostream*)> func);
