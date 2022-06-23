@@ -85,11 +85,8 @@ namespace sg {
 
     struct ll_pointer_type {
         ll_type* target;
-        bool has_ref_cnt;
-        optional<ll_type*> owner;
+        bool ref_cnt;
         bool slice;
-        // TODO weak pointers
-        // TODO auxiliary pointer for inner functions
         llvm::StructType* tp;
     };
 
@@ -188,7 +185,7 @@ namespace sg {
         ll_type* get_tuple_type(const vector<ll_type*>& field_types);
         ll_type* get_array_type(ll_type* value_type, size_t size);
         ll_type* get_optional_type(ll_type* value_type);
-        ll_type* get_pointer_type(ll_type* target, bool ref_cnt, optional<ll_type*> owner, bool slice);
+        ll_type* get_pointer_type(ll_type* target, bool ref_cnt, bool slice);
 
         ll_type* get_type_from_prog(const prog::type& type);
 
@@ -206,12 +203,13 @@ namespace sg {
         typed_llvm_value<> make_array_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_empty_optional_value(ll_type* value_type, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_filled_optional_value(typed_llvm_value<> value, llvm::IRBuilderBase& builder);
-        typed_llvm_value<> make_pointer_value(ll_type* type, llvm::Value* target, optional<llvm::Value*> ref_cnt, optional<llvm::Value*> owner, optional<llvm::Value*> slice_size, llvm::IRBuilderBase& builder);
+        typed_llvm_value<> make_pointer_value(ll_type* type, llvm::Value* data_ptr, optional<llvm::Value*> ref_cnts_ptr, optional<llvm::Value*> slice_size, llvm::IRBuilderBase& builder);
 
         // pointer fields
         llvm::Value* extract_data_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
-        optional<llvm::Value*> extract_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
-        optional<llvm::Value*> extract_owner_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        optional<llvm::Value*> extract_ref_cnts_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        optional<llvm::Value*> extract_strong_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
+        optional<llvm::Value*> extract_weak_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
         optional<llvm::Value*> extract_slice_len_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder);
 
         // top-level declarations

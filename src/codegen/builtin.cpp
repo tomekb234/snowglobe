@@ -32,7 +32,7 @@ namespace sg {
         auto block = llvm::BasicBlock::Create(ctx, "entry", func);
         llvm::IRBuilder<> builder(block);
 
-        auto arg = typed_llvm_value<> { func->getArg(0), get_pointer_type(get_number_type(prog::number_type::U8), false, { }, true) };
+        auto arg = typed_llvm_value<> { func->getArg(0), get_pointer_type(get_number_type(prog::number_type::U8), false, true) };
         auto string_ptr = extract_data_ptr_from_pointer(arg, builder);
         auto string_len = extract_slice_len_from_pointer(arg, builder);
         auto string_len_trunc = builder.CreateTrunc(*string_len, builder.getInt32Ty());
@@ -44,7 +44,7 @@ namespace sg {
         auto block = llvm::BasicBlock::Create(ctx, "entry", func);
         llvm::IRBuilder<> builder(block);
 
-        auto arg = typed_llvm_value<> { func->getArg(0), get_pointer_type(get_number_type(prog::number_type::U8), false, { }, true) };
+        auto arg = typed_llvm_value<> { func->getArg(0), get_pointer_type(get_number_type(prog::number_type::U8), false, true) };
         auto string_ptr = extract_data_ptr_from_pointer(arg, builder);
         auto string_len = extract_slice_len_from_pointer(arg, builder);
         auto string_len_trunc = builder.CreateTrunc(*string_len, builder.getInt32Ty());
@@ -56,7 +56,7 @@ namespace sg {
         auto block = llvm::BasicBlock::Create(ctx, "entry", func);
         llvm::IRBuilder<> builder(block);
 
-        auto arg = typed_llvm_value<> { func->getArg(0), get_pointer_type(get_number_type(prog::number_type::U8), false, { }, true) };
+        auto arg = typed_llvm_value<> { func->getArg(0), get_pointer_type(get_number_type(prog::number_type::U8), false, true) };
         auto string_ptr = extract_data_ptr_from_pointer(arg, builder);
         auto string_len = extract_slice_len_from_pointer(arg, builder);
         auto string_len_trunc = builder.CreateTrunc(*string_len, builder.getInt32Ty());
@@ -100,7 +100,7 @@ namespace sg {
         auto block = llvm::BasicBlock::Create(ctx, "entry", func);
         llvm::IRBuilder<> builder(block);
 
-        auto arg = typed_llvm_value<> { func->getArg(0), get_pointer_type(get_number_type(prog::number_type::U8), false, { }, true) };
+        auto arg = typed_llvm_value<> { func->getArg(0), get_pointer_type(get_number_type(prog::number_type::U8), false, true) };
         auto string_ptr = extract_data_ptr_from_pointer(arg, builder);
         auto string_len = extract_slice_len_from_pointer(arg, builder);
         auto string_len_trunc = builder.CreateTrunc(*string_len, builder.getInt32Ty());

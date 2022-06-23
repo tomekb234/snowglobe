@@ -69,9 +69,7 @@ namespace sg {
 
             case ll_type::POINTER: {
                 auto& ptr_type = GET(*this, POINTER);
-                auto flags = to_string(ptr_type.has_ref_cnt) + to_string(ptr_type.slice);
-                auto owner = ptr_type.owner ? (*ptr_type.owner)->get_name() : "";
-                return "P" + flags + "." + ptr_type.target->get_name() + "." + owner + ".";
+                return "P" + to_string(ptr_type.ref_cnt) + to_string(ptr_type.slice) + "." + ptr_type.target->get_name() + ".";
             }
         }
 
@@ -123,10 +121,7 @@ namespace sg {
                 auto& left = GET(*this, POINTER);
                 auto& right = GET(other, POINTER);
                 MAYBE_RETURN(left.target->compare(*right.target));
-                MAYBE_RETURN(INT_COMPARE(left.has_ref_cnt, right.has_ref_cnt));
-                MAYBE_RETURN(INT_COMPARE(left.owner.has_value(), right.owner.has_value()));
-                if (left.owner.has_value())
-                    MAYBE_RETURN((*left.owner)->compare(**right.owner));
+                MAYBE_RETURN(INT_COMPARE(left.ref_cnt, right.ref_cnt));
                 return INT_COMPARE(left.slice, right.slice);
             }
         }
@@ -239,15 +234,13 @@ namespace sg {
         });
     }
 
-    ll_type* code_generator::get_pointer_type(ll_type* target, bool ref_cnt, optional<ll_type*> owner, bool slice) {
-        auto ptp = ll_pointer_type{ target, ref_cnt, owner, slice, nullptr };
+    ll_type* code_generator::get_pointer_type(ll_type* target, bool ref_cnt, bool slice) {
+        auto ptp = ll_pointer_type{ target, ref_cnt, slice, nullptr };
         RETURN_TYPE(POINTER, ptp, {
             vector<llvm::Type*> fields;
             fields.push_back(llvm::PointerType::getUnqual(target->get_type()));
             if (ref_cnt)
-                fields.push_back(llvm::PointerType::getUnqual(llvm::Type::getInt64Ty(ctx)));
-            if (owner)
-                fields.push_back(llvm::PointerType::getUnqual((*owner)->get_type()));
+                fields.push_back(llvm::PointerType::getUnqual(llvm::ArrayType::get(llvm::Type::getInt64Ty(ctx), 2)));
             if (slice)
                 fields.push_back(llvm::Type::getInt64Ty(ctx));
             ins.tp = llvm::StructType::create(fields, type_prefix + gen_ins.get_name());
@@ -290,12 +283,10 @@ namespace sg {
 
             case prog::type::PTR: {
                 auto& ptr_type = *GET(type, PTR);
-                if (ptr_type.kind == prog::ptr_type::WEAK)
-                    error(diags::not_implemented(DUMMY_LOCATION)); // TODO
                 auto target_type = get_type_from_prog(*ptr_type.target_tp->tp);
-                auto ref_cnt = ptr_type.kind == prog::ptr_type::SHARED;
+                auto ref_cnt = ptr_type.kind == prog::ptr_type::SHARED || ptr_type.kind == prog::ptr_type::WEAK;
                 auto slice = ptr_type.target_tp->slice;
-                return get_pointer_type(target_type, ref_cnt, { }, slice);
+                return get_pointer_type(target_type, ref_cnt, slice);
             }
 
             default:
