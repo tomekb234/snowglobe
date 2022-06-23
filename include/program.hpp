@@ -59,7 +59,6 @@ namespace sg::prog {
     struct make_optional_instr;
     struct make_struct_instr;
     struct make_enum_variant_instr;
-    struct get_global_ptr_instr;
     struct ptr_conversion_instr;
     struct unary_operation_instr;
     struct binary_operation_instr;
@@ -300,8 +299,6 @@ namespace sg::prog {
             MAKE_ENUM_VARIANT,
             MAKE_JOINT_INNER_PTR,
             MAKE_JOINT_FUNC_PTR,
-            GET_GLOBAL_VAR_PTR,
-            GET_GLOBAL_FUNC_PTR,
             FROM_NEVER,
 
             TEST_OPTIONAL,
@@ -401,8 +398,6 @@ namespace sg::prog {
             ptr<make_enum_variant_instr>, // MAKE_ENUM_VARIANT
             ptr<make_joint_inner_ptr_instr>, // MAKE_JOINT_INNER_PTR
             ptr<make_joint_func_ptr_instr>, // MAKE_JOINT_FUNC_PTR
-            ptr<get_global_ptr_instr>, // GET_GLOBAL_VAR_PTR
-            ptr<get_global_ptr_instr>, // GET_GLOBAL_FUNC_PTR
             ptr<from_never_instr>, // FROM_NEVER
 
             ptr<test_optional_instr>, // TEST_OPTIONAL
@@ -557,11 +552,6 @@ namespace sg::prog {
 
     struct from_never_instr {
         ptr<type> tp;
-        reg_index result;
-    };
-
-    struct get_global_ptr_instr {
-        global_index index;
         reg_index result;
     };
 

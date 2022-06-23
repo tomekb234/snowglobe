@@ -107,8 +107,10 @@ namespace sg {
                 auto type = prog::type_local { make_ptr(prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false)), false };
 
                 auto result = fclr.new_reg();
-                auto instr = prog::get_global_ptr_instr { var_index, result };
-                fclr.add_instr(VARIANT(prog::instr, GET_GLOBAL_VAR_PTR, into_ptr(instr)));
+                auto constant = VARIANT(prog::constant, GLOBAL_VAR_PTR, var_index);
+                auto ptr_type = prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false);
+                auto instr = prog::make_const_instr { into_ptr(constant), into_ptr(ptr_type), result };
+                fclr.add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(instr)));
 
                 return { result, move(type) };
             }

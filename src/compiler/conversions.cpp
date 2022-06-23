@@ -385,8 +385,9 @@ namespace sg {
                         break;
 
                     auto result = fclr.new_reg();
-                    auto instr = prog::get_global_ptr_instr { index, result };
-                    fclr.add_instr(VARIANT(prog::instr, GET_GLOBAL_FUNC_PTR, into_ptr(instr)));
+                    auto constant = VARIANT(prog::constant, GLOBAL_FUNC_PTR, index);
+                    auto make_instr = prog::make_const_instr { into_ptr(constant), make_ptr(copy_type(type)), result };
+                    fclr.add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(make_instr)));
                     return { result };
                 }
 
@@ -397,8 +398,9 @@ namespace sg {
                     auto wrapper_index = clr.get_global_func_wrapper(index);
 
                     auto value = fclr.new_reg();
-                    auto get_instr = prog::get_global_ptr_instr { wrapper_index, value };
-                    fclr.add_instr(VARIANT(prog::instr, GET_GLOBAL_FUNC_PTR, into_ptr(get_instr)));
+                    auto constant = VARIANT(prog::constant, GLOBAL_FUNC_PTR, wrapper_index);
+                    auto make_instr = prog::make_const_instr { into_ptr(constant), make_ptr(copy_type(type)), value };
+                    fclr.add_instr(VARIANT(prog::instr, MAKE_CONST, into_ptr(make_instr)));
 
                     auto result = fclr.new_reg();
                     auto into_instr = prog::make_joint_func_ptr_instr { value, { }, result };

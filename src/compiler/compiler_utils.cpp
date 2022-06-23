@@ -36,6 +36,12 @@ namespace sg {
 
         do_instr = [&] (const prog::instr& instr) {
             switch (INDEX(instr)) {
+                case prog::instr::MAKE_CONST: {
+                    auto& make_instr = *GET(instr, MAKE_CONST);
+                    reg_values[make_instr.result] = copy_const(*make_instr.value);
+                    reg_types[make_instr.result] = copy_type(*make_instr.tp);
+                } break;
+
                 case prog::instr::FROM_NEVER:
                     break;
 
@@ -168,11 +174,6 @@ namespace sg {
 
                     reg_values[transform_instr.result] = VARIANT(prog::constant, OPTIONAL, into_optional_ptr(new_value));
                     reg_types[transform_instr.result] = VARIANT(prog::type, OPTIONAL, into_ptr(new_type));
-                } break;
-
-                case prog::instr::GET_GLOBAL_FUNC_PTR: {
-                    auto& get_instr = *GET(instr, GET_GLOBAL_FUNC_PTR);
-                    reg_values[get_instr.result] = VARIANT(prog::constant, GLOBAL_FUNC_PTR, get_instr.index);
                 } break;
 
                 case prog::instr::MAKE_JOINT_FUNC_PTR: {
