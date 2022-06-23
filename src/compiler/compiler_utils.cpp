@@ -8,16 +8,15 @@ namespace sg {
     using namespace sg::utils;
 
     prog::type compiler_utils::common_supertype(const prog::type& type_a, const prog::type& type_b, location loc) {
-        prog::global_func dummy = { { }, { }, { }, make_ptr(copy_type(prog::UNIT_TYPE)), { }, { } };
-        function_compiler fclr(clr, dummy);
-        conversion_generator cclr(fclr);
+        prog::global_func func = { { }, { }, { }, make_ptr(copy_type(prog::UNIT_TYPE)), { }, { } };
+        function_compiler fclr(clr, func);
 
         fclr.init();
 
-        if (cclr.try_convert(0, type_a, type_b, false))
+        if (conversion_generator(fclr, 0, type_b).try_convert_from(type_a))
             return copy_type(type_b);
 
-        if (cclr.try_convert(0, type_b, type_a, false))
+        if (conversion_generator(fclr, 0, type_a).try_convert_from(type_b))
             return copy_type(type_a);
 
         fclr.commit();
@@ -195,10 +194,9 @@ namespace sg {
 
         prog::global_func func = { { }, { }, { }, make_ptr(copy_type(prog::UNIT_TYPE)), { }, { } };
         function_compiler fclr(clr, func);
-        conversion_generator cclr(fclr);
 
         fclr.init();
-        auto result = cclr.convert(0, type, new_type, loc);
+        auto result = conversion_generator(fclr, 0, new_type).convert_from(type, loc);
         fclr.commit();
 
         for (const prog::instr& instr : as_cref_vector(func.instrs))

@@ -317,7 +317,7 @@ namespace sg {
                     common_type = compiler_utils(clr).common_supertype(common_type, type, loc);
 
                 for (size_t index = 0; index < count; index++)
-                    values[index] = conversion_generator(fclr).convert(values[index], types[index], common_type, all_confined, loc);
+                    values[index] = conversion_generator(fclr, values[index], common_type, all_confined).convert_from(types[index], loc);
 
                 auto result = fclr.new_reg();
                 auto instr = prog::make_array_instr { move(values), result };
@@ -340,7 +340,7 @@ namespace sg {
                 for (size_t index = 0; index < count; index++) {
                     auto& type = types[index];
                     auto& field_type = *st.fields[index]->tp;
-                    values[index] = conversion_generator(fclr).convert(values[index], type, field_type, all_confined, loc);
+                    values[index] = conversion_generator(fclr, values[index], field_type, all_confined).convert_from(type, loc);
                 }
 
                 auto result = fclr.new_reg();

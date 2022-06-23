@@ -169,7 +169,7 @@ namespace sg {
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
             auto [value, type] = expression_compiler(fclr).compile(expr_ast, true);
-            auto cond = conversion_generator(fclr).convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
+            auto cond = conversion_generator(fclr, value, prog::BOOL_TYPE).convert_from(type, expr_ast.loc);
 
             auto true_branch = [&] () {
                 compile_block(block_ast, true);
@@ -351,7 +351,7 @@ namespace sg {
             auto head = [&] () -> prog::reg_index {
                 auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
                 auto [value, type] = expression_compiler(fclr).compile(expr_ast, true);
-                return conversion_generator(fclr).convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
+                return conversion_generator(fclr, value, prog::BOOL_TYPE).convert_from(type, expr_ast.loc);
             };
 
             auto true_branch = [&] () {
@@ -470,8 +470,8 @@ namespace sg {
                     error(diags::invalid_type(prog, move(type), diags::type_kind::INTEGER, begin_ast.loc));
             }
 
-            begin_value = conversion_generator(fclr).convert(begin_value, begin_type, type, begin_ast.loc);
-            end_value = conversion_generator(fclr).convert(end_value, end_type, type, end_ast.loc);
+            begin_value = conversion_generator(fclr, begin_value, type).convert_from(begin_type, begin_ast.loc);
+            end_value = conversion_generator(fclr, end_value, type).convert_from(end_type, end_ast.loc);
 
             auto var_index = fclr.add_var(copy_type_local(type_local));
             auto write_instr = prog::write_var_instr { var_index, incr ? begin_value : end_value };

@@ -245,7 +245,7 @@ namespace sg {
             type = copy_type_local(prog::UNIT_TYPE_LOCAL);
         }
 
-        result = conversion_generator(fclr).convert(result, type, *fclr.func.return_tp, loc);
+        result = conversion_generator(fclr, result, *fclr.func.return_tp).convert_from(type, loc);
 
         function_utils(fclr).add_return(result, loc);
 
@@ -282,7 +282,7 @@ namespace sg {
             common_type = compiler_utils(clr).common_supertype(common_type, type, loc);
 
         for (size_t index = 0; index < count; index++)
-            values[index] = conversion_generator(fclr).convert(values[index], types[index], common_type, all_confined, value_asts[index].get().loc);
+            values[index] = conversion_generator(fclr, values[index], common_type, all_confined).convert_from(types[index], value_asts[index].get().loc);
 
         auto result = fclr.new_reg();
         auto instr = prog::make_array_instr { values, result };
@@ -313,7 +313,7 @@ namespace sg {
                 for (size_t index = 0; index < size; index++) {
                     auto& type = types[index];
                     auto& field_type = *st.fields[index]->tp;
-                    values[index] = conversion_generator(fclr).convert(values[index], type, field_type, all_confined, value_asts[index].get().loc);
+                    values[index] = conversion_generator(fclr, values[index], field_type, all_confined).convert_from(type, value_asts[index].get().loc);
                 }
 
                 auto result = fclr.new_reg();
@@ -334,7 +334,7 @@ namespace sg {
                 for (size_t index = 0; index < size; index++) {
                     auto& type = types[index];
                     auto& field_type = *variant.tps[index];
-                    values[index] = conversion_generator(fclr).convert(values[index], type, field_type, all_confined, value_asts[index].get().loc);
+                    values[index] = conversion_generator(fclr, values[index], field_type, all_confined).convert_from(type, value_asts[index].get().loc);
                 }
 
                 auto result = fclr.new_reg();
@@ -417,7 +417,7 @@ namespace sg {
 
         switch (ast.operation) {
             case unop::NOT: {
-                value = conversion_generator(fclr).convert(value, type, prog::BOOL_TYPE, ast.value->loc);
+                value = conversion_generator(fclr, value, prog::BOOL_TYPE).convert_from(type, ast.value->loc);
                 auto instr = prog::unary_operation_instr { value, result };
                 fclr.add_instr(VARIANT(prog::instr, BOOL_NOT, into_ptr(instr)));
                 return { result, copy_type_local(prog::BOOL_TYPE_LOCAL) };
@@ -524,7 +524,7 @@ namespace sg {
             case binop::AND:
             case binop::OR: {
                 auto[left_value, left_type] = compile(*ast.left, true);
-                left_value = conversion_generator(fclr).convert(left_value, left_type, prog::BOOL_TYPE, ast.left->loc);
+                left_value = conversion_generator(fclr, left_value, prog::BOOL_TYPE).convert_from(left_type, ast.left->loc);
                 prog::reg_index right_value;
                 auto result = fclr.new_reg();
 
@@ -532,7 +532,7 @@ namespace sg {
 
                 auto long_branch = [&](){
                     auto[right_raw_value, right_type] = compile(*ast.right, true);
-                    right_value = conversion_generator(fclr).convert(right_raw_value, right_type, prog::BOOL_TYPE, ast.right->loc);
+                    right_value = conversion_generator(fclr, right_raw_value, prog::BOOL_TYPE).convert_from(right_type, ast.right->loc);
                 };
 
                 if (ast.operation == binop::AND) {
@@ -555,8 +555,8 @@ namespace sg {
 
                 auto common_type = compiler_utils(clr).common_supertype(*left_type.tp, *right_type.tp, ast.loc);
 
-                left_value = conversion_generator(fclr).convert(left_value, *left_type.tp, common_type, ast.left->loc);
-                right_value = conversion_generator(fclr).convert(right_value, *right_type.tp, common_type, ast.right->loc);
+                left_value = conversion_generator(fclr, left_value, common_type).convert_from(*left_type.tp, ast.left->loc);
+                right_value = conversion_generator(fclr, right_value, common_type).convert_from(*right_type.tp, ast.right->loc);
 
                 auto result = fclr.new_reg();
                 auto instr = prog::binary_operation_instr { left_value, right_value, result };
@@ -588,8 +588,8 @@ namespace sg {
                 if (!INDEX_EQ(common_type, NUMBER))
                     INVALID_BINARY_OP;
 
-                left_value = conversion_generator(fclr).convert(left_value, *left_type.tp, common_type, ast.left->loc);
-                right_value = conversion_generator(fclr).convert(right_value, *right_type.tp, common_type, ast.right->loc);
+                left_value = conversion_generator(fclr, left_value, common_type).convert_from(*left_type.tp, ast.left->loc);
+                right_value = conversion_generator(fclr, right_value, common_type).convert_from(*right_type.tp, ast.right->loc);
                 auto result = fclr.new_reg();
                 prog::numeric_binary_operation_instr::kind_t kind;
                 auto& ntype = *GET(common_type, NUMBER);
@@ -888,7 +888,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_conditional(const ast::conditional_expr& ast, bool confined) {
         auto [value, type] = compile(*ast.value, true);
-        auto cond = conversion_generator(fclr).convert(value, type, prog::BOOL_TYPE, ast.value->loc);
+        auto cond = conversion_generator(fclr, value, prog::BOOL_TYPE).convert_from(type, ast.value->loc);
 
         prog::reg_index true_value, false_value;
         prog::type_local true_type, false_type;
@@ -924,11 +924,11 @@ namespace sg {
         prog::reg_index true_conv_value, false_conv_value;
 
         auto true_conv_branch = [&] () {
-            true_conv_value = conversion_generator(fclr).convert(result, true_type, common_type_local, ast.true_result->loc);
+            true_conv_value = conversion_generator(fclr, result, common_type_local).convert_from(true_type, ast.true_result->loc);
         };
 
         auto false_conv_branch = [&] () {
-            false_conv_value = conversion_generator(fclr).convert(result, false_type, common_type_local, ast.false_result->loc);
+            false_conv_value = conversion_generator(fclr, result, common_type_local).convert_from(false_type, ast.false_result->loc);
         };
 
         auto conv_result = fclr.new_reg();
@@ -1064,7 +1064,7 @@ namespace sg {
             error(diags::confinement_mismatch(type_local.confined, ast.loc));
 
         auto [size_value, size_type] = compile(size_ast, true);
-        size_value = conversion_generator(fclr).convert(size_value, size_type, prog::SIZE_TYPE, size_ast.loc);
+        size_value = conversion_generator(fclr, size_value, prog::SIZE_TYPE).convert_from(size_type, size_ast.loc);
 
         if (!type_copyable(prog, type))
             error(diags::type_not_copyable(prog, move(type), value_ast.loc));
@@ -1209,7 +1209,7 @@ namespace sg {
                             error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                         auto [index_value, index_type] = compile(index_expr, true);
-                        index_value = conversion_generator(fclr).convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
+                        index_value = conversion_generator(fclr, index_value, prog::SIZE_TYPE).convert_from(index_type, index_expr.loc);
 
                         auto check_result = fclr.new_reg();
                         auto check_instr = prog::check_index_instr { ptr_value, index_value, check_result };
@@ -1250,7 +1250,7 @@ namespace sg {
                         if (begin_expr) {
                             prog::type_local begin_type;
                             tie(begin_value, begin_type) = compile(*begin_expr, true);
-                            begin_value = conversion_generator(fclr).convert(begin_value, begin_type, prog::SIZE_TYPE, begin_expr->get().loc);
+                            begin_value = conversion_generator(fclr, begin_value, prog::SIZE_TYPE).convert_from(begin_type, begin_expr->get().loc);
                         } else {
                             begin_value = fclr.new_reg();
                             auto zero = VARIANT(prog::constant, NUMBER, 0);
@@ -1261,7 +1261,7 @@ namespace sg {
                         if (end_expr) {
                             prog::type_local end_type;
                             tie(end_value, end_type) = compile(*end_expr, true);
-                            end_value = conversion_generator(fclr).convert(end_value, end_type, prog::SIZE_TYPE, end_expr->get().loc);
+                            end_value = conversion_generator(fclr, end_value, prog::SIZE_TYPE).convert_from(end_type, end_expr->get().loc);
                         } else {
                             end_value = fclr.new_reg();
                             if (slice) {
@@ -1564,7 +1564,7 @@ namespace sg {
                     error(diags::invalid_type(prog, move(type), diags::type_kind::SLICE_OR_ARRAY_POINTER, expr_ast.loc));
 
                 auto [index_value, index_type] = compile(index_expr, true);
-                index_value = conversion_generator(fclr).convert(index_value, index_type, prog::SIZE_TYPE, index_expr.loc);
+                index_value = conversion_generator(fclr, index_value, prog::SIZE_TYPE).convert_from(index_type, index_expr.loc);
 
                 auto check_result = fclr.new_reg();
                 auto check_instr = prog::check_index_instr { ptr_value, index_value, check_result };
@@ -1661,7 +1661,7 @@ namespace sg {
         for (size_t index = 0; index < size; index++) {
             auto& type = types[index];
             auto& param_type = *ftype.param_tps[index];
-            values[index] = conversion_generator(fclr).convert(values[index], type, param_type, value_asts[index].get().loc);
+            values[index] = conversion_generator(fclr, values[index], param_type).convert_from(type, value_asts[index].get().loc);
         }
 
         return values;

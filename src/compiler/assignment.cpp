@@ -56,7 +56,7 @@ namespace sg {
 
         function_utils(fclr).add_var_deletion(var_index, loc);
 
-        value = conversion_generator(fclr).convert(value, type, var.type, loc);
+        value = conversion_generator(fclr, value, var.type).convert_from(type, loc);
 
         auto write_instr = prog::write_var_instr { var_index, value };
         fclr.add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
@@ -73,7 +73,7 @@ namespace sg {
         fclr.add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(read_instr)));
         deletion_generator(fclr, old_value).add(var_type);
 
-        value = conversion_generator(fclr).convert(value, type, var_type, loc);
+        value = conversion_generator(fclr, value, var_type).convert_from(type, loc);
 
         auto instr = prog::write_global_var_instr { var_index, value };
         fclr.add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, into_ptr(instr)));
@@ -148,7 +148,7 @@ namespace sg {
         fclr.add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(read_instr)));
         deletion_generator(fclr, old_value).add(target_type);
 
-        value = conversion_generator(fclr).convert(value, type, target_type, loc);
+        value = conversion_generator(fclr, value, target_type).convert_from(type, loc);
 
         auto write_instr = prog::ptr_write_instr { ptr_value, value };
         fclr.add_instr(VARIANT(prog::instr, PTR_WRITE, into_ptr(write_instr)));
@@ -194,7 +194,7 @@ namespace sg {
         if (type.confined && !type_trivial(prog, *type.tp) && var.outside_confinement > 0)
             error(diags::variable_outside_confinement(var.name, loc));
 
-        value = conversion_generator(fclr).convert(value, type, var.type, loc);
+        value = conversion_generator(fclr, value, var.type).convert_from(type, loc);
 
         auto write_instr = prog::write_var_instr { var_index, value };
         fclr.add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
@@ -206,7 +206,7 @@ namespace sg {
     void assignment_generator::add_to_global_var_from_swap(prog::global_index var_index) {
         auto& var_type = *prog.global_vars[var_index]->tp;
 
-        value = conversion_generator(fclr).convert(value, type, var_type, loc);
+        value = conversion_generator(fclr, value, var_type).convert_from(type, loc);
 
         auto instr = prog::write_global_var_instr { var_index, value };
         fclr.add_instr(VARIANT(prog::instr, WRITE_GLOBAL_VAR, into_ptr(instr)));
@@ -276,7 +276,7 @@ namespace sg {
     }
 
     void assignment_generator::add_to_dereference_from_swap(prog::reg_index ptr_value, const prog::type& target_type) {
-        value = conversion_generator(fclr).convert(value, type, target_type, loc);
+        value = conversion_generator(fclr, value, target_type).convert_from(type, loc);
         auto write_instr = prog::ptr_write_instr { ptr_value, value };
         fclr.add_instr(VARIANT(prog::instr, PTR_WRITE, into_ptr(write_instr)));
     }
