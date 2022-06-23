@@ -2,12 +2,11 @@
 #define AST_HPP
 
 #include "location.hpp"
-#include <memory>
 #include <vector>
 #include <optional>
 #include <variant>
-#include <string>
 #include <utility>
+#include <memory>
 
 namespace sg::ast {
     using std::vector;
@@ -579,6 +578,7 @@ namespace sg::ast {
     struct type_local : node {
         ptr<type> tp;
         bool confined;
+        bool marked;
     };
 
     const string IGNORED_PLACEHOLDER = "_";

@@ -2,7 +2,7 @@
 #include "diagcol.hpp"
 #include "ast.hpp"
 #include "parser.hpp"
-#include "compiler.hpp"
+#include "compiler/compiler.hpp"
 #include "program.hpp"
 #include "codegen.hpp"
 #include <fstream>
@@ -11,6 +11,7 @@
 #include <optional>
 #include <iostream>
 #include <unordered_map>
+#include <algorithm>
 
 using std::string;
 using std::cout;
@@ -46,6 +47,8 @@ static bool validate_args(int argc, const char** argv);
 static bool option_present(int argc, const char** argv, vector<string> options);
 static optional<string> get_option_value(int argc, const char** argv, vector<string> options);
 static optional<string> get_arg(int argc, const char** argv);
+
+static string get_output_name(string& input_name);
 
 const string BUILTIN_NAME = "builtin";
 
@@ -99,6 +102,7 @@ int main(int argc, const char** argv) {
 
     auto ok = true;
 
+    sg::prog::program prog;
     sg::diagnostic_collector diags;
 
     istringstream builtins(BUILTINS);
@@ -112,7 +116,6 @@ int main(int argc, const char** argv) {
     yy::parser(builtins_input, diags, builtins_ast).parse();
 
     if (yy::parser(source_input, diags, source_ast).parse() == 0) {
-        sg::prog::program prog;
         sg::compiler compiler(prog, diags);
 
         compiler.compile_builtins(builtins_ast, BUILTIN_NAME);
@@ -120,7 +123,7 @@ int main(int argc, const char** argv) {
         if (compiler.compile(source_ast)) {
             /* if (!option_present(argc, argv, { "-k", "--check" })) { */
             /*     auto opt_output_name = get_option_value(argc, argv, { "-o", "--output" }); */
-            /*     auto output_name = opt_output_name ? *opt_output_name : "a.out"; */
+            /*     auto output_name = opt_output_name ? *opt_output_name : get_output_name(file_name); */
             /*     ofstream output(output_name); */
             /*  */
             /*     if (!output.is_open()) { */
@@ -207,4 +210,21 @@ static optional<string> get_arg(int argc, const char** argv) {
         iter += 1 + OPTIONS.at(*iter);
     }
     return { };
+}
+
+static string get_output_name(string& input_name) {
+    string result = input_name;
+    size_t slash = result.find_last_of("\\/");
+    if (slash != string::npos) {
+        result = result.substr(slash + 1);
+    }
+
+    size_t dot = result.find_last_of('.');
+    if (dot == string::npos) {
+        result += ".out";
+    } else {
+        result = result.substr(0, dot);
+    }
+
+    return result;
 }

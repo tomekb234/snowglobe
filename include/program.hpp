@@ -2,7 +2,6 @@
 #define PROGRAM_HPP
 
 #include <vector>
-#include <memory>
 #include <optional>
 #include <variant>
 #include <string>
@@ -10,6 +9,7 @@
 #include <tuple>
 #include <ostream>
 #include <unordered_map>
+#include <memory>
 
 namespace sg::prog {
     using std::vector;
@@ -78,8 +78,6 @@ namespace sg::prog {
     struct alloc_slice_instr;
     struct ptr_read_instr;
     struct ptr_write_instr;
-    struct slice_read_instr;
-    struct slice_write_instr;
     struct get_slice_length_instr;
     struct get_field_ptr_instr;
     struct get_item_ptr_instr;
@@ -118,7 +116,7 @@ namespace sg::prog {
         unordered_map<string, param_index> param_names;
         ptr<type> return_tp;
         vector<ptr<type_local>> vars;
-        ptr<instr_block> instrs;
+        vector<ptr<instr>> instrs;
     };
 
     struct func_param {
@@ -364,8 +362,6 @@ namespace sg::prog {
             FORGET_REF_COUNTER,
             PTR_READ,
             PTR_WRITE,
-            SLICE_READ,
-            SLICE_WRITE,
             INCR_REF_COUNT,
             INCR_WEAK_REF_COUNT,
             DECR_REF_COUNT,
@@ -465,8 +461,6 @@ namespace sg::prog {
             ptr<ptr_conversion_instr>, // FORGET_REF_COUNTER
             ptr<ptr_read_instr>, // PTR_READ
             ptr<ptr_write_instr>, // PTR_WRITE
-            ptr<slice_read_instr>, // SLICE_READ
-            ptr<slice_write_instr>, // SLICE_WRITE
             reg_index, // INCR_REF_COUNT
             reg_index, // INCR_WEAK_REF_COUNT
             reg_index, // DECR_REF_COUNT
@@ -672,18 +666,6 @@ namespace sg::prog {
         reg_index value;
     };
 
-    struct slice_read_instr {
-        reg_index ptr;
-        size_t index;
-        reg_index result;
-    };
-
-    struct slice_write_instr {
-        reg_index ptr;
-        size_t index;
-        reg_index value;
-    };
-
     struct get_slice_length_instr {
         reg_index ptr;
         reg_index result;
@@ -756,6 +738,9 @@ namespace sg::prog {
     bool func_types_equal(const func_type& type_a, const func_type& type_b);
 
     func_type get_func_type(const global_func& func);
+
+    bool type_copyable(const prog::program& prog, const prog::type& tp);
+    bool type_trivial(const prog::program& prog, const prog::type& tp);
 
     void print_type(ostream& stream, const program& prog, const type& tp);
 }

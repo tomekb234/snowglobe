@@ -1,161 +1,164 @@
-#include "compiler.hpp"
-#include "ast.hpp"
-#include "program.hpp"
+#include "compiler/statements.hpp"
+#include "compiler/expressions.hpp"
+#include "compiler/conversions.hpp"
+#include "compiler/assignment.hpp"
+#include "compiler/deletion.hpp"
+#include "compiler/utils.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
 
 namespace sg {
     using namespace sg::utils;
 
-    void function_compiler::compile_stmt_block(const ast::stmt_block& ast, bool cleanup) {
+    void statement_compiler::compile_block(const ast::stmt_block& ast, bool cleanup) {
         for (const ast::stmt& stmt_ast : as_cref_vector(ast.stmts)) {
-            if (returned)
-                warning(diags::dead_code(), stmt_ast.loc);
+            if (fclr.returned)
+                warning(diags::unreachable_code(stmt_ast.loc));
 
-            compile_stmt(stmt_ast);
+            compile(stmt_ast);
         }
 
         if (cleanup)
-            add_frame_cleanup(0, ast.end_loc);
+            fclr.add_frame_cleanup(0, ast.end_loc);
     }
 
-    void function_compiler::compile_stmt(const ast::stmt& ast) {
+    void statement_compiler::compile(const ast::stmt& ast) {
         switch (INDEX(ast)) {
             case ast::stmt::EXPR_EVAL: {
                 auto& expr_ast = *GET(ast, EXPR_EVAL);
                 if (INDEX_EQ(expr_ast, VAR_DECL))
-                    compile_left_expr(expr_ast, { });
+                    expression_compiler(fclr).compile_left(expr_ast, { });
                 else {
-                    auto [value, type] = compile_expr(expr_ast, false);
+                    auto [value, type] = expression_compiler(fclr).compile(expr_ast, false);
                     if (!type.confined)
-                        add_delete(value, *type.tp);
+                        deletion_compiler(fclr).add(value, *type.tp);
                     if (INDEX_EQ(*type.tp, NEVER))
-                        returned = true;
+                        fclr.returned = true;
                 }
             } break;
 
             case ast::stmt::ASSIGNMENT: {
                 auto& assignment_ast = *GET(ast, ASSIGNMENT);
-                auto [value, type] = compile_expr(*assignment_ast.value, false);
-                auto lval = compile_left_expr(*assignment_ast.lvalue, { type });
-                add_assignment(lval, value, type, assignment_ast.value->loc);
+                auto [value, type] = expression_compiler(fclr).compile(*assignment_ast.value, false);
+                auto lval = expression_compiler(fclr).compile_left(*assignment_ast.lvalue, { type });
+                assignment_compiler(fclr).add(lval, value, type, assignment_ast.value->loc);
             } break;
 
             case ast::stmt::COMPOUND_ASSIGNMENT: {
                 auto& expr_ast = *GET(ast, COMPOUND_ASSIGNMENT)->expr;
-                auto [value, type] = compile_binary_operation(expr_ast);
-                auto lval = compile_left_expr(*expr_ast.left, { type });
-                add_assignment(lval, value, type, expr_ast.right->loc);
+                auto [value, type] = expression_compiler(fclr).compile_binary_operation(expr_ast);
+                auto lval = expression_compiler(fclr).compile_left(*expr_ast.left, { type });
+                assignment_compiler(fclr).add(lval, value, type, expr_ast.right->loc);
             } break;
 
             case ast::stmt::LOCALLY_BLOCK:
-                compile_locally_block_stmt(*GET(ast, LOCALLY_BLOCK));
+                compile_locally_block(*GET(ast, LOCALLY_BLOCK));
                 break;
 
             case ast::stmt::SWAP:
-                compile_swap_stmt(*GET(ast, SWAP));
+                compile_swap(*GET(ast, SWAP));
                 break;
 
             case ast::stmt::SWAP_BLOCK:
-                compile_swap_block_stmt(*GET(ast, SWAP_BLOCK));
+                compile_swap_block(*GET(ast, SWAP_BLOCK));
                 break;
 
             case ast::stmt::IF:
-                compile_if_stmt_branches(*GET(ast, IF), 0);
+                compile_if_branches(*GET(ast, IF), 0);
                 break;
 
             case ast::stmt::MATCH:
-                compile_match_stmt(*GET(ast, MATCH));
+                compile_match(*GET(ast, MATCH));
                 break;
 
             case ast::stmt::WHILE:
-                compile_while_stmt(*GET(ast, WHILE));
+                compile_while(*GET(ast, WHILE));
                 break;
 
             case ast::stmt::FOR:
-                compile_for_stmt(*GET(ast, FOR));
+                compile_for(*GET(ast, FOR));
                 break;
 
             case ast::stmt::FUNC_DEF:
-                error(diags::not_implemented(), ast.loc); // TODO
+                error(diags::not_implemented(ast.loc)); // TODO
         }
     }
 
-    void function_compiler::compile_locally_block_stmt(const ast::locally_block_stmt& ast) {
-        push_confining_frame();
+    void statement_compiler::compile_locally_block(const ast::locally_block_stmt& ast) {
+        fclr.push_confining_frame();
 
         for (auto name : ast.var_names) {
-            auto var_index = get_var(name, ast.names_loc);
-            add_var_confinement(var_index, ast.names_loc);
+            auto var_index = fclr.get_var(name, ast.names_loc);
+            fclr.add_var_confinement(var_index, ast.names_loc);
         }
 
-        compile_stmt_block(*ast.block, true);
+        compile_block(*ast.block, true);
 
-        add_instrs(pop_confining_frame());
+        fclr.add_instrs(fclr.pop_confining_frame());
     }
 
-    void function_compiler::compile_swap_stmt(const ast::swap_stmt& ast) {
+    void statement_compiler::compile_swap(const ast::swap_stmt& ast) {
         auto& left_ast = *ast.left;
         auto& right_ast = *ast.right;
 
-        auto lval_a = compile_left_expr(left_ast, { });
-        auto lval_b = compile_left_expr(right_ast, { });
+        auto lval_a = expression_compiler(fclr).compile_left(left_ast, { });
+        auto lval_b = expression_compiler(fclr).compile_left(right_ast, { });
 
-        auto [value_a, type_a] = add_read_for_swap(lval_a, left_ast.loc);
-        auto [value_b, type_b] = add_read_for_swap(lval_b, right_ast.loc);
+        auto [value_a, type_a] = assignment_compiler(fclr).add_read_for_swap(lval_a, left_ast.loc);
+        auto [value_b, type_b] = assignment_compiler(fclr).add_read_for_swap(lval_b, right_ast.loc);
 
-        add_write_from_swap(lval_a, value_b, type_b, right_ast.loc);
-        add_write_from_swap(lval_b, value_a, type_a, left_ast.loc);
+        assignment_compiler(fclr).add_write_from_swap(lval_a, value_b, type_b, right_ast.loc);
+        assignment_compiler(fclr).add_write_from_swap(lval_b, value_a, type_a, left_ast.loc);
     }
 
-    void function_compiler::compile_swap_block_stmt(const ast::swap_block_stmt& ast) {
+    void statement_compiler::compile_swap_block(const ast::swap_block_stmt& ast) {
         auto& left_ast = *ast.left;
         auto& right_ast = *ast.right;
         auto& block_ast = *ast.block;
 
-        auto lval_a = compile_left_expr(left_ast, { });
+        auto lval_a = expression_compiler(fclr).compile_left(left_ast, { });
         lvalue lval_b;
         optional<prog::var_index> var_index;
 
         if (INDEX_EQ(right_ast, EXPR))
-            lval_b = compile_left_expr(*GET(right_ast, EXPR), { });
+            lval_b = expression_compiler(fclr).compile_left(*GET(right_ast, EXPR), { });
         else if (INDEX_EQ(right_ast, NAME_LOCALLY)) {
             auto name = GET(right_ast, NAME_LOCALLY);
-            var_index = { get_var(name, right_ast.loc) };
+            var_index = { fclr.get_var(name, right_ast.loc) };
             lval_b = VARIANT(lvalue, VAR, *var_index);
         }
 
         auto swap = [&] () {
-            auto [value_a, type_a] = add_read_for_swap(lval_a, left_ast.loc);
-            auto [value_b, type_b] = add_read_for_swap(lval_b, right_ast.loc);
+            auto [value_a, type_a] = assignment_compiler(fclr).add_read_for_swap(lval_a, left_ast.loc);
+            auto [value_b, type_b] = assignment_compiler(fclr).add_read_for_swap(lval_b, right_ast.loc);
 
-            add_write_from_swap(lval_a, value_b, type_b, right_ast.loc);
-            add_write_from_swap(lval_b, value_a, type_a, left_ast.loc);
+            assignment_compiler(fclr).add_write_from_swap(lval_a, value_b, type_b, right_ast.loc);
+            assignment_compiler(fclr).add_write_from_swap(lval_b, value_a, type_a, left_ast.loc);
         };
 
-        push_frame();
+        fclr.push_frame();
 
         swap();
-        defer_cleanup_action(swap);
+        fclr.defer_cleanup_action(swap);
 
         if (var_index) {
-            push_confining_frame();
-            add_var_confinement(*var_index, right_ast.loc);
+            fclr.push_confining_frame();
+            fclr.add_var_confinement(*var_index, right_ast.loc);
         } else
-            push_frame();
+            fclr.push_frame();
 
-        compile_stmt_block(block_ast, true);
+        compile_block(block_ast, true);
 
         if (var_index)
-            add_instrs(pop_confining_frame());
+            fclr.add_instrs(fclr.pop_confining_frame());
         else
-            add_instrs(pop_frame());
+            fclr.add_instrs(fclr.pop_frame());
 
-        add_frame_cleanup(0, block_ast.end_loc);
-        add_instrs(pop_frame());
+        fclr.add_frame_cleanup(0, block_ast.end_loc);
+        fclr.add_instrs(fclr.pop_frame());
     }
 
-    void function_compiler::compile_if_stmt_branches(const ast::if_stmt& ast, size_t branch_index) {
+    void statement_compiler::compile_if_branches(const ast::if_stmt& ast, size_t branch_index) {
         auto& branch_ast = *ast.branches[branch_index];
         auto& cond_ast = *branch_ast.cond;
         auto& block_ast = *branch_ast.block;
@@ -164,21 +167,21 @@ namespace sg {
 
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
-            auto [value, type] = compile_expr(expr_ast, true);
-            auto cond = conv_clr.convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
+            auto [value, type] = expression_compiler(fclr).compile(expr_ast, true);
+            auto cond = conversion_compiler(fclr).convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
 
             auto true_branch = [&] () {
-                compile_stmt_block(block_ast, true);
+                compile_block(block_ast, true);
             };
 
             auto false_branch = [&] () {
                 if (branch_index < branch_count - 1)
-                    compile_if_stmt_branches(ast, branch_index + 1);
+                    compile_if_branches(ast, branch_index + 1);
                 else if (else_branch_ast)
-                    compile_stmt_block(*else_branch_ast, true);
+                    compile_block(*else_branch_ast, true);
             };
 
-            add_branch(cond, true_branch, false_branch);
+            fclr.add_branch(cond, true_branch, false_branch);
         } else if (INDEX_EQ(cond_ast, CHECK_IF_PRESENT)) {
             auto& [lvalue_ast_ptr, value_ast_ptr] = GET(cond_ast, CHECK_IF_PRESENT);
             auto& lvalue_ast = *lvalue_ast_ptr;
@@ -189,52 +192,52 @@ namespace sg {
             auto confining = false;
 
             if (INDEX_EQ(value_ast, EXPR))
-                tie(value, type) = compile_expr(*GET(value_ast, EXPR), false);
+                tie(value, type) = expression_compiler(fclr).compile(*GET(value_ast, EXPR), false);
             else if (INDEX_EQ(value_ast, NAME_LOCALLY)) {
                 auto name = GET(value_ast, NAME_LOCALLY);
-                auto var_index = get_var(name, value_ast.loc);
-                push_confining_frame();
-                tie(value, type) = add_var_confinement(var_index, value_ast.loc);
+                auto var_index = fclr.get_var(name, value_ast.loc);
+                fclr.push_confining_frame();
+                tie(value, type) = fclr.add_var_confinement(var_index, value_ast.loc);
                 confining = true;
             }
 
             if (!INDEX_EQ(*type.tp, OPTIONAL))
-                error(diags::expected_optional_type(clr.prog, move(*type.tp)), value_ast.loc);
+                error(diags::invalid_type(prog, move(*type.tp), diags::type_kind::OPTIONAL, value_ast.loc));
 
-            auto cond = new_reg();
+            auto cond = fclr.new_reg();
             auto test_instr = prog::test_optional_instr { value, cond };
-            add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
+            fclr.add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
 
             auto true_branch = [&] () {
-                auto result = new_reg();
+                auto result = fclr.new_reg();
                 auto extract_instr = prog::extract_optional_value_instr { value, result };
-                add_instr(VARIANT(prog::instr, EXTRACT_OPTIONAL_VALUE, into_ptr(extract_instr)));
+                fclr.add_instr(VARIANT(prog::instr, EXTRACT_OPTIONAL_VALUE, into_ptr(extract_instr)));
 
                 auto inner_type = prog::type_local { make_ptr(copy_type(*GET(*type.tp, OPTIONAL))), type.confined };
-                auto lval = compile_left_expr(lvalue_ast, { inner_type });
-                add_assignment(lval, result, inner_type, value_ast.loc);
+                auto lval = expression_compiler(fclr).compile_left(lvalue_ast, { inner_type });
+                assignment_compiler(fclr).add(lval, result, inner_type, value_ast.loc);
 
-                compile_stmt_block(block_ast, true);
+                compile_block(block_ast, true);
             };
 
             auto false_branch = [&] () {
                 if (!type.confined)
-                    add_delete(value, *type.tp);
+                    deletion_compiler(fclr).add(value, *type.tp);
 
                 if (branch_index < branch_count - 1)
-                    compile_if_stmt_branches(ast, branch_index + 1);
+                    compile_if_branches(ast, branch_index + 1);
                 else if (else_branch_ast)
-                    compile_stmt_block(*else_branch_ast, true);
+                    compile_block(*else_branch_ast, true);
             };
 
-            add_branch(cond, true_branch, false_branch);
+            fclr.add_branch(cond, true_branch, false_branch);
 
             if (confining)
-                add_instrs(pop_confining_frame());
+                fclr.add_instrs(fclr.pop_confining_frame());
         }
     }
 
-    void function_compiler::compile_match_stmt(const ast::match_stmt& ast) {
+    void statement_compiler::compile_match(const ast::match_stmt& ast) {
         auto& value_ast = *ast.value;
 
         prog::reg_index value;
@@ -242,25 +245,25 @@ namespace sg {
         auto confining = false;
 
         if (INDEX_EQ(value_ast, EXPR))
-            tie(value, type) = compile_expr(*GET(value_ast, EXPR), false);
+            tie(value, type) = expression_compiler(fclr).compile(*GET(value_ast, EXPR), false);
         else if (INDEX_EQ(value_ast, NAME_LOCALLY)) {
             auto name = GET(value_ast, NAME_LOCALLY);
-            auto var_index = get_var(name, value_ast.loc);
-            push_confining_frame();
-            tie(value, type) = add_var_confinement(var_index, value_ast.loc);
+            auto var_index = fclr.get_var(name, value_ast.loc);
+            fclr.push_confining_frame();
+            tie(value, type) = fclr.add_var_confinement(var_index, value_ast.loc);
             confining = true;
         }
 
         if (!INDEX_EQ(*type.tp, ENUM))
-            error(diags::expected_enum_type(clr.prog, move(*type.tp)), value_ast.loc);
+            error(diags::invalid_type(prog, move(*type.tp), diags::type_kind::ENUM, value_ast.loc));
 
-        compile_match_stmt_branches(ast, value, type, 0);
+        compile_match_branches(ast, value, type, 0);
 
         if (confining)
-            add_instrs(pop_confining_frame());
+            fclr.add_instrs(fclr.pop_confining_frame());
     }
 
-    void function_compiler::compile_match_stmt_branches(const ast::match_stmt& ast, prog::reg_index value, const prog::type_local& type, size_t branch_index) {
+    void statement_compiler::compile_match_branches(const ast::match_stmt& ast, prog::reg_index value, const prog::type_local& type, size_t branch_index) {
         auto& value_ast = *ast.value;
         auto& branch_ast = *ast.branches[branch_index];
         auto& lval_ast = *branch_ast.lvalue;
@@ -269,7 +272,7 @@ namespace sg {
         auto branch_count = ast.branches.size();
 
         auto enum_index = GET(*type.tp, ENUM);
-        auto& en = *clr.prog.enum_types[enum_index];
+        auto& en = *prog.enum_types[enum_index];
 
         string variant_name;
         optional<vector<cref<ast::expr_marked>>> arg_marked_asts;
@@ -281,15 +284,15 @@ namespace sg {
             auto& [receiver_ast_ptr, arg_marked_ast_ptrs] = GET(lval_ast, APPLICATION);
             auto& receiver_ast = *receiver_ast_ptr;
             if (!INDEX_EQ(receiver_ast, NAME))
-                error(diags::invalid_expression(), lval_ast.loc);
+                error(diags::invalid_expression(lval_ast.loc));
             variant_name = GET(receiver_ast, NAME);
             arg_marked_asts = { as_cref_vector(arg_marked_ast_ptrs) };
         } else
-            error(diags::invalid_expression(), lval_ast.loc);
+            error(diags::invalid_expression(lval_ast.loc));
 
         auto iter = en.variant_names.find(variant_name);
         if (iter == en.variant_names.end())
-            error(diags::unknown_enum_variant(en, variant_name), lval_ast.loc);
+            error(diags::unknown_enum_variant(en, variant_name, lval_ast.loc));
 
         auto variant_index = iter->second;
         auto& variant = *en.variants[variant_index];
@@ -297,48 +300,48 @@ namespace sg {
         auto confined = type.confined;
 
         if ((count > 0) != arg_marked_asts.has_value())
-            error(diags::invalid_expression(), lval_ast.loc);
+            error(diags::invalid_expression(lval_ast.loc));
         if (count > 0)
-            arg_asts = clr.order_args(*arg_marked_asts, { }, { count }, lval_ast.loc);
+            arg_asts = compiler_utils(clr).order_args(*arg_marked_asts, { }, { count }, lval_ast.loc);
 
-        push_frame();
+        fclr.push_frame();
 
-        auto test_result = new_reg();
+        auto test_result = fclr.new_reg();
         auto test_instr = prog::test_variant_instr { value, variant_index, test_result };
-        add_instr(VARIANT(prog::instr, TEST_VARIANT, into_ptr(test_instr)));
+        fclr.add_instr(VARIANT(prog::instr, TEST_VARIANT, into_ptr(test_instr)));
 
         auto true_branch = [&] () {
             for (size_t index = 0; index < count; index++) {
-                auto extracted = new_reg();
+                auto extracted = fclr.new_reg();
                 auto instr = prog::extract_variant_field_instr { value, variant_index, index, extracted };
-                add_instr(VARIANT(prog::instr, EXTRACT_VARIANT_FIELD, into_ptr(instr)));
+                fclr.add_instr(VARIANT(prog::instr, EXTRACT_VARIANT_FIELD, into_ptr(instr)));
 
                 auto field_type = prog::type_local { make_ptr(copy_type(*variant.tps[index])), confined };
-                auto lval = compile_left_expr(arg_asts[index], { field_type });
-                add_assignment(lval, extracted, field_type, value_ast.loc);
+                auto lval = expression_compiler(fclr).compile_left(arg_asts[index], { field_type });
+                assignment_compiler(fclr).add(lval, extracted, field_type, value_ast.loc);
             }
 
-            compile_stmt_block(block_ast, true);
-            add_frame_cleanup(1, block_ast.end_loc);
+            compile_block(block_ast, true);
+            fclr.add_frame_cleanup(1, block_ast.end_loc);
         };
 
         auto false_branch = [&] () {
             if (branch_index < branch_count - 1)
-                compile_match_stmt_branches(ast, value, type, branch_index + 1);
+                compile_match_branches(ast, value, type, branch_index + 1);
             else {
                 if (!type.confined)
-                    add_delete(value, *type.tp);
+                    deletion_compiler(fclr).add(value, *type.tp);
                 if (else_branch_ast)
-                    compile_stmt_block(*else_branch_ast, true);
+                    compile_block(*else_branch_ast, true);
             }
         };
 
-        add_branch(test_result, true_branch, false_branch);
+        fclr.add_branch(test_result, true_branch, false_branch);
 
-        add_instrs(pop_frame());
+        fclr.add_instrs(fclr.pop_frame());
     }
 
-    void function_compiler::compile_while_stmt(const ast::while_stmt& ast) {
+    void statement_compiler::compile_while(const ast::while_stmt& ast) {
         auto& cond_ast = *ast.cond;
         auto& block_ast = *ast.block;
         auto else_block_ast = as_optional_cref(ast.else_block);
@@ -346,20 +349,20 @@ namespace sg {
         if (INDEX_EQ(cond_ast, CHECK_IF_TRUE)) {
             auto head = [&] () -> prog::reg_index {
                 auto& expr_ast = *GET(cond_ast, CHECK_IF_TRUE);
-                auto [value, type] = compile_expr(expr_ast, true);
-                return conv_clr.convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
+                auto [value, type] = expression_compiler(fclr).compile(expr_ast, true);
+                return conversion_compiler(fclr).convert(value, type, prog::BOOL_TYPE, expr_ast.loc);
             };
 
             auto true_branch = [&] () {
-                compile_stmt_block(block_ast, true);
+                compile_block(block_ast, true);
             };
 
             auto false_branch = [&] () {
                 if (else_block_ast)
-                    compile_stmt_block(*else_block_ast, true);
+                    compile_block(*else_block_ast, true);
             };
 
-            add_loop(head, true_branch, false_branch, [] { });
+            fclr.add_loop(head, true_branch, false_branch, [] { });
         } else if (INDEX_EQ(cond_ast, CHECK_IF_PRESENT)) {
             auto& [lvalue_ast_ptr, value_ast_ptr] = GET(cond_ast, CHECK_IF_PRESENT);
             auto& lvalue_ast = *lvalue_ast_ptr;
@@ -371,54 +374,54 @@ namespace sg {
 
             auto head = [&] () -> prog::reg_index {
                 if (INDEX_EQ(value_ast, EXPR))
-                    tie(value, type) = compile_expr(*GET(value_ast, EXPR), false);
+                    tie(value, type) = expression_compiler(fclr).compile(*GET(value_ast, EXPR), false);
                 else if (INDEX_EQ(value_ast, NAME_LOCALLY)) {
                     auto name = GET(value_ast, NAME_LOCALLY);
-                    auto var_index = get_var(name, value_ast.loc);
-                    push_confining_frame();
-                    tie(value, type) = add_var_confinement(var_index, value_ast.loc);
+                    auto var_index = fclr.get_var(name, value_ast.loc);
+                    fclr.push_confining_frame();
+                    tie(value, type) = fclr.add_var_confinement(var_index, value_ast.loc);
                     confining = true;
                 }
 
                 if (!INDEX_EQ(*type.tp, OPTIONAL))
-                    error(diags::expected_optional_type(clr.prog, move(*type.tp)), value_ast.loc);
+                    error(diags::invalid_type(prog, move(*type.tp), diags::type_kind::OPTIONAL, value_ast.loc));
 
-                auto cond = new_reg();
+                auto cond = fclr.new_reg();
                 auto test_instr = prog::test_optional_instr { value, cond };
-                add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
+                fclr.add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
                 return cond;
             };
 
             auto true_branch = [&] () {
-                auto result = new_reg();
+                auto result = fclr.new_reg();
                 auto extract_instr = prog::extract_optional_value_instr { value, result };
-                add_instr(VARIANT(prog::instr, EXTRACT_OPTIONAL_VALUE, into_ptr(extract_instr)));
+                fclr.add_instr(VARIANT(prog::instr, EXTRACT_OPTIONAL_VALUE, into_ptr(extract_instr)));
 
                 auto inner_type = prog::type_local { make_ptr(copy_type(*GET(*type.tp, OPTIONAL))), type.confined };
-                auto lval = compile_left_expr(lvalue_ast, { inner_type });
-                add_assignment(lval, result, inner_type, value_ast.loc);
+                auto lval = expression_compiler(fclr).compile_left(lvalue_ast, { inner_type });
+                assignment_compiler(fclr).add(lval, result, inner_type, value_ast.loc);
 
-                compile_stmt_block(block_ast, true);
+                compile_block(block_ast, true);
             };
 
             auto false_branch = [&] () {
                 if (!type.confined)
-                    add_delete(value, *type.tp);
+                    deletion_compiler(fclr).add(value, *type.tp);
 
                 if (else_block_ast)
-                    compile_stmt_block(*else_block_ast, true);
+                    compile_block(*else_block_ast, true);
             };
 
             auto end = [&] () {
                 if (confining)
-                    add_instrs(pop_confining_frame());
+                    fclr.add_instrs(fclr.pop_confining_frame());
             };
 
-            add_loop(head, true_branch, false_branch, end);
+            fclr.add_loop(head, true_branch, false_branch, end);
         }
     }
 
-    void function_compiler::compile_for_stmt(const ast::for_stmt& ast) {
+    void statement_compiler::compile_for(const ast::for_stmt& ast) {
         if (INDEX_EQ(ast, RANGE)) {
             auto& range_ast = *GET(ast, RANGE);
             auto& begin_ast = *range_ast.begin;
@@ -430,15 +433,15 @@ namespace sg {
             prog::reg_index begin_value, end_value;
             prog::type_local begin_type, end_type;
 
-            tie(begin_value, begin_type) = compile_expr(begin_ast, true);
-            tie(end_value, end_type) = compile_expr(end_ast, true);
+            tie(begin_value, begin_type) = expression_compiler(fclr).compile(begin_ast, true);
+            tie(end_value, end_type) = expression_compiler(fclr).compile(end_ast, true);
             auto incr = !range_ast.reversed;
 
-            auto type = clr.common_supertype(*begin_type.tp, *end_type.tp, begin_ast.loc);
+            auto type = compiler_utils(clr).common_supertype(*begin_type.tp, *end_type.tp, begin_ast.loc);
             auto type_local = prog::type_local { make_ptr(copy_type(type)), false };
 
             if (!INDEX_EQ(type, NUMBER))
-                error(diags::expected_integer_type(clr.prog, move(type)), begin_ast.loc);
+                error(diags::invalid_type(prog, move(type), diags::type_kind::INTEGER, begin_ast.loc));
 
             auto& ntype = *GET(type, NUMBER);
             prog::numeric_binary_operation_instr::kind_t op_kind;
@@ -463,31 +466,31 @@ namespace sg {
 
                 case num::F32:
                 case num::F64:
-                    error(diags::expected_integer_type(clr.prog, move(type)), begin_ast.loc);
+                    error(diags::invalid_type(prog, move(type), diags::type_kind::INTEGER, begin_ast.loc));
             }
 
-            begin_value = conv_clr.convert(begin_value, begin_type, type, begin_ast.loc);
-            end_value = conv_clr.convert(end_value, end_type, type, end_ast.loc);
+            begin_value = conversion_compiler(fclr).convert(begin_value, begin_type, type, begin_ast.loc);
+            end_value = conversion_compiler(fclr).convert(end_value, end_type, type, end_ast.loc);
 
-            auto var_index = add_var(copy_type_local(type_local));
+            auto var_index = fclr.add_var(copy_type_local(type_local));
             auto write_instr = prog::write_var_instr { var_index, incr ? begin_value : end_value };
-            add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
-            vars[var_index].state = VAR_INITIALIZED;
+            fclr.add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
+            fclr.vars[var_index].state = fclr.VAR_INITIALIZED;
 
-            auto value = new_reg();
+            auto value = fclr.new_reg();
 
             auto head = [&] () -> prog::reg_index {
                 auto read_instr = prog::read_var_instr { var_index, value };
-                add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
+                fclr.add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
 
-                auto cond = new_reg();
+                auto cond = fclr.new_reg();
 
                 if (incr) {
                     auto compare_instr = prog::numeric_binary_operation_instr { { value, end_value, cond }, op_kind };
-                    add_instr(VARIANT(prog::instr, LS, into_ptr(compare_instr)));
+                    fclr.add_instr(VARIANT(prog::instr, LS, into_ptr(compare_instr)));
                 } else {
                     auto compare_instr = prog::numeric_binary_operation_instr { { value, begin_value, cond }, op_kind };
-                    add_instr(VARIANT(prog::instr, GT, into_ptr(compare_instr)));
+                    fclr.add_instr(VARIANT(prog::instr, GT, into_ptr(compare_instr)));
                 }
 
                 return cond;
@@ -495,37 +498,37 @@ namespace sg {
 
             auto true_branch = [&] () {
                 if (!incr) {
-                    auto new_value = new_reg();
+                    auto new_value = fclr.new_reg();
                     auto decr_instr = prog::unary_operation_instr { value, new_value };
-                    add_instr(VARIANT(prog::instr, DECR, into_ptr(decr_instr)));
+                    fclr.add_instr(VARIANT(prog::instr, DECR, into_ptr(decr_instr)));
                     value = new_value;
                 }
 
-                auto lval = compile_left_expr(lvalue_ast, { type_local });
+                auto lval = expression_compiler(fclr).compile_left(lvalue_ast, { type_local });
 
-                add_assignment(lval, value, type_local, begin_ast.loc);
+                assignment_compiler(fclr).add(lval, value, type_local, begin_ast.loc);
 
-                compile_stmt_block(block_ast, true);
+                compile_block(block_ast, true);
 
                 if (incr) {
-                    auto new_value = new_reg();
+                    auto new_value = fclr.new_reg();
                     auto incr_instr = prog::unary_operation_instr { value, new_value };
-                    add_instr(VARIANT(prog::instr, INCR, into_ptr(incr_instr)));
+                    fclr.add_instr(VARIANT(prog::instr, INCR, into_ptr(incr_instr)));
                     value = new_value;
                 }
 
                 auto write_instr = prog::write_var_instr { var_index, value };
-                add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
+                fclr.add_instr(VARIANT(prog::instr, WRITE_VAR, into_ptr(write_instr)));
             };
 
             auto false_branch = [&] () {
                 if (else_block_ast)
-                    compile_stmt_block(*else_block_ast, true);
+                    compile_block(*else_block_ast, true);
             };
 
-            add_loop(head, true_branch, false_branch, [] { });
+            fclr.add_loop(head, true_branch, false_branch, [] { });
         } else if (INDEX_EQ(ast, SLICE)) {
-            error(diags::not_implemented(), ast.loc); // TODO
+            error(diags::not_implemented(ast.loc)); // TODO
         }
     }
 }

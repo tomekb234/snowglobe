@@ -49,8 +49,8 @@ namespace sg::diags {
         stream << "The type '" << name << "' cannot be used before its definition unless inside a pointer type" << endl;
     }
 
-    void global_name_used::write(ostream& stream) const {
-        stream << "The global name '" << name << "' is already used" << endl;
+    void name_used::write(ostream& stream) const {
+        stream << "The name '" << name << "' is already used" << endl;
     }
 
     void field_name_used::write(ostream& stream) const {
@@ -113,7 +113,7 @@ namespace sg::diags {
     }
 
     void invalid_argument_count::write(ostream& stream) const {
-        stream << "Applied " << count << " arguments but expected " << expected << endl;
+        stream << "Expected " << expected << " arguments instead of " << count << endl;
     }
 
     void invalid_argument_marker::write(ostream& stream) const {
@@ -125,8 +125,8 @@ namespace sg::diags {
         stream << "Expected " << argument_count << " arguments" << endl;
     }
 
-    void reused_argument_index::write(ostream& stream) const {
-        stream << "Reused argument with index " << index << endl;
+    void duplicate_argument_index::write(ostream& stream) const {
+        stream << "Duplicate argument with index " << index << endl;
     }
 
     void missing_argument::write(ostream& stream) const {
@@ -134,31 +134,75 @@ namespace sg::diags {
     }
 
     void unknown_struct_field::write(ostream& stream) const {
-        stream << "The struct '" << st.name << "' does not have a field named '" << name << "'" << endl;
+        stream << "The struct '" << st.name << "' does not have a field '" << name << "'" << endl;
     }
 
     void unknown_enum_variant::write(ostream& stream) const {
-        stream << "The enum '" << en.name << "' does not have a variant named '" << name << "'" << endl;
+        stream << "The enum '" << en.name << "' does not have a variant '" << name << "'" << endl;
     }
 
     void unknown_function_parameter::write(ostream& stream) const {
         stream << "The function ";
         if (func.name)
             stream << "'" << *func.name << "' ";
-        stream << "has no parameter named '" << name << "'" << endl;
+        stream << "does not have a parameter '" << name << "'" << endl;
     }
 
-    void invalid_tuple_field::write(ostream& stream) const {
-        stream << "Invalid field with index " << index << " for tuple with " << count << " fields" << endl;
+    void invalid_tuple_index::write(ostream& stream) const {
+        stream << "Invalid field index " << index << " for tuple with " << count << " fields" << endl;
     }
 
     void expected_enum_name::write(ostream& stream) const {
         stream << "Expected enum name" << endl;
     };
 
-    void expected_enum_variant::write(ostream& stream) const {
-        stream << "Expected enum variant" << endl;
-    };
+    void expression_not_swappable::write(ostream& stream) const {
+        stream << "Expression not swappable" << endl;
+    }
+
+    void not_convertible::write(ostream& stream) const {
+        stream << "Cannot convert from type '";
+        print_type(stream, prog, type);
+        stream << "' to type '";
+        print_type(stream, prog, new_type);
+        stream << "'" << endl;
+    }
+
+    void no_common_supertype::write(ostream& stream) const {
+        stream << "The types '";
+        print_type(stream, prog, type_a);
+        stream << "' and '";
+        print_type(stream, prog, type_b);
+        stream << "' have no common supertype" << endl;
+    }
+
+    void type_not_copyable::write(ostream& stream) const {
+        stream << "The type '";
+        print_type(stream, prog, type);
+        stream << "' is not copyable" << endl;
+    }
+
+    void invalid_type::write(ostream& stream) const {
+        stream << "Expected ";
+
+        switch (expected) {
+            case type_kind::NUMBER: stream << "a number "; break;
+            case type_kind::INTEGER: stream << "an integer "; break;
+            case type_kind::OPTIONAL: stream << "an optional value "; break;
+            case type_kind::TUPLE: stream << "a tuple "; break;
+            case type_kind::ARRAY: stream << "an array "; break;
+            case type_kind::STRUCT: stream << "a struct "; break;
+            case type_kind::ENUM: stream << "an enum "; break;
+            case type_kind::POINTER: stream << "a pointer "; break;
+            case type_kind::SLICE_OR_ARRAY_POINTER: stream << "a slice or an array pointer "; break;
+            case type_kind::WEAK_POINTER: stream << "a weak shared pointer "; break;
+            case type_kind::INNER_POINTER: stream << "an inner pointer "; break;
+        }
+
+        stream << "instead of value with type '";
+        print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
 
     void int_overflow::write(ostream& stream) const {
         stream << "The number '" << (negative ? "-" : "") << value << "' does not fit in " << (signed_type ? "signed" : "unsigned") << " " << bits << "-bit integer type" << endl;
@@ -173,9 +217,9 @@ namespace sg::diags {
             case ast::unary_operation_expr::BIT_NEG: stream << "~"; break;
         }
 
-        stream << "' is not applicable to type ";
-        prog::print_type(stream, prog, type);
-        stream << endl;
+        stream << "' is not applicable to type '";
+        print_type(stream, prog, type);
+        stream << "'" << endl;
     }
 
     void invalid_binary_operation::write(ostream& stream) const {
@@ -202,142 +246,11 @@ namespace sg::diags {
             case ast::binary_operation_expr::GTEQ: stream << ">="; break;
         }
 
-        stream << "' is not applicable to types ";
-        prog::print_type(stream, prog, left_type);
-        stream << " and ";
-        prog::print_type(stream, prog, right_type);
-        stream << endl;
-    }
-
-    void slice_dereference::write(ostream& stream) const {
-        stream << "Cannot dereference a slice" << endl;
-    }
-
-    void not_convertible::write(ostream& stream) const {
-        stream << "A value with type '";
-        prog::print_type(stream, prog, type);
-        stream << "' cannot be converted to a value with type '";
-        prog::print_type(stream, prog, new_type);
-        stream << "'" << endl;
-    }
-
-    void confinement_mismatch::write(ostream& stream) const {
-        if (confined)
-            stream << "Leaked confined value" << endl;
-        else
-            stream << "A value can only be confined when passed as an argument to a function" << endl;
-    }
-
-    void confinement_ambiguous::write(ostream& stream) const {
-        stream << "Either all or none arguments can have confined types" << endl;
-    }
-
-    void function_call_in_confined_context::write(ostream& stream) const {
-        stream << "Cannot receive a non-trivial function result in a confined context" << endl;
-    }
-
-    void allocation_in_confined_context::write(ostream& stream) const {
-        stream << "Cannot allocate memory in a confined context" << endl;
-    }
-
-    void dereference_in_confined_context::write(ostream& stream) const {
-        stream << "Cannot receive a non-trivial dereference result in a confined context" << endl;
-    }
-
-    void weak_pointer_test_in_confined_context::write(ostream& stream) const {
-        stream << "Cannot test a weak pointer in a confined context" << endl;
-    }
-
-    void no_common_supertype::write(ostream& stream) const {
-        stream << "The types '";
-        prog::print_type(stream, prog, type_a);
+        stream << "' is not applicable to types '";
+        print_type(stream, prog, left_type);
         stream << "' and '";
-        prog::print_type(stream, prog, type_b);
-        stream << "' have no common supertype" << endl;
-    }
-
-    void type_not_copyable::write(ostream& stream) const {
-        stream << "The type '";
-        prog::print_type(stream, prog, type);
-        stream << "' is not copyable" << endl;
-    }
-
-    void invalid_type::write(ostream& stream) const {
-        stream << "Expected type '";
-        prog::print_type(stream, prog, expected);
-        stream << "' instead of '";
-        prog::print_type(stream, prog, type);
+        print_type(stream, prog, right_type);
         stream << "'" << endl;
-    }
-
-    void expected_number_type::write(ostream& stream) const {
-        stream << "Expected a number type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_integer_type::write(ostream& stream) const {
-        stream << "Expected an integer type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_optional_type::write(ostream& stream) const {
-        stream << "Expected an optional type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_tuple_type::write(ostream& stream) const {
-        stream << "Expected a tuple type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_array_type::write(ostream& stream) const {
-        stream << "Expected an array type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_struct_type::write(ostream& stream) const {
-        stream << "Expected a struct type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_enum_type::write(ostream& stream) const {
-        stream << "Expected an enum type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_pointer_type::write(ostream& stream) const {
-        stream << "Expected a pointer type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_slice_type::write(ostream& stream) const {
-        stream << "Expected a slice type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_inner_pointer_type::write(ostream& stream) const {
-        stream << "Expected an inner pointer type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void expected_weak_pointer_type::write(ostream& stream) const {
-        stream << "Expected a weak pointer type instead of '";
-        prog::print_type(stream, prog, type);
-        stream << "'" << endl;
-    }
-
-    void slice_not_allowed::write(ostream& stream) const {
-        stream << "Slice type not allowed" << endl;
     }
 
     void invalid_tuple_size::write(ostream& stream) const {
@@ -348,8 +261,22 @@ namespace sg::diags {
         stream << "Expected array type with size " << expected << " instead of " << size << endl;
     }
 
+    void invalid_struct::write(ostream& stream) const {
+        stream << "Expected struct '" << expected.name << "' instead of '" << st.name << "'" << endl;
+    }
+
     void invalid_size_constant_type::write(ostream& stream) const {
-        stream << "A size constant must have an unsigned integer type" << endl;
+        stream << "Expected a constant with unsigned integer type instead of '";
+        print_type(stream, prog, type);
+        stream << "'" << endl;
+    }
+
+    void slice_not_allowed::write(ostream& stream) const {
+        stream << "Slice type not allowed" << endl;
+    }
+
+    void trivial_type_with_confinement_marker::write(ostream& stream) const {
+        stream << "Redundant confinement marker for trivial type" << endl;
     }
 
     void restrictive_pointer_type::write(ostream& stream) const {
@@ -357,12 +284,39 @@ namespace sg::diags {
         stream << "Use '&' instead" << endl;
     }
 
-    void invalid_parameter_order::write(ostream& stream) const {
-        stream << "All function parameters with non-confined types must be ordered after parameters with confined types" << endl;
+    void confinement_mismatch::write(ostream& stream) const {
+        if (confined)
+            stream << "Cannot leak a confined value" << endl;
+        else
+            stream << "Can only confine a value by passing it as an argument to a function or with a 'locally' block" << endl;
+    }
+
+    void confinement_ambiguous::write(ostream& stream) const {
+        stream << "Either all or none non-trivial arguments must be confined" << endl;
+    }
+
+    void not_allowed_in_confined_context::write(ostream& stream) const {
+        stream << "Cannot receive ";
+
+        switch (kind) {
+            case value_kind::FUNCTION_RESULT: stream << "a non-trivial function result "; break;
+            case value_kind::DEREFERENCE: stream << "a non-trivial dereference result "; break;
+            case value_kind::ALLOCATION: stream << "a pointer to newly allocated memory "; break;
+        }
+
+        stream << "in a confined context" << endl;
     }
 
     void invalid_main_type::write(ostream& stream) const {
         stream << "Invalid type for main function" << endl;
+    }
+
+    void invalid_parameter_order::write(ostream& stream) const {
+        stream << "All function parameters with non-confined types must be ordered after parameters with confined types" << endl;
+    }
+
+    void invalid_variable_name::write(ostream& stream) const {
+        stream << "The name '" << name << "' cannot be used for a variable" << endl;
     }
 
     void variable_not_found::write(ostream& stream) const {
@@ -406,13 +360,13 @@ namespace sg::diags {
         stream << endl;
     }
 
-    void variable_moved_inside_loop::write(ostream& stream) const {
+    void variable_moved_out_inside_loop::write(ostream& stream) const {
         stream << "Cannot move out ";
         if (name)
             stream << "the variable '" << *name << "' ";
         else
             stream << "an internal variable ";
-        stream << "inside a loop" << endl;
+        stream << "multiple times with a loop" << endl;
     }
 
     void variable_outside_confinement::write(ostream& stream) const {
@@ -424,32 +378,24 @@ namespace sg::diags {
        stream << "from outside of current 'locally' block" << endl;
     }
 
-    void global_variable_moved::write(ostream& stream) const {
-        stream << "Cannot move out the global variable '" << name << "'" << endl;
-    }
-
-    void invalid_variable_name::write(ostream& stream) const {
-        stream << "The name '" << name << "' cannot be used as a variable" << endl;
-    }
-
-    void expression_not_swappable::write(ostream& stream) const {
-        stream << "Expression not swappable" << endl;
+    void global_variable_moved_out::write(ostream& stream) const {
+        stream << "Cannot move out a global variable" << endl;
     }
 
     void break_outside_loop::write(ostream& stream) const {
-        stream << "Cannot use 'break' statement outside a loop" << endl;
+        stream << "Cannot use 'break' statement outside of a loop" << endl;
     }
 
     void continue_outside_loop::write(ostream& stream) const {
-        stream << "Cannot use 'continue' statement outside a loop" << endl;
+        stream << "Cannot use 'continue' statement outside of a loop" << endl;
     }
 
     void missing_return::write(ostream& stream) const {
         stream << "Missing 'return' statement" << endl;
     }
 
-    void dead_code::write(ostream& stream) const {
-        stream << "Dead code" << endl;
+    void unreachable_code::write(ostream& stream) const {
+        stream << "Unreachable code" << endl;
     }
 
     void code_generator_fail::write(ostream& stream) const {

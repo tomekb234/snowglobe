@@ -1105,11 +1105,11 @@ type_pointed:
 
 type_local:
     type {
-        $$ = { { @$ }, into_ptr($type), true };
+        $$ = { { @$ }, into_ptr($type), true, false };
     }
 
     | "!" type {
-        $$ = { { @$ }, into_ptr($type), false };
+        $$ = { { @$ }, into_ptr($type), false, true };
     }
 
 type_local_seq:
@@ -1151,13 +1151,11 @@ void yy::parser::report_syntax_error(const yy::parser::context& context) const {
         expected_names[index] = symbol_name(expected[index]);
 
     // Report error message
-    auto diag = make_ptr(sg::diags::syntax_error(unexpected_name, expected_names));
-    diag->loc = { context.location() };
+    auto diag = make_ptr(sg::diags::syntax_error(unexpected_name, expected_names, context.location()));
     diags.add(move(diag));
 }
 
 void yy::parser::error(const yy::parser::location_type& location, const string& message) {
-    auto diag = make_ptr(sg::diags::parser_error(message));
-    diag->loc = { location };
+    auto diag = make_ptr(sg::diags::parser_error(message, location));
     diags.add(move(diag));
 }

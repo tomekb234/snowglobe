@@ -291,7 +291,7 @@ namespace sg {
             case prog::type::PTR: {
                 auto& ptr_type = *GET(type, PTR);
                 if (ptr_type.kind == prog::ptr_type::WEAK)
-                    error(diags::not_implemented()); // TODO
+                    error(diags::not_implemented(DUMMY_LOCATION)); // TODO
                 auto target_type = get_type_from_prog(*ptr_type.target_tp->tp);
                 auto ref_cnt = ptr_type.kind == prog::ptr_type::SHARED;
                 auto slice = ptr_type.target_tp->slice;
@@ -299,7 +299,7 @@ namespace sg {
             }
 
             default:
-                error(diags::not_implemented()); // TODO
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
         }
 
         UNREACHABLE;

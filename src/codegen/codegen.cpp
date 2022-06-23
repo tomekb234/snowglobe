@@ -12,12 +12,6 @@ namespace sg {
     const string normal_func_prefix = "f.";
     const string internal_func_prefix = "if.";
 
-    template<typename T>
-    static T decode_number(unsigned long long number) {
-        auto ptr = reinterpret_cast<T*>(&number);
-        return *ptr;
-    }
-
     bool code_generator::generate() {
         try {
             // declare external functions
@@ -78,7 +72,7 @@ namespace sg {
         string error_msg;
         llvm::raw_string_ostream stream(error_msg);
         if (func(&stream))
-            error(diags::code_generator_fail(error_msg));
+            error(diags::code_generator_fail(error_msg, DUMMY_LOCATION));
     }
 
     code_generator::typed_llvm_value<> code_generator::make_constant(const prog::constant& constant, const prog::type& type, llvm::IRBuilderBase& builder) {
@@ -178,7 +172,7 @@ namespace sg {
             }
 
             default:
-                error(diags::not_implemented()); // TODO
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
         }
 
         UNREACHABLE;
@@ -354,17 +348,17 @@ namespace sg {
         llvm::IRBuilder<>(terminator_block).CreateRet(llvm::UndefValue::get(return_type->get_type()));
 
         // generate function body
-        process_instr_block(*func.instrs, entry_block, terminator_block, nullptr, nullptr);
+        process_instr_block(func.instrs, entry_block, terminator_block, nullptr, nullptr);
 
         // verify corectness
         gen.llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyFunction(*llvm_function, stream); });
     }
 
-    llvm::BasicBlock* function_code_generator::process_instr_block(const prog::instr_block& block, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block) {
+    llvm::BasicBlock* function_code_generator::process_instr_block(const vector<prog::ptr<prog::instr>>& instrs, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block) {
         llvm::IRBuilder<> builder(init_block);
         bool terminated = false;
 
-        for (auto& instr : block.instrs) {
+        for (auto& instr : instrs) {
             switch (INDEX(*instr)) {
                 case prog::instr::READ_VAR: {
                     auto& rv_instr = *GET(*instr, READ_VAR);
@@ -632,7 +626,7 @@ namespace sg {
 
                 case prog::instr::BIT_LSH:
                 case prog::instr::BIT_RSH:
-                    gen.error(diags::not_implemented()); // TODO
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
 
                 case prog::instr::LS: {
                     auto& nbo_instr = *GET(*instr, LS);
@@ -853,9 +847,9 @@ namespace sg {
                     auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
 
                     auto true_init_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    auto true_return_block = process_instr_block(*b_instr.true_block, true_init_block, continuation_block, loop_block, after_loop_block);
+                    auto true_return_block = process_instr_block(b_instr.true_block->instrs, true_init_block, continuation_block, loop_block, after_loop_block);
                     auto false_init_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    auto false_return_block = process_instr_block(*b_instr.false_block, false_init_block, continuation_block, loop_block, after_loop_block);
+                    auto false_return_block = process_instr_block(b_instr.false_block->instrs, false_init_block, continuation_block, loop_block, after_loop_block);
 
                     builder.CreateCondBr(regs[b_instr.cond].value, true_init_block, false_init_block);
                     builder.SetInsertPoint(continuation_block);
@@ -878,7 +872,7 @@ namespace sg {
                     auto& l_instr = *GET(*instr, LOOP);
                     auto loop_body_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
                     auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    process_instr_block(l_instr, loop_body_block, loop_body_block, loop_body_block, continuation_block);
+                    process_instr_block(l_instr.instrs, loop_body_block, loop_body_block, loop_body_block, continuation_block);
 
                     builder.CreateBr(loop_body_block);
                     builder.SetInsertPoint(continuation_block);
@@ -888,7 +882,7 @@ namespace sg {
                     auto& r_instr = *GET(*instr, REPEAT);
                     auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
                     auto body_generator = [&](llvm::BasicBlock* insert_block, llvm::BasicBlock* loop_block, llvm::Value*) {
-                        process_instr_block(*r_instr.block, insert_block, loop_block, loop_block, continuation_block);
+                        process_instr_block(r_instr.block->instrs, insert_block, loop_block, loop_block, continuation_block);
                     };
                     make_repeat(regs[r_instr.count], r_instr.index, body_generator, builder.GetInsertBlock(), continuation_block);
                     builder.SetInsertPoint(continuation_block);
@@ -905,7 +899,7 @@ namespace sg {
                 } break;
 
                 default:
-                    gen.error(diags::not_implemented()); // TODO
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
             }
             if (terminated)
                 break;

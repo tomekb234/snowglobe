@@ -32,6 +32,8 @@ namespace sg {
     struct ll_optional_type;
     struct ll_type;
 
+    static const location DUMMY_LOCATION = whole_file(location());
+
     struct ll_number_type {
         enum kind_t {
             I1,
@@ -237,7 +239,7 @@ namespace sg {
 
         private:
 
-        llvm::BasicBlock* process_instr_block(const prog::instr_block& block, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block);
+        llvm::BasicBlock* process_instr_block(const vector<prog::ptr<prog::instr>>& instrs, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block);
         void make_repeat(code_generator::typed_llvm_value<> count, optional<prog::reg_index> index, function<void(llvm::BasicBlock*,llvm::BasicBlock*,llvm::Value*)> loop_body, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block);
     };
 }
