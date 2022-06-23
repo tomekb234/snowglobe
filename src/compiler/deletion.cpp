@@ -10,10 +10,15 @@ namespace sg {
         auto count = st.fields.size();
 
         for (size_t index = 0; index < count; index++) {
+            auto& type = *st.fields[index]->tp;
+            if (type_trivial(prog, type))
+                continue;
+
             auto extracted = fclr.new_reg();
             auto extract_instr = prog::extract_field_instr { value, index, extracted };
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
-            deletion_generator(fclr, extracted).add(*st.fields[index]->tp);
+
+            deletion_generator(fclr, extracted).add(type);
         }
     }
 
@@ -29,10 +34,15 @@ namespace sg {
             auto count = variant.tps.size();
 
             for (size_t index = 0; index < count; index++) {
+                auto& type = *variant.tps[index];
+                if (type_trivial(prog, type))
+                    continue;
+
                 auto extracted = fclr.new_reg();
                 auto extract_instr = prog::extract_variant_field_instr { value, variant_index, index, extracted };
                 fclr.add_instr(VARIANT(prog::instr, EXTRACT_VARIANT_FIELD, into_ptr(extract_instr)));
-                deletion_generator(fclr, extracted).add(*variant.tps[index]);
+
+                deletion_generator(fclr, extracted).add(type);
             }
         };
 
@@ -45,6 +55,9 @@ namespace sg {
     }
 
     void deletion_generator::add(const prog::type& type) {
+        if (type_trivial(prog, type))
+            return;
+
         switch (INDEX(type)) {
             case prog::type::STRUCT: {
                 auto struct_index = GET(type, STRUCT);
@@ -99,26 +112,38 @@ namespace sg {
         auto count = types.size();
 
         for (size_t index = 0; index < count; index++) {
+            auto& type = types[index];
+            if (type_trivial(prog, type))
+                continue;
+
             auto extracted = fclr.new_reg();
             auto extract_instr = prog::extract_field_instr { value, index, extracted };
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
-            deletion_generator(fclr, extracted).add(types[index]);
+
+            deletion_generator(fclr, extracted).add(type);
         }
     }
 
     void deletion_generator::add_of_array(const prog::array_type& array_type) {
         auto count = array_type.size;
+
         auto& type = *array_type.tp;
+        if (type_trivial(prog, type))
+            return;
 
         for (size_t index = 0; index < count; index++) {
             auto extracted = fclr.new_reg();
             auto extract_instr = prog::extract_field_instr { value, index, extracted };
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(extract_instr)));
+
             deletion_generator(fclr, extracted).add(type);
         }
     }
 
     void deletion_generator::add_of_optional(const prog::type& inner_type) {
+        if (type_trivial(prog, inner_type))
+            return;
+
         auto test_result = fclr.new_reg();
         auto test_instr = prog::test_optional_instr { value, test_result };
         fclr.add_instr(VARIANT(prog::instr, TEST_OPTIONAL, into_ptr(test_instr)));
@@ -127,6 +152,7 @@ namespace sg {
             auto extracted = fclr.new_reg();
             auto extract_instr = prog::extract_optional_value_instr { value, extracted };
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_OPTIONAL_VALUE, into_ptr(extract_instr)));
+
             deletion_generator(fclr, extracted).add(inner_type);
         };
 
