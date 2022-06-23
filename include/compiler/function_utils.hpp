@@ -23,7 +23,7 @@ namespace sg {
         pair<prog::reg_index, prog::type_local> add_var_confinement(prog::var_index var_index, location loc);
         void add_var_deletion(prog::var_index index, location loc);
 
-        pair<prog::reg_index, prog::ptr_type> add_ptr_extraction(prog::reg_index value, prog::type&& type, location loc);
+        pair<prog::reg_index, prog::ptr_type> add_ptr_extraction(prog::reg_index value, const prog::type& type, location loc);
     };
 }
 

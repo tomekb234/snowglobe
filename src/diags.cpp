@@ -271,8 +271,12 @@ namespace sg::diags {
         stream << "'" << endl;
     }
 
-    void slice_not_allowed::write(ostream& stream) const {
-        stream << "Slice type not allowed" << endl;
+    void weak_pointer_dereference::write(ostream& stream) const {
+        stream << "Cannot dereference a weak pointer" << endl;
+    }
+
+    void slice_dereference::write(ostream& stream) const {
+        stream << "Cannot dereference a slice" << endl;
     }
 
     void trivial_type_with_confinement_marker::write(ostream& stream) const {

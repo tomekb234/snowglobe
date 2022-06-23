@@ -19,7 +19,6 @@ namespace sg::prog {
     const type_local UNIT_PTR_TYPE_LOCAL = { make_ptr(copy_type(UNIT_PTR_TYPE)), false };
 
     static array_type copy_array_type(const array_type& tp);
-    static ptr_type copy_ptr_type(const ptr_type& tp);
     static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& tp);
     static func_type copy_func_type(const func_type& tp);
     static func_with_ptr_type copy_func_with_ptr_type(const func_with_ptr_type& tp);
@@ -149,12 +148,12 @@ namespace sg::prog {
         return { make_ptr(copy_type(*tp.tp)), tp.confined };
     }
 
-    static array_type copy_array_type(const array_type& tp) {
-        return { make_ptr(copy_type(*tp.tp)), tp.size };
+    ptr_type copy_ptr_type(const ptr_type& tp) {
+        return { tp.kind, make_ptr(copy_type_pointed(*tp.target_tp)) };
     }
 
-    static ptr_type copy_ptr_type(const ptr_type& tp) {
-        return { tp.kind, make_ptr(copy_type_pointed(*tp.target_tp)) };
+    static array_type copy_array_type(const array_type& tp) {
+        return { make_ptr(copy_type(*tp.tp)), tp.size };
     }
 
     static inner_ptr_type copy_inner_ptr_type(const inner_ptr_type& tp) {

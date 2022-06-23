@@ -732,6 +732,7 @@ namespace sg::prog {
     constant copy_const(const constant& con);
     type copy_type(const type& tp);
     type_local copy_type_local(const type_local& tp);
+    ptr_type copy_ptr_type(const ptr_type& tp);
 
     bool types_equal(const type& type_a, const type& type_b);
     bool types_local_equal(const type_local& type_a, const type_local& type_b);

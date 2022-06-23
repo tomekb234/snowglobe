@@ -168,31 +168,31 @@ namespace sg {
         }
     }
 
-    pair<prog::reg_index, prog::ptr_type> function_utils::add_ptr_extraction(prog::reg_index value, prog::type&& type, location loc) {
+    pair<prog::reg_index, prog::ptr_type> function_utils::add_ptr_extraction(prog::reg_index value, const prog::type& type, location loc) {
         switch (INDEX(type)) {
             case prog::type::PTR: {
                 auto& ptr_type = *GET(type, PTR);
-                return { value, move(ptr_type) };
+                return { value, copy_ptr_type(ptr_type) };
             }
 
             case prog::type::INNER_PTR: {
-                auto& ptr_type = *GET(type, INNER_PTR);
                 auto result = fclr.new_reg();
                 auto extract_instr = prog::ptr_conversion_instr { value, result };
                 fclr.add_instr(VARIANT(prog::instr, EXTRACT_INNER_PTR, into_ptr(extract_instr)));
-                return { result, move(ptr_type) };
+                auto& ptr_type = *GET(type, INNER_PTR);
+                return { result, copy_ptr_type(ptr_type) };
             }
 
             case prog::type::FUNC_WITH_PTR: {
-                auto& ptr_type = *GET(type, FUNC_WITH_PTR);
                 auto result = fclr.new_reg();
                 auto extract_instr = prog::ptr_conversion_instr { value, result };
                 fclr.add_instr(VARIANT(prog::instr, EXTRACT_VALUE_PTR, into_ptr(extract_instr)));
-                return { result, move(ptr_type) };
+                auto& ptr_type = *GET(type, FUNC_WITH_PTR);
+                return { result, copy_ptr_type(ptr_type) };
             }
 
             default:
-                error(diags::invalid_type(prog, move(type), diags::type_kind::POINTER, loc));
+                error(diags::invalid_type(prog, copy_type(type), diags::type_kind::POINTER, loc));
         }
     }
 }

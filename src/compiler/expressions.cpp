@@ -965,12 +965,14 @@ namespace sg {
         else
             tie(value, type) = compile(ast, true);
 
-        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, copy_type(*type.tp), ast.loc);
+        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, *type.tp, ast.loc);
         auto& type_pointed = *ptr_type.target_tp;
         auto& target_type = *type_pointed.tp;
 
+        if (ptr_type.kind == prog::ptr_type::WEAK)
+            error(diags::weak_pointer_dereference(ast.loc));
         if (type_pointed.slice)
-            error(diags::slice_not_allowed(ast.loc));
+            error(diags::slice_dereference(ast.loc));
 
         auto result = fclr.new_reg();
         auto read_instr = prog::ptr_read_instr { ptr_value, result };
@@ -1000,7 +1002,7 @@ namespace sg {
         tie(value, type_local) = compile(ast, true);
         auto& type = *type_local.tp;
 
-        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, copy_type(type), ast.loc);
+        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, type, ast.loc);
 
         if (ptr_type.kind != prog::ptr_type::WEAK)
             error(diags::invalid_type(prog, move(type), diags::type_kind::WEAK_POINTER, ast.loc));
@@ -1095,7 +1097,7 @@ namespace sg {
             return { result, copy_type_local(prog::SIZE_TYPE_LOCAL) };
         }
 
-        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, copy_type(type), ast.loc);
+        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, type, ast.loc);
         auto& type_pointed = *ptr_type.target_tp;
 
         if (!type_pointed.slice && !INDEX_EQ(*type_pointed.tp, ARRAY))
@@ -1150,7 +1152,7 @@ namespace sg {
                 auto [left_value, left_type_local] = compile(expr_ast, confined);
                 auto& left_type = *left_type_local.tp;
 
-                auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, copy_type(left_type), expr_ast.loc);
+                auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, left_type, expr_ast.loc);
                 auto slice = ptr_type.target_tp->slice;
                 auto& type = *ptr_type.target_tp->tp;
 
@@ -1161,9 +1163,7 @@ namespace sg {
                     case ast::extraction_expr::FIELD_REF: {
                         auto name = GET(extr_ast, FIELD_REF);
 
-                        if (slice)
-                            error(diags::slice_not_allowed(expr_ast.loc));
-                        if (!INDEX_EQ(type, STRUCT))
+                        if (slice || !INDEX_EQ(type, STRUCT))
                             error(diags::invalid_type(prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
 
                         auto struct_index = GET(type, STRUCT);
@@ -1185,9 +1185,7 @@ namespace sg {
                     case ast::extraction_expr::INDEX_REF: {
                         auto field = GET(extr_ast, INDEX_REF);
 
-                        if (slice)
-                            error(diags::slice_not_allowed(expr_ast.loc));
-                        if (!INDEX_EQ(type, TUPLE))
+                        if (slice || !INDEX_EQ(type, TUPLE))
                             error(diags::invalid_type(prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
 
                         auto types = as_cref_vector(GET(type, TUPLE));
@@ -1407,12 +1405,14 @@ namespace sg {
             case ast::expr::DEREFERENCE: {
                 auto& expr_ast = *GET(ast, DEREFERENCE);
                 auto [value, type] = compile(expr_ast, true);
-                auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, move(*type.tp), ast.loc);
+                auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(value, *type.tp, ast.loc);
                 auto& type_pointed = *ptr_type.target_tp;
                 auto& target_type = *type_pointed.tp;
 
+                if (ptr_type.kind == prog::ptr_type::WEAK)
+                    error(diags::weak_pointer_dereference(ast.loc));
                 if (type_pointed.slice)
-                    error(diags::slice_not_allowed(ast.loc));
+                    error(diags::slice_dereference(ast.loc));
 
                 return VARIANT(lvalue, DEREFERENCE, make_pair(ptr_value, move(target_type)));
             }
@@ -1510,9 +1510,12 @@ namespace sg {
         auto [left_value, left_type_local] = compile(expr_ast, true);
         auto& left_type = *left_type_local.tp;
 
-        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, copy_type(left_type), expr_ast.loc);
+        auto [ptr_value, ptr_type] = function_utils(fclr).add_ptr_extraction(left_value, left_type, expr_ast.loc);
         auto slice = ptr_type.target_tp->slice;
         auto& type = *ptr_type.target_tp->tp;
+
+        if (ptr_type.kind == prog::ptr_type::WEAK)
+            error(diags::weak_pointer_dereference(expr_ast.loc));
 
         prog::reg_index target_ptr_value;
         prog::type_pointed target_type;
@@ -1521,9 +1524,7 @@ namespace sg {
             case ast::extraction_expr::FIELD: {
                 auto name = GET(extr_ast, FIELD);
 
-                if (slice)
-                    error(diags::slice_not_allowed(expr_ast.loc));
-                if (!INDEX_EQ(type, STRUCT))
+                if (slice || !INDEX_EQ(type, STRUCT))
                     error(diags::invalid_type(prog, move(type), diags::type_kind::STRUCT, expr_ast.loc));
 
                 auto struct_index = GET(type, STRUCT);
@@ -1545,9 +1546,7 @@ namespace sg {
             case ast::extraction_expr::INDEX: {
                 auto field = GET(extr_ast, INDEX);
 
-                if (slice)
-                    error(diags::slice_not_allowed(expr_ast.loc));
-                if (!INDEX_EQ(type, TUPLE))
+                if (slice || !INDEX_EQ(type, TUPLE))
                     error(diags::invalid_type(prog, move(type), diags::type_kind::TUPLE, expr_ast.loc));
 
                 auto types = as_cref_vector(GET(type, TUPLE));

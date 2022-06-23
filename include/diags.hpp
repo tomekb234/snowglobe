@@ -134,7 +134,8 @@ namespace sg::diags {
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_struct, error, const prog::struct_type&, st, const prog::struct_type&, expected);
     DIAG2(invalid_size_constant_type, error, const prog::program&, prog, prog::type, type);
-    DIAG0(slice_not_allowed, error);
+    DIAG0(weak_pointer_dereference, error);
+    DIAG0(slice_dereference, error);
     DIAG0(trivial_type_with_confinement_marker, warning);
     DIAG0(restrictive_pointer_type, warning);
 
