@@ -9,7 +9,7 @@
 namespace sg {
     using namespace sg::utils;
 
-    void assignment_generator::add() {
+    void assignment_generator::add(const lvalue& lval) {
         switch (INDEX(lval)) {
             case lvalue::IGNORED: {
                 if (!type.confined)
@@ -97,7 +97,7 @@ namespace sg {
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
 
             auto field_type = prog::type_local { make_ptr(copy_type(field_types[index])), confined };
-            assignment_generator(fclr, lvals[index], extracted, field_type, loc).add();
+            assignment_generator(fclr, extracted, field_type, loc).add(lvals[index]);
         }
     }
 
@@ -118,7 +118,7 @@ namespace sg {
             auto instr = prog::extract_field_instr { value, index, extracted };
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
 
-            assignment_generator(fclr, lvals[index], extracted, item_type, loc).add();
+            assignment_generator(fclr, extracted, item_type, loc).add(lvals[index]);
         }
     }
 
@@ -138,7 +138,7 @@ namespace sg {
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
 
             auto field_type = prog::type_local { make_ptr(copy_type(*st.fields[index]->tp)), confined };
-            assignment_generator(fclr, lvals[index], extracted, field_type, loc).add();
+            assignment_generator(fclr, extracted, field_type, loc).add(lvals[index]);
         }
     }
 
@@ -154,7 +154,7 @@ namespace sg {
         fclr.add_instr(VARIANT(prog::instr, PTR_WRITE, into_ptr(write_instr)));
     }
 
-    void assignment_generator::add_from_swap() {
+    void assignment_generator::add_from_swap(const lvalue& lval) {
         switch (INDEX(lval)) {
             case lvalue::VAR: {
                 auto var_index = GET(lval, VAR);
@@ -230,7 +230,7 @@ namespace sg {
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
 
             auto field_type = prog::type_local { make_ptr(copy_type(field_types[index])), confined };
-            assignment_generator(fclr, lvals[index], extracted, field_type, loc).add_from_swap();
+            assignment_generator(fclr, extracted, field_type, loc).add_from_swap(lvals[index]);
         }
     }
 
@@ -251,7 +251,7 @@ namespace sg {
             auto instr = prog::extract_field_instr { value, index, extracted };
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
 
-            assignment_generator(fclr, lvals[index], extracted, item_type, loc).add_from_swap();
+            assignment_generator(fclr, extracted, item_type, loc).add_from_swap(lvals[index]);
         }
     }
 
@@ -271,7 +271,7 @@ namespace sg {
             fclr.add_instr(VARIANT(prog::instr, EXTRACT_FIELD, into_ptr(instr)));
 
             auto field_type = prog::type_local { make_ptr(copy_type(*st.fields[index]->tp)), confined };
-            assignment_generator(fclr, lvals[index], extracted, field_type, loc).add_from_swap();
+            assignment_generator(fclr, extracted, field_type, loc).add_from_swap(lvals[index]);
         }
     }
 

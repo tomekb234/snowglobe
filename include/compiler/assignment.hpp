@@ -8,18 +8,17 @@ namespace sg {
         function_compiler& fclr;
         compiler& clr;
 
-        const lvalue& lval;
         prog::reg_index value;
         const prog::type_local& type;
         location loc;
 
         public:
 
-        assignment_generator(function_compiler& fclr, const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) :
-            compiler_base(fclr), fclr(fclr), clr(fclr.clr), lval(lval), value(value), type(type), loc(loc) { }
+        assignment_generator(function_compiler& fclr, prog::reg_index value, const prog::type_local& type, location loc)
+            : compiler_base(fclr), fclr(fclr), clr(fclr.clr), value(value), type(type), loc(loc) { }
 
-        void add();
-        void add_from_swap();
+        void add(const lvalue& lval);
+        void add_from_swap(const lvalue& lval);
 
         private:
 

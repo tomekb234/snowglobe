@@ -42,14 +42,14 @@ namespace sg {
                 auto& assignment_ast = *GET(ast, ASSIGNMENT);
                 auto [value, type] = expression_compiler(fclr).compile(*assignment_ast.value, false);
                 auto lval = expression_compiler(fclr).compile_left(*assignment_ast.lvalue, { type });
-                assignment_generator(fclr, lval, value, type, assignment_ast.value->loc).add();
+                assignment_generator(fclr, value, type, assignment_ast.value->loc).add(lval);
             } break;
 
             case ast::stmt::COMPOUND_ASSIGNMENT: {
                 auto& expr_ast = *GET(ast, COMPOUND_ASSIGNMENT)->expr;
                 auto [value, type] = expression_compiler(fclr).compile_binary_operation(expr_ast);
                 auto lval = expression_compiler(fclr).compile_left(*expr_ast.left, { type });
-                assignment_generator(fclr, lval, value, type, expr_ast.right->loc).add();
+                assignment_generator(fclr, value, type, expr_ast.right->loc).add(lval);
             } break;
 
             case ast::stmt::LOCALLY_BLOCK:
@@ -108,8 +108,8 @@ namespace sg {
         auto [value_a, type_a] = function_utils(fclr).add_read_for_swap(lval_a, left_ast.loc);
         auto [value_b, type_b] = function_utils(fclr).add_read_for_swap(lval_b, right_ast.loc);
 
-        assignment_generator(fclr, lval_a, value_b, type_b, right_ast.loc).add_from_swap();
-        assignment_generator(fclr, lval_b, value_a, type_a, left_ast.loc).add_from_swap();
+        assignment_generator(fclr, value_b, type_b, right_ast.loc).add_from_swap(lval_a);
+        assignment_generator(fclr, value_a, type_a, left_ast.loc).add_from_swap(lval_b);
     }
 
     void statement_compiler::compile_swap_block(const ast::swap_block_stmt& ast) {
@@ -133,8 +133,8 @@ namespace sg {
             auto [value_a, type_a] = function_utils(fclr).add_read_for_swap(lval_a, left_ast.loc);
             auto [value_b, type_b] = function_utils(fclr).add_read_for_swap(lval_b, right_ast.loc);
 
-            assignment_generator(fclr, lval_a, value_b, type_b, right_ast.loc).add_from_swap();
-            assignment_generator(fclr, lval_b, value_a, type_a, left_ast.loc).add_from_swap();
+            assignment_generator(fclr, value_b, type_b, right_ast.loc).add_from_swap(lval_a);
+            assignment_generator(fclr, value_a, type_a, left_ast.loc).add_from_swap(lval_b);
         };
 
         fclr.push_frame();
@@ -216,7 +216,7 @@ namespace sg {
 
                 auto inner_type = prog::type_local { make_ptr(copy_type(*GET(*type.tp, OPTIONAL))), type.confined };
                 auto lval = expression_compiler(fclr).compile_left(lvalue_ast, { inner_type });
-                assignment_generator(fclr, lval, result, inner_type, value_ast.loc).add();
+                assignment_generator(fclr, result, inner_type, value_ast.loc).add(lval);
 
                 compile_block(block_ast, true);
             };
@@ -319,7 +319,7 @@ namespace sg {
 
                 auto field_type = prog::type_local { make_ptr(copy_type(*variant.tps[index])), confined };
                 auto lval = expression_compiler(fclr).compile_left(arg_asts[index], { field_type });
-                assignment_generator(fclr, lval, extracted, field_type, value_ast.loc).add();
+                assignment_generator(fclr, extracted, field_type, value_ast.loc).add(lval);
             }
 
             compile_block(block_ast, true);
@@ -400,7 +400,7 @@ namespace sg {
 
                 auto inner_type = prog::type_local { make_ptr(copy_type(*GET(*type.tp, OPTIONAL))), type.confined };
                 auto lval = expression_compiler(fclr).compile_left(lvalue_ast, { inner_type });
-                assignment_generator(fclr, lval, result, inner_type, value_ast.loc).add();
+                assignment_generator(fclr, result, inner_type, value_ast.loc).add(lval);
 
                 compile_block(block_ast, true);
             };
@@ -507,7 +507,7 @@ namespace sg {
 
                 auto lval = expression_compiler(fclr).compile_left(lvalue_ast, { type_local });
 
-                assignment_generator(fclr, lval, value, type_local, begin_ast.loc).add();
+                assignment_generator(fclr, value, type_local, begin_ast.loc).add(lval);
 
                 compile_block(block_ast, true);
 

@@ -168,9 +168,7 @@ namespace sg::diags {
     DIAG0(missing_return, error);
     DIAG0(unreachable_code, warning);
 
-    // Code generator diagnostics
-
-    DIAG1(code_generator_fail, error, string, text);
+    DIAG1(code_generator_fail, error, string, text); // TODO remove this
 }
 
 #endif
