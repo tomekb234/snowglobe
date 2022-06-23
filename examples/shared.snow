@@ -1,6 +1,7 @@
 func f(p: !*i8) {
     *p += 1;
     print_int(*p);
+    print_line("");
 }
 
 func main() {
@@ -10,10 +11,12 @@ func main() {
     var p2 = p;
 
     print_int(*p1);
+    print_line("");
 
     *p2 = -123;
 
     print_int(*p1);
+    print_line("");
 
     f(p);
     f(p);

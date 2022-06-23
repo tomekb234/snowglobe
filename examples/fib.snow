@@ -6,4 +6,5 @@ func main() {
     var n = read_int() as i32;
     var f = fib(n);
     print_int(f);
+    print_line("");
 }

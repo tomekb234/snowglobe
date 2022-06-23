@@ -1,6 +1,7 @@
 func f(w: !~i8) {
     if var p in ?w {
         print_int(*p);
+        print_line("");
     } else {
         print_line("empty");
     }

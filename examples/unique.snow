@@ -1,11 +1,13 @@
 func f(p: !@i8) -> @i8 {
     print_int(*p);
+    print_line("");
     p
 }
 
 func g(p: &i8) {
     *p += 1;
     print_int(*p);
+    print_line("");
 }
 
 func main() {

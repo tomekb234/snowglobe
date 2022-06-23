@@ -24,5 +24,8 @@ func main() {
 
     for var i in 0u8 .. n {
         print_int(a[i]);
+        print(" ");
     }
+
+    print_line("");
 }
