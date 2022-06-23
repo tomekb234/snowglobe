@@ -80,7 +80,7 @@ namespace sg {
 
         auto false_branch = [&] () {
             if (variant_index < variant_count - 1)
-                copy_generator(fclr, value).add_of_enum_variants(en, variant_index + 1);
+                add_of_enum_variants(en, variant_index + 1);
         };
 
         function_utils(fclr).add_branch(test_result, true_branch, false_branch);

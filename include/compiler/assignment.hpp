@@ -7,7 +7,6 @@ namespace sg {
     class assignment_generator : compiler_base {
         function_compiler& fclr;
         compiler& clr;
-
         prog::reg_index value;
         const prog::type_local& type;
         location loc;

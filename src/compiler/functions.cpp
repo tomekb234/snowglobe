@@ -76,7 +76,7 @@ namespace sg {
         init();
 
         auto& st = *prog.struct_types[struct_index];
-        deletion_generator(*this).add_struct_destructor(0, st);
+        deletion_generator(*this, 0).add_struct_destructor(st);
 
         commit();
     }
@@ -85,7 +85,7 @@ namespace sg {
         init();
 
         auto& en = *prog.enum_types[enum_index];
-        deletion_generator(*this).add_enum_variants_destructor(0, en, 0);
+        deletion_generator(*this, 0).add_enum_variants_destructor(en, 0);
 
         commit();
     }
@@ -99,7 +99,7 @@ namespace sg {
             auto value = new_reg();
             auto instr = prog::read_global_var_instr { index, value };
             add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(instr)));
-            deletion_generator(*this).add(value, *prog.global_vars[index]->tp);
+            deletion_generator(*this, value).add(*prog.global_vars[index]->tp);
         }
 
         commit();

@@ -13,7 +13,7 @@ namespace sg {
         switch (INDEX(lval)) {
             case lvalue::IGNORED: {
                 if (!type.confined)
-                    deletion_generator(fclr).add(value, *type.tp);
+                    deletion_generator(fclr, value).add(*type.tp);
             } break;
 
             case lvalue::VAR: {
@@ -71,7 +71,7 @@ namespace sg {
         auto old_value = fclr.new_reg();
         auto read_instr = prog::read_global_var_instr { var_index, old_value };
         fclr.add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(read_instr)));
-        deletion_generator(fclr).add(old_value, var_type);
+        deletion_generator(fclr, old_value).add(var_type);
 
         value = conversion_generator(fclr).convert(value, type, var_type, loc);
 
@@ -146,7 +146,7 @@ namespace sg {
         auto old_value = fclr.new_reg();
         auto read_instr = prog::ptr_read_instr { ptr_value, old_value };
         fclr.add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(read_instr)));
-        deletion_generator(fclr).add(old_value, target_type);
+        deletion_generator(fclr, old_value).add(target_type);
 
         value = conversion_generator(fclr).convert(value, type, target_type, loc);
 

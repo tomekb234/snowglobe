@@ -32,7 +32,7 @@ namespace sg {
                 else {
                     auto [value, type] = expression_compiler(fclr).compile(expr_ast, false);
                     if (!type.confined)
-                        deletion_generator(fclr).add(value, *type.tp);
+                        deletion_generator(fclr, value).add(*type.tp);
                     if (INDEX_EQ(*type.tp, NEVER))
                         fclr.returned = true;
                 }
@@ -223,7 +223,7 @@ namespace sg {
 
             auto false_branch = [&] () {
                 if (!type.confined)
-                    deletion_generator(fclr).add(value, *type.tp);
+                    deletion_generator(fclr, value).add(*type.tp);
 
                 if (branch_index < branch_count - 1)
                     compile_if_branches(ast, branch_index + 1);
@@ -331,7 +331,7 @@ namespace sg {
                 compile_match_branches(ast, value, type, branch_index + 1);
             else {
                 if (!type.confined)
-                    deletion_generator(fclr).add(value, *type.tp);
+                    deletion_generator(fclr, value).add(*type.tp);
                 if (else_branch_ast)
                     compile_block(*else_branch_ast, true);
             }
@@ -407,7 +407,7 @@ namespace sg {
 
             auto false_branch = [&] () {
                 if (!type.confined)
-                    deletion_generator(fclr).add(value, *type.tp);
+                    deletion_generator(fclr, value).add(*type.tp);
 
                 if (else_block_ast)
                     compile_block(*else_block_ast, true);

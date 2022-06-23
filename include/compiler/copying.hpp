@@ -6,7 +6,6 @@
 namespace sg {
     class copy_generator : compiler_base {
         function_compiler& fclr;
-
         prog::reg_index value;
 
         public:

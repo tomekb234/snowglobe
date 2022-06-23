@@ -1074,7 +1074,7 @@ namespace sg {
         auto repeat_instr = prog::repeat_instr { size_value, fclr.new_reg(), into_ptr(block) };
         fclr.add_instr(VARIANT(prog::instr, REPEAT, into_ptr(repeat_instr)));
 
-        deletion_generator(fclr).add(value, type);
+        deletion_generator(fclr, value).add(type);
 
         auto result = fclr.new_reg();
         auto instr = prog::alloc_slice_instr { value, size_value, result };

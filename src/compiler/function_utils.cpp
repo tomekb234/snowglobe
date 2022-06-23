@@ -175,7 +175,7 @@ namespace sg {
                 auto value = fclr.new_reg();
                 auto read_instr = prog::read_var_instr { index, value };
                 fclr.add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(read_instr)));
-                deletion_generator(fclr).add(value, *var.type.tp);
+                deletion_generator(fclr, value).add(*var.type.tp);
             } else if (var.state & VAR_INITIALIZED)
                 error(diags::variable_not_deletable(var.name, var.state, loc));
         }
