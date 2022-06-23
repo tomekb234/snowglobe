@@ -57,14 +57,14 @@ const string BUILTINS = R"CODE(
     func read_line() -> @[u8] { builtin }
     func read_int() -> i64 { builtin }
     func read_uint() -> u64 { builtin }
-    func read_float() -> f64 { builtin }
+    func read_float() -> f64 { builtin }*/
 
     func print(output: &[u8]) { builtin }
     func print_word(output: &[u8]) { builtin }
     func print_line(output: &[u8]) { builtin }
     func print_int(output: i64) { builtin }
     func print_uint(output: u64) { builtin }
-    func print_float(output: f64) { builtin }*/
+    func print_float(output: f64) { builtin }
 
     func exit(status: i32) -> never { builtin }
     /*func error(message: &[u8]) -> never { builtin }

@@ -225,9 +225,16 @@ namespace sg {
         typed_llvm_value<> make_external_exit_call(llvm::Value* status, llvm::IRBuilderBase& builder);
         llvm::Value* make_external_malloc_call(llvm::Type* target_type, llvm::Value* size, llvm::IRBuilderBase& builder);
         void make_external_free_call(llvm::Value* heap_ptr, llvm::IRBuilderBase& builder);
+        typed_llvm_value<> make_external_printf_call(string format, vector<llvm::Value*> args, llvm::IRBuilderBase& builder);
 
         // builtin functions
         void define_builtin_exit_func(llvm::Function* func);
+        void define_builtin_print_func(llvm::Function* func);
+        void define_builtin_print_word_func(llvm::Function* func);
+        void define_builtin_print_line_func(llvm::Function* func);
+        void define_builtin_print_int_func(llvm::Function* func);
+        void define_builtin_print_uint_func(llvm::Function* func);
+        void define_builtin_print_float_func(llvm::Function* func);
     };
 
     class function_code_generator {

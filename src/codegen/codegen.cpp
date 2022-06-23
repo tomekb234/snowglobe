@@ -181,6 +181,12 @@ namespace sg {
                     return make_empty_optional_value(get_type_from_prog(value_type), builder);
             }
 
+            case prog::constant::GLOBAL_VAR_PTR: {
+                auto& global_var = global_vars[GET(constant, GLOBAL_VAR_PTR)];
+                auto pointer_type = get_pointer_type(global_var.type, false, { }, false);
+                return make_pointer_value(pointer_type, global_var.value, { }, { }, { }, builder);
+            }
+
             default:
                 error(diags::not_implemented(DUMMY_LOCATION)); // TODO
         }
@@ -767,6 +773,21 @@ namespace sg {
 
                     auto ptr_type = gen.get_pointer_type(value.type, false, { }, true);
                     regs[as_instr.result] = gen.make_pointer_value(ptr_type, heap_addr, { }, { }, regs[as_instr.size].value, builder);
+                } break;
+
+                case prog::instr::ARRAY_PTR_INTO_SLICE: {
+                    auto& pc_instr = *GET(*instr, ARRAY_PTR_INTO_SLICE);
+
+                    auto& old_ptr = regs[pc_instr.value];
+                    auto data_ptr = gen.extract_data_ptr_from_pointer(old_ptr, builder);
+                    auto ref_cnt_ptr = gen.extract_ref_cnt_ptr_from_pointer(old_ptr, builder);
+                    auto owner_ptr = gen.extract_owner_ptr_from_pointer(old_ptr, builder);
+
+                    auto& old_ptr_type = GET(*old_ptr.type, POINTER);
+                    auto& old_array_type = GET(*old_ptr_type.target, ARRAY);
+                    auto data_ptr_casted = builder.CreateBitCast(data_ptr, llvm::PointerType::getUnqual(old_array_type.value->get_type()));
+                    auto new_ptr_type = gen.get_pointer_type(old_array_type.value, old_ptr_type.has_ref_cnt, old_ptr_type.owner, true);
+                    regs[pc_instr.result] = gen.make_pointer_value(new_ptr_type, data_ptr_casted, ref_cnt_ptr, owner_ptr, { builder.getInt64(old_array_type.size) }, builder);
                 } break;
 
                 case prog::instr::GET_SLICE_LENGTH: {
