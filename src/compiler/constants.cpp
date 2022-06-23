@@ -9,58 +9,52 @@ namespace sg {
 
     pair<prog::constant, prog::type> constant_compiler::compile(const ast::expr& ast) {
         switch (INDEX(ast)) {
-            case ast::expr::TUPLE:
-                return compile_tuple(as_cref_vector(GET(ast, TUPLE)), ast.loc);
+            case ast::expr::TUPLE: {
+                auto expr_asts = as_cref_vector(GET(ast, TUPLE));
+                return compile_tuple(expr_asts, ast.loc);
+            }
 
-            case ast::expr::ARRAY:
-                return compile_array(as_cref_vector(GET(ast, ARRAY)), ast.loc);
+            case ast::expr::ARRAY: {
+                auto expr_asts = as_cref_vector(GET(ast, ARRAY));
+                return compile_array(expr_asts, ast.loc);
+            }
 
             case ast::expr::APPLICATION: {
                 auto& [receiver_ast_ptr, arg_ast_ptrs] = GET(ast, APPLICATION);
                 return compile_application(*receiver_ast_ptr, as_cref_vector(arg_ast_ptrs), ast.loc);
             }
 
-            case ast::expr::NAME:
-                return compile_name(GET(ast, NAME), ast.loc);
+            case ast::expr::NAME: {
+                auto name = GET(ast, NAME);
+                return compile_name(name, ast.loc);
+            }
 
             case ast::expr::VARIANT_NAME: {
                 auto [name, variant_name] = GET(ast, VARIANT_NAME);
                 return compile_variant_name(name, variant_name, ast.loc);
             }
 
-            case ast::expr::LITERAL:
-                return compile_literal(*GET(ast, LITERAL));
+            case ast::expr::LITERAL: {
+                auto& expr_ast = *GET(ast, LITERAL);
+                return compile_literal(expr_ast);
+            }
 
             case ast::expr::SOME: {
-                auto [inner_value, inner_type] = compile(*GET(ast, SOME));
-                auto value = VARIANT(prog::constant, OPTIONAL, optional<ptr<prog::constant>>(into_ptr(inner_value)));
-                auto type = VARIANT(prog::type, OPTIONAL, into_ptr(inner_type));
-                return { move(value), move(type) };
+                auto& expr_ast = *GET(ast, SOME);
+                return compile_some(expr_ast);
             }
 
-            case ast::expr::NONE: {
-                auto value = VARIANT(prog::constant, OPTIONAL, optional<ptr<prog::constant>>());
-                auto type = VARIANT(prog::type, OPTIONAL, make_ptr(copy_type(prog::NEVER_TYPE)));
-                return { move(value), move(type) };
-            }
+            case ast::expr::NONE:
+                return compile_none();
 
             case ast::expr::GLOBAL_VAR_REF: {
-                auto& name = GET(ast, GLOBAL_VAR_REF);
-                auto index = clr.get_global_name(name, { global_name_kind::VAR }, ast.loc).index;
-                auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, index);
-                auto& var_type = *prog.global_vars[index]->tp;
-                auto type = prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false);
-                return { move(value), move(type) };
+                auto name = GET(ast, GLOBAL_VAR_REF);
+                return compile_global_var_ref(name, ast.loc);
             }
 
             case ast::expr::LENGTH: {
-                auto& target_ast = *GET(ast, LENGTH);
-                auto target_type = compile(target_ast).second;
-                if (!INDEX_EQ(target_type, ARRAY))
-                    error(diags::invalid_type(prog, move(target_type), diags::type_kind::ARRAY, target_ast.loc));
-                auto size = GET(target_type, ARRAY)->size;
-                auto value = VARIANT(prog::constant, NUMBER, encode_number(size));
-                return { move(value), copy_type(prog::SIZE_TYPE) };
+                auto& expr_ast = *GET(ast, LENGTH);
+                return compile_length(expr_ast);
             }
 
             default:
@@ -168,7 +162,7 @@ namespace sg {
         vector<prog::type> types;
 
         for (auto& value_ast : value_asts) {
-            auto [value, type] = compile(value_ast);
+            auto [value, type] = constant_compiler(clr).compile(value_ast);
             values.push_back(move(value));
             types.push_back(move(type));
         }
@@ -190,7 +184,7 @@ namespace sg {
         auto common_type = copy_type(prog::NEVER_TYPE);
 
         for (auto& value_ast : value_asts) {
-            auto [value, type] = compile(value_ast);
+            auto [value, type] = constant_compiler(clr).compile(value_ast);
             common_type = compiler_utils(clr).common_supertype(common_type, type, loc);
             values.push_back(move(value));
             types.push_back(move(type));
@@ -205,7 +199,7 @@ namespace sg {
     }
 
     pair<prog::constant, prog::type> constant_compiler::compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, location loc) {
-        auto receiver_type = compile(receiver_ast).second;
+        auto receiver_type = constant_compiler(clr).compile(receiver_ast).second;
 
         switch (INDEX(receiver_type)) {
             case prog::type::STRUCT_CTOR: {
@@ -225,7 +219,7 @@ namespace sg {
                 vector<prog::constant> values;
 
                 for (size_t index = 0; index < count; index++) {
-                    auto [value, type] = compile(value_asts[index]);
+                    auto [value, type] = constant_compiler(clr).compile(value_asts[index]);
                     auto& field_type = *st.fields[index]->tp;
                     value = compiler_utils(clr).convert_const(move(value), type, field_type, value_asts[index].get().loc);
                     values.push_back(move(value));
@@ -247,7 +241,7 @@ namespace sg {
                 vector<prog::constant> values;
 
                 for (size_t index = 0; index < count; index++) {
-                    auto [value, type] = compile(value_asts[index]);
+                    auto [value, type] = constant_compiler(clr).compile(value_asts[index]);
                     auto& field_type = *variant.tps[index];
                     value = compiler_utils(clr).convert_const(move(value), type, field_type, value_asts[index].get().loc);
                     values.push_back(move(value));
@@ -318,6 +312,36 @@ namespace sg {
         auto value = VARIANT(prog::constant, UNIT, monostate());
         auto type = VARIANT(prog::type, ENUM_CTOR, make_pair(enum_index, variant_index));
         return { move(value), move(type) };
+    }
+
+    pair<prog::constant, prog::type> constant_compiler::compile_some(const ast::expr& ast) {
+        auto [inner_value, inner_type] = constant_compiler(clr).compile(ast);
+        auto value = VARIANT(prog::constant, OPTIONAL, optional<ptr<prog::constant>>(into_ptr(inner_value)));
+        auto type = VARIANT(prog::type, OPTIONAL, into_ptr(inner_type));
+        return { move(value), move(type) };
+    }
+
+    pair<prog::constant, prog::type> constant_compiler::compile_none() {
+        auto value = VARIANT(prog::constant, OPTIONAL, optional<ptr<prog::constant>>());
+        auto type = VARIANT(prog::type, OPTIONAL, make_ptr(copy_type(prog::NEVER_TYPE)));
+        return { move(value), move(type) };
+    }
+
+    pair<prog::constant, prog::type> constant_compiler::compile_global_var_ref(string name, location loc) {
+        auto index = clr.get_global_name(name, { global_name_kind::VAR }, loc).index;
+        auto value = VARIANT(prog::constant, GLOBAL_VAR_PTR, index);
+        auto& var_type = *prog.global_vars[index]->tp;
+        auto type = prog::make_ptr_type(copy_type(var_type), prog::ptr_type::GLOBAL, false);
+        return { move(value), move(type) };
+    }
+
+    pair<prog::constant, prog::type> constant_compiler::compile_length(const ast::expr& ast) {
+        auto target_type = constant_compiler(clr).compile(ast).second;
+        if (!INDEX_EQ(target_type, ARRAY))
+            error(diags::invalid_type(prog, move(target_type), diags::type_kind::ARRAY, ast.loc));
+        auto size = GET(target_type, ARRAY)->size;
+        auto value = VARIANT(prog::constant, NUMBER, encode_number(size));
+        return { move(value), copy_type(prog::SIZE_TYPE) };
     }
 
     pair<prog::constant, prog::number_type> constant_compiler::compile_int_token(const ast::int_token& ast) {

@@ -25,6 +25,10 @@ namespace sg {
         pair<prog::constant, prog::type> compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, location loc);
         pair<prog::constant, prog::type> compile_name(string name, location loc);
         pair<prog::constant, prog::type> compile_variant_name(string name, string variant_name, location loc);
+        pair<prog::constant, prog::type> compile_some(const ast::expr& ast);
+        pair<prog::constant, prog::type> compile_none();
+        pair<prog::constant, prog::type> compile_global_var_ref(string name, location loc);
+        pair<prog::constant, prog::type> compile_length(const ast::expr& ast);
 
         pair<prog::constant, prog::number_type> compile_int_token(const ast::int_token& ast);
         pair<prog::constant, prog::number_type> compile_float_token(const ast::float_token& ast);
