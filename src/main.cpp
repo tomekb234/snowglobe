@@ -52,8 +52,7 @@ static string get_output_name(string& input_name);
 
 const string BUILTIN_NAME = "builtin";
 
-const string BUILTINS = "";
-/* const string BUILTINS = R"CODE( */
+const string BUILTINS = R"CODE(
 /*  */
 /* var argv: $[$[u8]] = builtin; */
 /*  */
@@ -71,12 +70,12 @@ const string BUILTINS = "";
 /* func print_uint(output: u64) { builtin } */
 /* func print_float(output: f64) { builtin } */
 /*  */
-/* func exit(status: i32) -> never { builtin } */
+func exit(status: i32) -> never { builtin }
 /* func error(message: &[u8]) -> never { builtin } */
 /* func unreachable() -> never { builtin } */
 /*  */
-/* )CODE"; */
-/*  */
+)CODE";
+
 int main(int argc, const char** argv) {
     if (!validate_args(argc, argv))
         return 1;

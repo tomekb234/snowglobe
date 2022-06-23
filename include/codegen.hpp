@@ -150,6 +150,7 @@ namespace sg {
 
         // global objects
         vector<typed_llvm_value<llvm::Function>> functions; // "type" of function is its return type
+        const static unordered_map<string, void(code_generator::*)(llvm::Function*)> builtin_ctors;
         vector<llvm::Function*> external_functions;
         vector<typed_llvm_value<>> global_vars;
         vector<ll_type*> struct_types;
@@ -220,6 +221,9 @@ namespace sg {
         typed_llvm_value<> make_external_exit_call(llvm::Value* status, llvm::IRBuilderBase& builder);
         llvm::Value* make_external_malloc_call(llvm::Type* target_type, llvm::Value* size, llvm::IRBuilderBase& builder);
         void make_external_free_call(llvm::Value* heap_ptr, llvm::IRBuilderBase& builder);
+
+        // builtin functions
+        void define_builtin_exit_func(llvm::Function* func);
     };
 
     class function_code_generator {

@@ -48,8 +48,13 @@ namespace sg {
             auto init_func = define_init_function();
 
             // generate function code
-            for (size_t i = 0; i < prog.global_funcs.size(); i++)
-                function_code_generator(*this, *prog.global_funcs[i], functions[i]).generate();
+            for (size_t i = 0; i < prog.global_funcs.size(); i++) {
+                auto& func_name = prog.global_funcs[i]->name;
+                if (func_name && builtin_ctors.count(*func_name))
+                    (this->*builtin_ctors.at(*func_name))(functions[i].value);
+                else
+                    function_code_generator(*this, *prog.global_funcs[i], functions[i]).generate();
+            }
             define_internal_main_function(init_func, functions[prog.entry_func].value, functions[prog.cleanup_func].value);
 
             // verify module well-formedness
