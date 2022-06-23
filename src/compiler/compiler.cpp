@@ -267,7 +267,7 @@ namespace sg {
         prog::type type;
 
         if (ast.tp) {
-            type = type_compiler(*this).compile(**ast.tp, false);
+            type = type_compiler(*this, false).compile(**ast.tp);
             value = compiler_utils(*this).convert_const(move(value), value_type, type, ast.loc);
         } else
             type = move(value_type);
@@ -288,7 +288,7 @@ namespace sg {
         for (const ast::func_param& param_ast : as_cref_vector(ast.params)) {
             param_names[param_ast.name] = params.size();
 
-            auto type = type_compiler(*this).compile_local(*param_ast.tp, true);
+            auto type = type_compiler(*this, true).compile_local(*param_ast.tp);
 
             if (type.confined)
                 confined = true;
@@ -300,7 +300,7 @@ namespace sg {
 
         prog::type return_type;
         if (ast.return_tp)
-            return_type = type_compiler(*this).compile(**ast.return_tp, true);
+            return_type = type_compiler(*this, true).compile(**ast.return_tp);
         else
             return_type = VARIANT(prog::type, UNIT, monostate());
 
@@ -337,7 +337,7 @@ namespace sg {
             if (field_names.count(field_ast.name))
                 error(diags::field_name_used(field_ast.name, field_ast.loc));
 
-            auto type = type_compiler(*this).compile(*field_ast.tp, false);
+            auto type = type_compiler(*this, false).compile(*field_ast.tp);
             if (st.copyable && !type_copyable(prog, type))
                 error(diags::type_not_copyable(prog, move(type), field_ast.tp->loc));
             if (!type_trivial(prog, type))
@@ -362,7 +362,7 @@ namespace sg {
 
             vector<prog::type> types;
             for (const ast::type& type_ast : as_cref_vector(variant_ast.tps)) {
-                auto type = type_compiler(*this).compile(type_ast, false);
+                auto type = type_compiler(*this, false).compile(type_ast);
                 if (en.copyable && !type_copyable(prog, type))
                     error(diags::type_not_copyable(prog, move(type), type_ast.loc));
                 if (!type_trivial(prog, type))

@@ -712,7 +712,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_numeric_cast(const ast::numeric_cast_expr& ast) {
         auto [value, type] = compile(*ast.value, true);
-        auto new_type = type_compiler(clr).compile_local(*ast.tp, false);
+        auto new_type = type_compiler(clr, false).compile_local(*ast.tp);
 
         if (!INDEX_EQ(*type.tp, NUMBER))
             error(diags::invalid_type(prog, move(*type.tp), diags::type_kind::NUMBER, ast.value->loc));
@@ -1392,7 +1392,7 @@ namespace sg {
                 if (name == ast::IGNORED_PLACEHOLDER)
                     error(diags::invalid_variable_name(name, var_decl_ast.loc));
 
-                auto type = var_decl_ast.tp ? type_compiler(clr).compile_local(**var_decl_ast.tp, false) : copy_type_local(*implicit_type);
+                auto type = var_decl_ast.tp ? type_compiler(clr, false).compile_local(**var_decl_ast.tp) : copy_type_local(*implicit_type);
 
                 auto var = fclr.add_var(name, move(type));
                 return VARIANT(lvalue, VAR, var);
