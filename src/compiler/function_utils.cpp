@@ -12,11 +12,13 @@ namespace sg {
 
     void function_utils::add_frame_cleanup(function_compiler::frame_index rev_index, location loc) {
         auto& fr = fclr.frames[fclr.frames.size() - rev_index - 1];
+        auto vars = fr.vars;
+        auto cleanup_actions = fr.cleanup_actions;
 
-        for (auto var_index : fr.vars)
-            function_utils(*this).add_var_deletion(var_index, loc);
+        for (auto var_index : vars)
+            add_var_deletion(var_index, loc);
 
-        for (auto iter = fr.cleanup_actions.rbegin(); iter != fr.cleanup_actions.rend(); iter++)
+        for (auto iter = cleanup_actions.rbegin(); iter != cleanup_actions.rend(); iter++)
             (*iter)();
     }
 
