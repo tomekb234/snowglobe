@@ -8,14 +8,34 @@ namespace sg {
         function_compiler& fclr;
         compiler& clr;
 
+        const lvalue& lval;
+        prog::reg_index value;
+        const prog::type_local& type;
+        location loc;
+
         public:
 
-        assignment_generator(function_compiler& fclr) : compiler_base(fclr), fclr(fclr), clr(fclr.clr) { }
+        assignment_generator(function_compiler& fclr, const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc) :
+            compiler_base(fclr), fclr(fclr), clr(fclr.clr), lval(lval), value(value), type(type), loc(loc) { }
 
-        void add(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
+        void add();
+        void add_from_swap();
 
-        pair<prog::reg_index, prog::type_local> add_read_for_swap(const lvalue& lval, location loc);
-        void add_write_from_swap(const lvalue& lval, prog::reg_index value, const prog::type_local& type, location loc);
+        private:
+
+        void add_to_var(prog::var_index var_index);
+        void add_to_global_var(prog::global_index var_index);
+        void add_to_tuple(vector<cref<lvalue>> lvals);
+        void add_to_array(vector<cref<lvalue>> lvals);
+        void add_to_struct(prog::global_index struct_index, vector<cref<lvalue>> lvals);
+        void add_to_dereference(prog::reg_index ptr_value, const prog::type& target_type);
+
+        void add_to_var_from_swap(prog::var_index var_index);
+        void add_to_global_var_from_swap(prog::global_index var_index);
+        void add_to_tuple_from_swap(vector<cref<lvalue>> lvals);
+        void add_to_array_from_swap(vector<cref<lvalue>> lvals);
+        void add_to_struct_from_swap(prog::global_index struct_index, vector<cref<lvalue>> lvals);
+        void add_to_dereference_from_swap(prog::reg_index ptr_value, const prog::type& target_type);
     };
 }
 

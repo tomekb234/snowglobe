@@ -1,17 +1,29 @@
 #include "compiler/function_utils.hpp"
+#include "compiler/conversions.hpp"
 #include "compiler/copying.hpp"
 #include "compiler/deletion.hpp"
+#include "compiler/compiler_utils.hpp"
 #include "diags.hpp"
 #include "utils.hpp"
 
 namespace sg {
     using namespace sg::utils;
 
+    void function_utils::add_frame_cleanup(function_compiler::frame_index rev_index, location loc) {
+        auto& fr = fclr.frames[fclr.frames.size() - rev_index - 1];
+
+        for (auto var_index : fr.vars)
+            function_utils(*this).add_var_deletion(var_index, loc);
+
+        for (auto iter = fr.cleanup_actions.rbegin(); iter != fr.cleanup_actions.rend(); iter++)
+            (*iter)();
+    }
+
     void function_utils::add_return(prog::reg_index value, location loc) {
         auto frame_count = fclr.frames.size();
 
         for (size_t index = 0; index < frame_count; index++)
-            fclr.add_frame_cleanup(index, loc);
+            add_frame_cleanup(index, loc);
 
         auto instr = prog::return_instr { value };
         fclr.add_instr(VARIANT(prog::instr, RETURN, into_ptr(instr)));
@@ -24,7 +36,7 @@ namespace sg {
         size_t index;
 
         for (index = 0; index < frame_count; index++) {
-            fclr.add_frame_cleanup(index, loc);
+            add_frame_cleanup(index, loc);
             if (fclr.frames[frame_count - index - 1].loop)
                 break;
         }
@@ -42,7 +54,7 @@ namespace sg {
         for (index = 0; index < frame_count; index++) {
             if (fclr.frames[frame_count - index - 1].loop)
                 break;
-            fclr.add_frame_cleanup(index, loc);
+            add_frame_cleanup(index, loc);
         }
 
         if (index == frame_count)
@@ -194,5 +206,136 @@ namespace sg {
             default:
                 error(diags::invalid_type(prog, copy_type(type), diags::type_kind::POINTER, loc));
         }
+    }
+
+    pair<prog::reg_index, prog::type_local> function_utils::add_read_for_swap(const lvalue& lval, location loc) {
+        auto fields = [&] (vector<cref<lvalue>> lvals) -> tuple<vector<prog::reg_index>, vector<prog::type>, bool> {
+            vector<prog::reg_index> values;
+            vector<prog::type> types;
+            optional<bool> all_confined;
+
+            for (const lvalue& lval : lvals) {
+                auto [value, type] = add_read_for_swap(lval, loc);
+
+                if (!type_trivial(prog, *type.tp)) {
+                    if (!all_confined)
+                        all_confined = { type.confined };
+                    else if (type.confined != *all_confined)
+                        error(diags::confinement_ambiguous(loc));
+                }
+
+                values.push_back(value);
+                types.push_back(move(*type.tp));
+            }
+
+            if (!all_confined)
+                all_confined = { false };
+
+            return { move(values), move(types), *all_confined };
+        };
+
+        switch (INDEX(lval)) {
+            case lvalue::IGNORED:
+                error(diags::expression_not_swappable(loc));
+
+            case lvalue::VAR: {
+                auto var_index = GET(lval, VAR);
+                auto& var = fclr.vars[var_index];
+                auto& state = var.state;
+
+                if (state != VAR_INITIALIZED)
+                    error(diags::variable_not_usable(var.name, state, loc));
+
+                auto result = fclr.new_reg();
+                auto instr = prog::read_var_instr { var_index, result };
+                fclr.add_instr(VARIANT(prog::instr, READ_VAR, into_ptr(instr)));
+
+                return { result, copy_type_local(var.type) };
+            }
+
+            case lvalue::GLOBAL_VAR: {
+                auto var_index = GET(lval, GLOBAL_VAR);
+                auto& type = *prog.global_vars[var_index]->tp;
+                auto type_local = prog::type_local { make_ptr(copy_type(type)), false };
+
+                auto result = fclr.new_reg();
+                auto instr = prog::read_global_var_instr { var_index, result };
+                fclr.add_instr(VARIANT(prog::instr, READ_GLOBAL_VAR, into_ptr(instr)));
+
+                return { result, move(type_local) };
+            }
+
+            case lvalue::TUPLE: {
+                auto [values, types, all_confined] = fields(as_cref_vector(GET(lval, TUPLE)));
+
+                auto result = fclr.new_reg();
+                auto instr = prog::make_tuple_instr { move(values), result };
+                fclr.add_instr(VARIANT(prog::instr, MAKE_TUPLE, into_ptr(instr)));
+
+                auto type = VARIANT(prog::type, TUPLE, into_ptr_vector(types));
+                auto type_local = prog::type_local { into_ptr(type), all_confined };
+
+                return { result, move(type_local) };
+            }
+
+            case lvalue::ARRAY: {
+                auto [values, types, all_confined] = fields(as_cref_vector(GET(lval, ARRAY)));
+                auto count = values.size();
+
+                prog::type common_type = copy_type(prog::NEVER_TYPE);
+
+                for (auto& type : types)
+                    common_type = compiler_utils(clr).common_supertype(common_type, type, loc);
+
+                for (size_t index = 0; index < count; index++)
+                    values[index] = conversion_generator(fclr).convert(values[index], types[index], common_type, all_confined, loc);
+
+                auto result = fclr.new_reg();
+                auto instr = prog::make_array_instr { move(values), result };
+                fclr.add_instr(VARIANT(prog::instr, MAKE_ARRAY, into_ptr(instr)));
+
+                auto array = prog::array_type { into_ptr(common_type), count };
+                auto type = VARIANT(prog::type, ARRAY, into_ptr(array));
+                auto type_local = prog::type_local { into_ptr(type), all_confined };
+
+                return { result, move(type_local) };
+            }
+
+            case lvalue::STRUCT: {
+                auto& [struct_index, lval_ptrs] = GET(lval, STRUCT);
+                auto [values, types, all_confined] = fields(as_cref_vector(lval_ptrs));
+
+                auto& st = *prog.struct_types[struct_index];
+                auto count = values.size();
+
+                for (size_t index = 0; index < count; index++) {
+                    auto& type = types[index];
+                    auto& field_type = *st.fields[index]->tp;
+                    values[index] = conversion_generator(fclr).convert(values[index], type, field_type, all_confined, loc);
+                }
+
+                auto result = fclr.new_reg();
+                auto instr = prog::make_struct_instr { struct_index, move(values), result };
+                fclr.add_instr(VARIANT(prog::instr, MAKE_STRUCT, into_ptr(instr)));
+
+                auto type = VARIANT(prog::type, STRUCT, struct_index);
+                auto type_local = prog::type_local { into_ptr(type), all_confined };
+
+                return { result, move(type_local) };
+            }
+
+            case lvalue::DEREFERENCE: {
+                auto& [ptr_value, type] = GET(lval, DEREFERENCE);
+                auto type_local = prog::type_local { make_ptr(copy_type(type)), false };
+
+                auto result = fclr.new_reg();
+                auto instr = prog::ptr_read_instr { ptr_value, result };
+                fclr.add_instr(VARIANT(prog::instr, PTR_READ, into_ptr(instr)));
+
+                return { result, move(type_local) };
+            }
+        }
+
+        UNREACHABLE;
     }
 }

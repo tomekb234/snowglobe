@@ -177,16 +177,6 @@ namespace sg {
         frames.back().cleanup_actions.push_back(cleanup_action);
     }
 
-    void function_compiler::add_frame_cleanup(frame_index rev_index, location loc) {
-        auto& fr = frames[frames.size() - rev_index - 1];
-
-        for (auto var_index : fr.vars)
-            function_utils(*this).add_var_deletion(var_index, loc);
-
-        for (auto iter = fr.cleanup_actions.rbegin(); iter != fr.cleanup_actions.rend(); iter++)
-            (*iter)();
-    }
-
     prog::var_index function_compiler::add_var(prog::type_local&& type) {
         auto index = vars.size();
 

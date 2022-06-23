@@ -90,7 +90,7 @@ $C/constants.o: $T/constants.cpp $(constants_hpp) $(expressions_hpp) $(compiler_
 $C/functions.o: $T/functions.cpp $(functions_hpp) $(statements_hpp) $(expressions_hpp) $(copying_hpp) $(deletion_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/function_utils.o: $T/function_utils.cpp $(function_utils_hpp) $(copying_hpp) $(deletion_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/function_utils.o: $T/function_utils.cpp $(function_utils_hpp) $(copying_hpp) $(deletion_hpp) $(conversions_hpp) $(compiler_utils) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
 $C/conversions.o: $T/conversions.cpp $(conversions_hpp) $(diags_hpp) $(utils_hpp) | $C

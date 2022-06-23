@@ -103,8 +103,8 @@ namespace sg {
         prog::instr_block pop_frame();
         prog::instr_block pop_loop_frame();
         prog::instr_block pop_confining_frame();
+
         void defer_cleanup_action(function<void()> cleanup_action);
-        void add_frame_cleanup(frame_index rev_index, location loc);
 
         prog::var_index add_var(prog::type_local&& type);
         prog::var_index add_var(string name, prog::type_local&& type);

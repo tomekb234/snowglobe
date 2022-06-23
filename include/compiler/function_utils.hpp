@@ -6,10 +6,13 @@
 namespace sg {
     class function_utils : compiler_base {
         function_compiler& fclr;
+        compiler& clr;
 
         public:
 
-        function_utils(function_compiler& fclr) : compiler_base(fclr), fclr(fclr) { }
+        function_utils(function_compiler& fclr) : compiler_base(fclr), fclr(fclr), clr(fclr.clr) { }
+
+        void add_frame_cleanup(function_compiler::frame_index rev_index, location loc);
 
         void add_return(prog::reg_index value, location loc);
         void add_break(location loc);
@@ -24,6 +27,8 @@ namespace sg {
         void add_var_deletion(prog::var_index index, location loc);
 
         pair<prog::reg_index, prog::ptr_type> add_ptr_extraction(prog::reg_index value, const prog::type& type, location loc);
+
+        pair<prog::reg_index, prog::type_local> add_read_for_swap(const lvalue& lval, location loc);
     };
 }
 

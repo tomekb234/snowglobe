@@ -60,6 +60,7 @@ namespace sg {
         friend class type_compiler;
         friend class constant_compiler;
         friend class function_compiler;
+        friend class function_utils;
         friend class conversion_generator;
         friend class assignment_generator;
         friend class expression_compiler;
