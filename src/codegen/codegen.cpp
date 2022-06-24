@@ -198,7 +198,7 @@ namespace sg {
                 vector<typed_llvm_value<>> values;
                 for (auto& val : vals)
                     values.push_back(make_constant(*val, value_type, builder));
-                return make_array_value(values, builder);
+                return make_array_value(values, get_type_from_prog(value_type), builder);
             }
 
             case prog::constant::OPTIONAL: {
@@ -260,8 +260,7 @@ namespace sg {
         return { tuple_value, tuple_type };
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_array_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
-        auto value_type = fields.empty() ? get_never_type() : fields.front().type;
+    code_generator::typed_llvm_value<> code_generator::make_array_value(vector<typed_llvm_value<>> fields, ll_type* value_type, llvm::IRBuilderBase& builder) {
         auto array_type = get_array_type(value_type, fields.size());
         llvm::Value* array_value = llvm::UndefValue::get(array_type->get_type());
         for (size_t i = 0; i < fields.size(); i++)
@@ -309,14 +308,14 @@ namespace sg {
         if (!GET(*pointer.type, POINTER).ref_cnt)
             return { };
         auto ref_cnts_ptr = builder.CreateExtractValue(pointer.value, {1});
-        return { builder.CreateGEP(llvm::ArrayType::get(builder.getInt64Ty(), 2), ref_cnts_ptr, {0, 0}) };
+        return { builder.CreateGEP(llvm::ArrayType::get(builder.getInt64Ty(), 2), ref_cnts_ptr, {builder.getInt64(0), builder.getInt64(0)}) };
     }
 
     optional<llvm::Value*> code_generator::extract_weak_ref_cnt_ptr_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
         if (!GET(*pointer.type, POINTER).ref_cnt)
             return { };
         auto ref_cnts_ptr = builder.CreateExtractValue(pointer.value, {1});
-        return { builder.CreateGEP(llvm::ArrayType::get(builder.getInt64Ty(), 2), ref_cnts_ptr, {0, 1}) };
+        return { builder.CreateGEP(llvm::ArrayType::get(builder.getInt64Ty(), 2), ref_cnts_ptr, {builder.getInt64(0), builder.getInt64(1)}) };
     }
 
     optional<llvm::Value*> code_generator::extract_slice_len_from_pointer(typed_llvm_value<> pointer, llvm::IRBuilderBase& builder) {
@@ -473,7 +472,8 @@ namespace sg {
                     vector<code_generator::typed_llvm_value<>> fields;
                     for (auto reg : ma_instr.values)
                         fields.push_back(regs[reg]);
-                    regs[ma_instr.result] = gen.make_array_value(fields, builder);
+                    auto value_type = fields.empty() ? gen.get_never_type() : fields.front().type;
+                    regs[ma_instr.result] = gen.make_array_value(fields, value_type, builder);
                 } break;
 
                 case prog::instr::MAKE_OPTIONAL: {
@@ -481,7 +481,7 @@ namespace sg {
                     if (mo_instr.value)
                         regs[mo_instr.result] = gen.make_filled_optional_value(regs[*mo_instr.value], builder);
                     else
-                        regs[mo_instr.result] = gen.make_empty_optional_value(gen.get_never_type(), builder);
+                        regs[mo_instr.result] = gen.make_empty_optional_value(gen.get_type_from_prog(*mo_instr.inner_type), builder);
                 } break;
 
                 case prog::instr::MAKE_STRUCT: {
@@ -536,7 +536,7 @@ namespace sg {
                 case prog::instr::EXTRACT_OPTIONAL_VALUE: {
                     auto& eov_instr = *GET(*instr, EXTRACT_OPTIONAL_VALUE);
                     auto& value = regs[eov_instr.value];
-                    regs[eov_instr.result] = { builder.CreateExtractValue(value.value, {1}), value.type };
+                    regs[eov_instr.result] = { builder.CreateExtractValue(value.value, {1}), GET(*value.type, OPTIONAL).value };
                 } break;
 
                 case prog::instr::EXTRACT_VARIANT_FIELD: {
@@ -549,7 +549,7 @@ namespace sg {
                     builder.CreateStore(value.value, buffer_ptr);
                     auto buffer_ptr_casted = builder.CreateBitCast(buffer_ptr, llvm::PointerType::getUnqual(variant_type.tp));
                     auto value_casted = builder.CreateLoad(variant_type.tp, buffer_ptr_casted);
-                    auto field_value = builder.CreateExtractValue(value_casted, {(unsigned)evf_instr.field});
+                    auto field_value = builder.CreateExtractValue(value_casted, {(unsigned)evf_instr.field+1});
                     regs[evf_instr.result] = { field_value, variant_type.fields[evf_instr.field] };
                 } break;
 
@@ -974,7 +974,7 @@ namespace sg {
                     auto strong_ref_cnt = builder.CreateLoad(builder.getInt64Ty(), strong_ref_cnt_ptr);
                     auto weak_ref_cnt = builder.CreateLoad(builder.getInt64Ty(), weak_ref_cnt_ptr);
                     auto zero = builder.getInt64(0);
-                    auto result = builder.CreateAnd(builder.CreateICmpNE(strong_ref_cnt, zero), builder.CreateICmpNE(weak_ref_cnt, zero));
+                    auto result = builder.CreateOr(builder.CreateICmpNE(strong_ref_cnt, zero), builder.CreateICmpNE(weak_ref_cnt, zero));
                     regs[trc_instr.result] = { result, gen.get_bool_type() };
                 } break;
 
@@ -985,7 +985,7 @@ namespace sg {
                 } break;
 
                 case prog::instr::DELETE_REF_COUNTER: {
-                    auto reg = GET(*instr, DELETE);
+                    auto reg = GET(*instr, DELETE_REF_COUNTER);
                     auto ref_cnt_ptr = *gen.extract_ref_cnts_ptr_from_pointer(regs[reg], builder);
                     gen.make_external_free_call(ref_cnt_ptr, builder);
                 } break;

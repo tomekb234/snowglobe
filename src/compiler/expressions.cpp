@@ -874,7 +874,7 @@ namespace sg {
 
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_none() {
         auto result = fclr.new_reg();
-        auto instr = prog::make_optional_instr { { }, result };
+        auto instr = prog::make_optional_instr { make_ptr(copy_type(prog::NEVER_TYPE)), { }, result };
         fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(instr)));
         auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, make_ptr(VARIANT(prog::type, NEVER, monostate())))), false };
         return { result, move(type) };
@@ -883,7 +883,7 @@ namespace sg {
     pair<prog::reg_index, prog::type_local> expression_compiler::compile_some(const ast::expr& ast) {
         auto [value, value_type] = expression_compiler(fclr, confined).compile(ast);
         auto result = fclr.new_reg();
-        auto instr = prog::make_optional_instr { { value }, result };
+        auto instr = prog::make_optional_instr { make_ptr(copy_type(*value_type.tp)), { value }, result };
         fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(instr)));
         auto type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, move(value_type.tp))), value_type.confined };
         return { result, move(type) };
@@ -1044,23 +1044,6 @@ namespace sg {
         auto true_result = fclr.new_reg();
         auto false_result = fclr.new_reg();
 
-        auto true_branch = [&] () {
-            auto make_instr = prog::make_optional_instr { { value }, true_result };
-            fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(make_instr)));
-            if (!confined)
-                fclr.add_instr(VARIANT(prog::instr, INCR_REF_COUNT, value));
-        };
-
-        auto false_branch = [&] () {
-            auto make_instr = prog::make_optional_instr { { }, false_result };
-            fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(make_instr)));
-        };
-
-        auto result = fclr.new_reg();
-        auto branch_instr = function_utils(fclr).make_branch(test_result, true_branch, false_branch);
-        auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_result, false_result, result };
-        fclr.add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
-
         switch (INDEX(type)) {
             case prog::type::PTR:
                 GET(type, PTR)->kind = prog::ptr_type::SHARED;
@@ -1072,6 +1055,23 @@ namespace sg {
                 GET(type, FUNC_WITH_PTR)->kind = prog::ptr_type::SHARED;
                 break;
         }
+
+        auto true_branch = [&] () {
+            auto make_instr = prog::make_optional_instr { make_ptr(copy_type(type)), { value }, true_result };
+            fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(make_instr)));
+            if (!confined)
+                fclr.add_instr(VARIANT(prog::instr, INCR_REF_COUNT, value));
+        };
+
+        auto false_branch = [&] () {
+            auto make_instr = prog::make_optional_instr { make_ptr(copy_type(type)), { }, false_result };
+            fclr.add_instr(VARIANT(prog::instr, MAKE_OPTIONAL, into_ptr(make_instr)));
+        };
+
+        auto result = fclr.new_reg();
+        auto branch_instr = function_utils(fclr).make_branch(test_result, true_branch, false_branch);
+        auto value_branch_instr = prog::value_branch_instr { move(branch_instr), true_result, false_result, result };
+        fclr.add_instr(VARIANT(prog::instr, VALUE_BRANCH, into_ptr(value_branch_instr)));
 
         auto result_type = prog::type_local { make_ptr(VARIANT(prog::type, OPTIONAL, into_ptr(type))), confined };
 

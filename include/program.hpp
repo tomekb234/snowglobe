@@ -533,6 +533,7 @@ namespace sg::prog {
     };
 
     struct make_optional_instr {
+        ptr<type> inner_type;
         optional<reg_index> value;
         reg_index result;
     };

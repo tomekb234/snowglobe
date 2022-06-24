@@ -200,7 +200,7 @@ namespace sg {
         typed_llvm_value<> make_struct_value(prog::global_index struct_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_enum_variant_value(prog::global_index enum_index, prog::variant_index variant_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_tuple_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
-        typed_llvm_value<> make_array_value(vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder);
+        typed_llvm_value<> make_array_value(vector<typed_llvm_value<>> fields, ll_type* value_type, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_empty_optional_value(ll_type* value_type, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_filled_optional_value(typed_llvm_value<> value, llvm::IRBuilderBase& builder);
         typed_llvm_value<> make_pointer_value(ll_type* type, llvm::Value* data_ptr, optional<llvm::Value*> ref_cnts_ptr, optional<llvm::Value*> slice_size, llvm::IRBuilderBase& builder);

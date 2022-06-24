@@ -63,6 +63,8 @@ namespace sg {
                         auto st = declare_struct_type(struct_ast);
                         auto name = st.name;
                         auto index = prog.struct_types.size();
+                        st.destructor = prog.global_funcs.size();
+                        prog.global_funcs.push_back({ });
                         prog.struct_types.push_back(into_ptr(st));
                         global_names[name] = { global_name_kind::STRUCT, index, false };
                         struct_indices.back() = { index };
@@ -74,6 +76,8 @@ namespace sg {
                         auto en = declare_enum_type(enum_ast);
                         auto name = en.name;
                         auto index = prog.enum_types.size();
+                        en.destructor = prog.global_funcs.size();
+                        prog.global_funcs.push_back({ });
                         prog.enum_types.push_back(into_ptr(en));
                         global_names[name] = { global_name_kind::ENUM, index, false };
                         enum_indices.back() = { index };
@@ -103,9 +107,7 @@ namespace sg {
                         auto& st = *prog.struct_types[*index];
                         compile_struct_type(struct_ast, st);
                         global_names[st.name].compiled = true;
-                        auto destructor = make_struct_destructor(*index);
-                        st.destructor = prog.global_funcs.size();
-                        prog.global_funcs.push_back(into_ptr(destructor));
+                        prog.global_funcs[st.destructor] = make_ptr(make_struct_destructor(*index));
                     } break;
 
                     case ast::global_def::ENUM_DEF: {
@@ -117,9 +119,7 @@ namespace sg {
                         auto& en = *prog.enum_types[*index];
                         compile_enum_type(enum_ast, en);
                         global_names[en.name].compiled = true;
-                        auto destructor = make_enum_destructor(*index);
-                        en.destructor = prog.global_funcs.size();
-                        prog.global_funcs.push_back(into_ptr(destructor));
+                        prog.global_funcs[en.destructor] = make_ptr(make_enum_destructor(*index));
                     } break;
 
                     case ast::global_def::CONST_DEF: {

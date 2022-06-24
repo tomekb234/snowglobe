@@ -112,7 +112,7 @@ $C/statements.o: $T/statements.cpp $(statements_hpp) $(expressions_hpp) $(lvalue
 $C/expressions.o: $T/expressions.cpp $(expressions_hpp) $(types_hpp) $(constants_hpp) $(conversions_hpp) $(copying_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
-$C/lvalues.o: $T/lvalues.cpp $(lvalues_hpp) $(expressions_hpp) $(conversions_hpp) $(types_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp)
+$C/lvalues.o: $T/lvalues.cpp $(lvalues_hpp) $(expressions_hpp) $(conversions_hpp) $(types_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
 	$(CXX) $< -o $@
 
 $G:
