@@ -7,9 +7,15 @@
 #include <llvm/Support/raw_os_ostream.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Bitcode/BitcodeWriterPass.h>
+#include <llvm/Support/Host.h>
+
+#include <fstream>
+#include <cstdlib>
 
 namespace sg {
     using namespace sg::utils;
+    using std::ofstream;
+    using std::ifstream;
 
     const string normal_func_prefix = "f.";
     const string internal_func_prefix = "if.";
@@ -31,9 +37,26 @@ namespace sg {
     }
 
     void code_generator::generate_executable(ostream& stream) {
-        (void)stream;
         generate();
-        error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+        // set terget triple
+        mod.setTargetTriple(llvm::sys::getDefaultTargetTriple());
+
+        // generate bitcode
+        ofstream bc_file("/tmp/snowglobe_buffer.bc");
+        llvm::raw_os_ostream llvm_stream(bc_file);
+        llvm::legacy::PassManager pass_manager;
+        pass_manager.add(llvm::createBitcodeWriterPass(llvm_stream));
+        pass_manager.run(mod);
+        llvm_stream.flush();
+        bc_file.close();
+
+        // run clang
+        system("clang /tmp/snowglobe_buffer.bc -o /tmp/snowglobe_buffer.bin");
+
+        // get the result
+        ifstream bin_file("/tmp/snowglobe_buffer.bin");
+        stream << bin_file.rdbuf();
     }
 
     void code_generator::generate() {
