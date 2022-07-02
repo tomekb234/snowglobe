@@ -188,7 +188,11 @@ func main() {
 }
 ```
 
-See the `examples/` directory for more examples.
+## Documentation
+
+See [snowglobe.md](snowglobe.md) for reference.
+
+See [examples/](examples/) for more examples.
 
 ## Building
 
