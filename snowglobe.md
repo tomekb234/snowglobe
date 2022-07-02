@@ -10,7 +10,7 @@ A copyable type can also be *trivial*.
 The values of a trivial type can be copied and deleted
 without performing any additional actions.
 
-## Basic types
+### Basic types
 
 `()` - Unit type. Its only value is `()`.
 
@@ -36,7 +36,7 @@ such as `break`, `return`, or a call to the `error` function.
 
 All types above are copyable and trivial.
 
-## Compound types
+### Compound types
 
 In the following definitions, `S`, `T` and `U` denote any types.
 
@@ -56,7 +56,7 @@ and it is trivial if and only if all its components are trivial.
 
 All type constructors above are covariant in their components.
 
-## Pointer types
+### Pointer types
 
 `&T` - Basic pointer type.
 Copyable but not trivial.
@@ -133,7 +133,7 @@ Unlike `func (S) -> T`, a pointer of this type has no additional pointer attache
 An expression which is a name of a global function
 can be either of type `func (S) -> T` or `func $(S) -> T`.
 
-## User-defined types
+### User-defined types
 
 ```
 struct S {
@@ -198,7 +198,9 @@ The behavior of a confined value is altered in the following ways:
 - the pointer kinds `*` and `@` can be converted to `&`,
 - cannot be copied outside of its scope.
 
-## Constants
+## Expressions
+
+### Constants
 
 `()` - The unit value.
 
@@ -229,7 +231,7 @@ The digits can be separated with the `_` character.
 The type of a floating-point literal is `f64`, unless `f32` is appended,
 for example `1.2` has type `f64` and `1.2f32` has type `f32`.
 
-## Compound values
+### Compound values
 
 `none` - Absent value.
 Has type `?never`,
@@ -277,7 +279,7 @@ which can be achieved with `locally` block.
 If there are no components or all components have trivial types,
 then the result is non-confined.
 
-## Arithmetic
+### Arithmetic
 
 Standard boolean operations:
 
@@ -314,7 +316,58 @@ which is the type of the whole expression.
 which can be any of `bool`, `i8`, `i16`, `i32`, `i64`, `u8`, `u16`, `u32`, `u64`, `f32` or `f64`.
 Can result in truncation or precision loss.
 
-## Variables
+### Pointers
+
+TODO
+
+## Functions
+
+```
+func f(x: S, y: T) -> U {
+    ...
+}
+```
+
+In global context, defines a function `f`
+with parameters `x` and `y` of types `S` and `T`
+and return type `U`.
+The type annotations for parameters are required.
+The return type is optional and defaults to `()`.
+All non-confined parameters must come before confined parameters.
+The return type cannot have a confinement marker.
+
+The function body is a sequence of *statements*, which can be any of:
+
+- expression evaluation,
+- variable declaration,
+- assignment,
+- control-flow statement,
+- `swap` statement or block,
+- `locally` block,
+- inner function.
+
+Every statement ends with either `;` or `}`.
+
+The `return x` expression can be used to return `x` as the result of the function.
+The type of this expression is `never`.
+The returned value cannot be confined.
+The function body can optionally end with a single expression without `;`,
+which is equivalent to using `return`
+with this expression at the end of the function.
+
+The function must return some value at its end,
+unless all control-flow branches unambiguously return.
+
+If the return type of the function is `()`,
+then the value `()` is implicitly returned at the end of the function
+and the `return` expression can be used without this value.
+
+`f(x, y)` - Calls the function `f` with arguments `x` and `y` and returns its result.
+The arguments of a function call can have their types
+changed from non-confined to confined.
+The result of a function call is always non-confined.
+
+### Variables
 
 ```
 const x: T = y;
@@ -355,7 +408,7 @@ may become ambiguous due to control-flow branching,
 which is an error when it must be decided whether
 the value of the variable will be deleted or not.
 
-## Assignment
+### Assignment
 
 ```
 x = y;
@@ -391,7 +444,7 @@ A confined value cannot be assigned to:
 - a global variable,
 - value pointed to by a pointer.
 
-## Control flow statements
+### Control flow statements
 
 Standard control-flow statements:
 
@@ -499,7 +552,7 @@ for i, x ref a {
 Iteration through pointers to items instead of their dereferenced values.
 The pointer `a` cannot be unique.
 
-## The `swap` statement
+### The `swap` statement
 
 ```
 swap x with y;
@@ -520,7 +573,7 @@ swap x with y {
 Swaps the values of `x` and `y` before entering and after leaving the block.
 The swap is performed even when leaving the block with `break`, `continue` or `return`.
 
-## The `locally` block
+### The `locally` block
 
 ```
 locally x {
@@ -568,58 +621,7 @@ The expression directly before `locally` must be a local variable.
 In all cases except `swap`, the `locally` block is inserted on the outside.
 In case of `swap`, the `locally` block is inserted inside and only `y` is confined.
 
-## Functions
-
-```
-func f(x: S, y: T) -> U {
-    ...
-}
-```
-
-In global context, defines a function `f`
-with parameters `x` and `y` of types `S` and `T`
-and return type `U`.
-The type annotations for parameters are required.
-The return type is optional and defaults to `()`.
-All non-confined parameters must come before confined parameters.
-The return type cannot have confinement marker.
-
-The function body is a sequence of statements, which can be any of:
-
-- expression evaluation,
-- variable declaration,
-- assignment,
-- control-flow statement,
-- `swap` statement or block,
-- `locally` block,
-- inner function.
-
-Every statement ends with either `;` or `}`.
-
-A `return x` expression can be used to return `x` as the result of the function.
-The type of this expression is `never`.
-The returned value cannot be confined.
-The function body can optionally end with a single expression without `;`,
-which is equivalent to using `return`
-with this expression at the end of the function.
-
-The function must return some value at its end,
-unless all control-flow branches unambiguously return.
-
-If the return type of the function is `()`,
-then the value `()` is implicitly returned at the end of the function
-and the `return` expression can be used without this value.
-
-`f(x, y)` - Calls the function `f` with arguments `x` and `y` and returns its result.
-The arguments of a function call can have their types
-changed from non-confined to confined.
-The result of a function call is always non-confined.
-
-## Inner functions
-
-TODO
-
-## Pointers
+### Inner functions
 
 TODO
 

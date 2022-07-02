@@ -130,7 +130,7 @@ struct S {
     p: @i64 // unique pointer
 }
 
-// the type S is non-copyable because it contains a unique pointer
+// the type `S` is non-copyable because it contains a unique pointer
 
 var q: ?@i64 = none; // optional unique pointer
 var z: i64 = 0;
@@ -179,11 +179,11 @@ func main() {
 
     swap q with r; // the only way to read a global variable with non-copyable type
 
-    if var p in r { // extracts value from r if present
+    if var p in r { // extracts value from `r` if present
         print_int(*p);
         print_line("");
 
-        // automatic deallocation of memory pointed by p
+        // automatic deallocation of memory pointed by `p`
     }
 }
 ```
