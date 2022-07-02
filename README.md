@@ -130,8 +130,10 @@ struct S {
     p: @i64 // unique pointer
 }
 
-var gx: i64 = 0;
-var gp: ?@i64 = none; // optional unique pointer
+// the type S is non-copyable because it contains a unique pointer
+
+var q: ?@i64 = none; // optional unique pointer
+var z: i64 = 0;
 
 func f1(s: !S) { // argument marked as non-confined
     var s1 = s; // moves out `s`
@@ -139,23 +141,25 @@ func f1(s: !S) { // argument marked as non-confined
 
     S(var x, var p) = s1; // destructuring assignment
 
-    gp = some p; // ok, `p` is marked as non-confined
-    gx = x;
+    q = some p; // ok, `p` is marked as non-confined
+    z = x;
 }
 
 func f2(s: S) { // values are marked as confined by default
     var s1 = s;
-    var s2 = s; // can make multiple copies of `s` despite it containing a unique pointer
+    var s2 = s; // can make multiple copies of `s` despite it having non-copyable type
 
     // f1(s); // error: `f1` can potentially leak `s`
 
     S(var x, var p) = s;
 
-    print_int(x); print(" ");
-    print_int(*p); print_line("");
+    print_int(x);
+    print_line("");
+    print_int(*p);
+    print_line("");
 
-    // gp = some p; // error: cannot leak `p`
-    gx = x; // ok, `x` has a trivial type and can be leaked anyway
+    // q = some p; // error: cannot leak `p`
+    z = x; // ok, `x` has a trivial type and can be leaked anyway
 }
 
 func main() {
@@ -165,11 +169,22 @@ func main() {
     var s = S(x, p);
 
     f2(s);
-    f2(s); // can be called multiple times despite `s` being non-copyable
+    f2(s); // can be called multiple times despite `s` having non-copyable type
 
     f1(s); // moves out `s`
 
     // f2(s); // error: `s` is moved out
+
+    var r = some @y;
+
+    swap q with r; // the only way to read a global variable with non-copyable type
+
+    if var p in r { // extracts value from r if present
+        print_int(*p);
+        print_line("");
+
+        // automatic deallocation of memory pointed by p
+    }
 }
 ```
 
