@@ -180,7 +180,7 @@ func main() {
 
 ## Documentation
 
-See [snowglobe.md](doc/snowglobe.md) for reference.
+See [doc/snowglobe.md](doc/snowglobe.md) for reference.
 
 See [examples/](examples/) for more examples.
 
@@ -202,7 +202,7 @@ More examples are yet to be written.
 
 Some cases for the type checker and the LLVM code generator are not yet implemented.
 
-The source code will need some refactoring and tidying up.
+The source code needs some refactoring and tidying up.
 
 Although we believe that this type system guarantees memory safety (and we have no proof of that),
 this implementation is almost certainly not free of bugs,
