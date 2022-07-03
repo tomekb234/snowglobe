@@ -180,7 +180,7 @@ func main() {
 
 ## Documentation
 
-See [snowglobe.md](snowglobe.md) for reference.
+See [snowglobe.md](doc/snowglobe.md) for reference.
 
 See [examples/](examples/) for more examples.
 
