@@ -19,7 +19,8 @@ void test() {
 ```
 
 The `print` function takes a pointer to an integer and prints its value.
-We cannot however deduce from its signature alone that this the only thing it does with the pointer.
+We cannot however deduce from its signature alone
+that this the only thing it does with the pointer.
 It could as well have been implemented in this unexpected way:
 
 ```C++
@@ -31,11 +32,13 @@ void print(int* p) {
 }
 ```
 
-In this case, the value of `p` (which is a memory address) *leaks* out of the scope of `print`.
-This causes the global variable `g` to hold an invalid value when the `test` function ends,
-and an attempt to dereference it may lead to undefined behavior.
+In this case, the value of `p` (which is a memory address) *leaks* out of scope of `print`
+by being written to the global variable `g`.
+This causes the variable to hold an invalid value when the `test` function ends,
+and any attempt to dereference it may lead to undefined behavior.
 
-One way to prevent such problems is to only use C++'s shared or unique pointers instead of raw pointers.
+One completely unfeasible way to prevent these kinds of problems
+is to only use C++'s shared and unique pointers instead of raw pointers and references.
 
 With shared pointers, the memory is deallocated only when the last reference to it is removed,
 which is convenient, but comes with some run-time overhead:
@@ -53,36 +56,23 @@ void test() {
 }
 ```
 
-With unique pointers, we uphold the invariant that there is only one pointer to a given memory address,
+With unique pointers, we uphold an invariant that there is only one pointer to a given memory address,
 which removes the need for reference counters, but makes the pointers less convenient to use:
 
 ```C++
 unique_ptr<int> print(unique_ptr<int> p) {
     cout << *p << endl;
-    return p;
+    return p; // prevent memory deallocation
 }
 
 void test() {
-    auto p = make_unique(123);
-    p = print(move(p));
+    auto p = make_unique(123); // unique pointers can only be moved and cannot be copied
+    p = print(move(p)); // the variable must be reassigned if we want to use it again
     // memory deallocated as the pointer goes out of scope
 }
 ```
 
-The type of a unique pointer is an example of an *affine* type,
-which means that the value can only be *moved* and not copied.
-In C++, the use of a bare name of a variable results with a copy of its value
-(with exceptions such as when returning from a function),
-and we can prevent this behavior by marking the usage with `move`.
-In particular, passing the value as an argument to a function would count as a copy,
-so we need to mark it with `move` as in the example above.
-If the function does not move the pointer somewhere else
-and we do not want it to deallocate the memory,
-then we have no choice but to explicitly return the pointer.
-This makes it necessary for the pointer
-to be inconveniently interwoven by the caller of the function.
-
-Since unique pointers are not interchangeable with shared pointers,
+Since shared and unique pointers are not interchangeable,
 should we provide both versions of the `print` function?
 It would be very inconvenient to make multiple versions of the same function
 just to accomodate different kinds of pointers.
@@ -91,36 +81,36 @@ clearly does not leak the pointer out of its scope,
 so it is reasonably the most convenient implementation.
 We can just explicitly state in its documentation that the pointer is not leaked,
 and then the callers of this function who use either shared or unique pointers
-can pass the underlying raw pointers without breaking the respective invariants about the number of references.
+can pass the underlying raw pointers without breaking
+the respective invariants about the number of references.
 
 This assertion, that a given value does not leak outside of its scope
 is precisely what this language allows to express at the *type level*.
-It allows the function-local variables (in particular the arguments) to be marked as *confined*,
-which inhibits copying them out of their scope,
+It allows the function-local variables (in particular the arguments)
+to be marked as *confined*, which inhibits copying them out of their scope,
 but also relaxes their invariants about copying within this scope.
-In particular, confined unique pointers can be safely copied anyway,
-and the reference counters of a confined shared pointers can be safely ignored.
+In particular, confined unique pointers can be safely copied inside their scope,
+and the reference counters of confined shared pointers can be safely ignored.
 
-Note that this particular problem with memory safety has already been solved
+Note that this particular problem with memory safety has already been solved differently
 by the [Rust](https://www.rust-lang.org/) language with its notions of *borrows* and *lifetimes*.
 This language is somewhat inspired by Rust, but takes a simpler
-(and probably less useful) approach to pointers at the type level.
-It may be suitable for implementation of algorithms and data structures
-if you care about performance and do not want to manage memory manually.
+(and probably less convenient) approach to pointers at the type level.
 It is by no means a full general-purpose language,
 but merely a demonstration of a concept.
-We also had quite a lot of fun implementing it. :)
+And we had quite a lot of fun implementing it. :)
 
 ## Language characteristics
 
-- Statically and strongly typed
-- Safe (as we believe)
-- With affine types
-- With built-in smart pointers
-- Without garbage collection
-- Lacking module system
-- Lacking type inference
-- Lacking polymorphism
+- Statically and strongly typed,
+- safe (as we believe),
+- compiled to LLVM IR,
+- with affine types,
+- with built-in smart pointers,
+- without garbage collection,
+- lacking module system,
+- lacking type inference,
+- lacking polymorphism.
 
 ## Example
 
@@ -198,21 +188,21 @@ See [examples/](examples/) for more examples.
 
 Prerequisites:
 
-- C++ compiler with C++17 support
-- [Re2c](https://re2c.org/), min. version 3.0
-- [Bison](https://www.gnu.org/software/bison/), min. version 3.8
-- [LLVM](https://llvm.org/), min. version 12
+- C++ compiler with C++17 support,
+- [Re2C](https://re2c.org/), min. version 3.0,
+- [Bison](https://www.gnu.org/software/bison/), min. version 3.8,
+- [LLVM](https://llvm.org/), min. version 12.
 
 Use Make to build the project.
 The resulting binary is `build/snowglobe`.
 
 ## Project status
 
-The language documentation is in progress.
+More examples are yet to be written.
 
-Some cases for type checker and LLVM code generation are not yet implemented.
+Some cases for the type checker and the LLVM code generator are not yet implemented.
 
-The source code will probably need some refactoring and tidying up.
+The source code will need some refactoring and tidying up.
 
 Although we believe that this type system guarantees memory safety (and we have no proof of that),
 this implementation is almost certainly not free of bugs,
