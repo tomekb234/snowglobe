@@ -40,79 +40,255 @@ lvalues_hpp = $J/lvalues.hpp $(functions_hpp)
 diags_hpp = $I/diags.hpp $(diagcol_hpp) $(ast_hpp) $(program_hpp) $(compiler_hpp) $(functions_hpp)
 codegen_hpp = $I/codegen.hpp $(program_hpp) $(diagcol_hpp)
 
-compiler = $C/compiler.o $C/compiler_utils.o $C/types.o $C/constants.o $C/functions.o $C/function_utils.o $C/conversions.o $C/copying.o $C/deletion.o $C/assignment.o $C/statements.o $C/expressions.o $C/lvalues.o
+compiler = $C/compiler.o \
+		   $C/compiler_utils.o \
+		   $C/types.o \
+		   $C/constants.o \
+		   $C/functions.o \
+		   $C/function_utils.o \
+		   $C/conversions.o \
+		   $C/copying.o \
+		   $C/deletion.o \
+		   $C/assignment.o \
+		   $C/statements.o \
+		   $C/expressions.o \
+		   $C/lvalues.o
+
 codegen = $D/codegen.o $D/types.o $D/external.o $D/builtin.o
 
-$B/snowglobe: $B/input.o $B/lexer.o $B/parser.o $B/program.o $(compiler) $B/diagcol.o $B/diags.o $(codegen) $B/main.o | $B $C
+$B/snowglobe: \
+	$B/input.o \
+	$B/lexer.o \
+	$B/parser.o \
+	$B/program.o \
+	$(compiler) \
+	$B/diagcol.o \
+	$B/diags.o \
+	$(codegen) \
+	$B/main.o \
+	| $B $C
 	$(LINKER) $^ $(LLVM_LINKER_FLAGS) -o $@
 
-$B/main.o: $S/main.cpp $(input_hpp) $(diagcol_hpp) $(ast_hpp) $(parser_hpp) $(compiler_hpp) $(program_hpp) $(codegen_hpp) | $B
+$B/main.o: \
+	$S/main.cpp \
+	$(input_hpp) \
+	$(diagcol_hpp) \
+	$(ast_hpp) \
+	$(parser_hpp) \
+	$(compiler_hpp) \
+	$(program_hpp) \
+	$(codegen_hpp) \
+	| $B
 	$(CXX) $(LLVM_CXX_FLAGS) $< -o $@
 
-$B/input.o: $S/input.cpp $(input_hpp) | $B
+$B/input.o: \
+	$S/input.cpp \
+	$(input_hpp) \
+	| $B
 	$(CXX) $< -o $@
 
-$B/lexer.o: $G/lexer.cpp $(input_hpp) $(diagcol_hpp) $(diags_hpp) $(parser_hpp) $(ast_hpp) | $B
+$B/lexer.o: \
+	$G/lexer.cpp \
+	$(input_hpp) \
+	$(diagcol_hpp) \
+	$(diags_hpp) \
+	$(parser_hpp) \
+	$(ast_hpp) \
+	| $B
 	$(CXX) $< -o $@
 
-$B/parser.o: $G/parser.cpp $(parser_hpp) $(utils_hpp) $(diags_hpp) | $B
+$B/parser.o: \
+	$G/parser.cpp \
+	$(parser_hpp) \
+	$(utils_hpp) \
+	$(diags_hpp) \
+	| $B
 	$(CXX) $< -o $@
 
-$B/program.o: $S/program.cpp $(program_hpp) $(utils_hpp) | $B
+$B/program.o: \
+	$S/program.cpp \
+	$(program_hpp) \
+	$(utils_hpp) \
+	| $B
 	$(CXX) $< -o $@
 
-$B/diagcol.o: $S/diagcol.cpp $(diagcol_hpp) | $B
+$B/diagcol.o: \
+	$S/diagcol.cpp \
+	$(diagcol_hpp) \
+	| $B
 	$(CXX) $< -o $@
 
-$B/diags.o: $S/diags.cpp $(diags_hpp) | $B
+$B/diags.o: \
+	$S/diags.cpp \
+	$(diags_hpp) \
+	| $B
 	$(CXX) $< -o $@
 
-$(codegen): $D/%.o: $U/%.cpp $(codegen_hpp) $(diags_hpp) $(utils_hpp) | $D
+$(codegen): \
+	$D/%.o: \
+	$U/%.cpp \
+	$(codegen_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $D
 	$(CXX) $(LLVM_CXX_FLAGS) $< -o $@
 
-$G/lexer.cpp: $S/lexer.re | $G
+$G/lexer.cpp: \
+	$S/lexer.re \
+	| $G
 	$(RE2C) $< -o $@
 
-$G/parser.cpp: $S/parser.y | $G
+$G/parser.cpp: \
+	$S/parser.y \
+	| $G
 	$(BISON) $< -o $@
 
-$C/compiler.o: $T/compiler.cpp $(compiler_hpp) $(types_hpp) $(constants_hpp) $(functions_hpp) $(conversions_hpp) $(compiler_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/compiler.o: \
+	$T/compiler.cpp \
+	$(compiler_hpp) \
+	$(types_hpp) \
+	$(constants_hpp) \
+	$(functions_hpp) \
+	$(conversions_hpp) \
+	$(compiler_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/compiler_utils.o: $T/compiler_utils.cpp $(compiler_utils_hpp) $(functions_hpp) $(conversions_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/compiler_utils.o: \
+	$T/compiler_utils.cpp \
+	$(compiler_utils_hpp) \
+	$(functions_hpp) \
+	$(conversions_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/types.o: $T/types.cpp $(types_hpp) $(constants_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/types.o: \
+	$T/types.cpp \
+	$(types_hpp) \
+	$(constants_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/constants.o: $T/constants.cpp $(constants_hpp) $(expressions_hpp) $(compiler_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/constants.o: \
+	$T/constants.cpp \
+	$(constants_hpp) \
+	$(expressions_hpp) \
+	$(compiler_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/functions.o: $T/functions.cpp $(functions_hpp) $(statements_hpp) $(expressions_hpp) $(copying_hpp) $(deletion_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/functions.o: \
+	$T/functions.cpp \
+	$(functions_hpp) \
+	$(statements_hpp) \
+	$(expressions_hpp) \
+	$(copying_hpp) \
+	$(deletion_hpp) \
+	$(function_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/function_utils.o: $T/function_utils.cpp $(function_utils_hpp) $(copying_hpp) $(deletion_hpp) $(conversions_hpp) $(compiler_utils) $(diags_hpp) $(utils_hpp) | $C
+$C/function_utils.o: \
+	$T/function_utils.cpp \
+	$(function_utils_hpp) \
+	$(copying_hpp) \
+	$(deletion_hpp) \
+	$(conversions_hpp) \
+	$(compiler_utils) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/conversions.o: $T/conversions.cpp $(conversions_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/conversions.o: \
+	$T/conversions.cpp \
+	$(conversions_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/copying.o: $T/copying.cpp $(copying_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/copying.o: \
+	$T/copying.cpp \
+	$(copying_hpp) \
+	$(function_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/deletion.o: $T/deletion.cpp $(deletion_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/deletion.o: \
+	$T/deletion.cpp \
+	$(deletion_hpp) \
+	$(function_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/assignment.o: $T/assignment.cpp $(assignment_hpp) $(conversions_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/assignment.o: \
+	$T/assignment.cpp \
+	$(assignment_hpp) \
+	$(conversions_hpp) \
+	$(deletion_hpp) \
+	$(compiler_utils_hpp) \
+	$(function_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/statements.o: $T/statements.cpp $(statements_hpp) $(expressions_hpp) $(lvalues_hpp) $(conversions_hpp) $(assignment_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/statements.o: \
+	$T/statements.cpp \
+	$(statements_hpp) \
+	$(expressions_hpp) \
+	$(lvalues_hpp) \
+	$(conversions_hpp) \
+	$(assignment_hpp) \
+	$(deletion_hpp) \
+	$(compiler_utils_hpp) \
+	$(function_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/expressions.o: $T/expressions.cpp $(expressions_hpp) $(types_hpp) $(constants_hpp) $(conversions_hpp) $(copying_hpp) $(deletion_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/expressions.o: \
+	$T/expressions.cpp \
+	$(expressions_hpp) \
+	$(types_hpp) \
+	$(constants_hpp) \
+	$(conversions_hpp) \
+	$(copying_hpp) \
+	$(deletion_hpp) \
+	$(compiler_utils_hpp) \
+	$(function_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
-$C/lvalues.o: $T/lvalues.cpp $(lvalues_hpp) $(expressions_hpp) $(conversions_hpp) $(types_hpp) $(compiler_utils_hpp) $(function_utils_hpp) $(diags_hpp) $(utils_hpp) | $C
+$C/lvalues.o: \
+	$T/lvalues.cpp \
+	$(lvalues_hpp) \
+	$(expressions_hpp) \
+	$(conversions_hpp) \
+	$(types_hpp) \
+	$(compiler_utils_hpp) \
+	$(function_utils_hpp) \
+	$(diags_hpp) \
+	$(utils_hpp) \
+	| $C
 	$(CXX) $< -o $@
 
 $G:

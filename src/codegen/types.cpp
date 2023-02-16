@@ -289,7 +289,25 @@ namespace sg {
                 return get_pointer_type(target_type, ref_cnt, slice);
             }
 
-            default:
+            case prog::type::INNER_PTR:
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+            case prog::type::FUNC:
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+            case prog::type::FUNC_WITH_PTR:
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+            case prog::type::GLOBAL_FUNC:
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+            case prog::type::KNOWN_FUNC:
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+            case prog::type::STRUCT_CTOR:
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+            case prog::type::ENUM_CTOR:
                 error(diags::not_implemented(DUMMY_LOCATION)); // TODO
         }
 
@@ -320,7 +338,10 @@ namespace sg {
         llvm_struct_type->tp->setBody(raw_field_types);
     }
 
-    void code_generator::define_enum_type_with_variants(const prog::enum_type& prog_enum_type, ll_enum_type* llvm_enum_type, vector<ll_enum_variant_type*> llvm_variant_types) {
+    void code_generator::define_enum_type_with_variants(
+            const prog::enum_type& prog_enum_type,
+            ll_enum_type* llvm_enum_type,
+            vector<ll_enum_variant_type*> llvm_variant_types) {
         // first pass - field types processing
         vector<vector<llvm::Type*>> llvm_type_lists(prog_enum_type.variants.size());
         vector<size_t> variant_sizes;

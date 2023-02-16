@@ -464,7 +464,7 @@ namespace sg {
                 error(diags::invalid_type(prog, move(type), diags::type_kind::INTEGER, begin_ast.loc));
 
             auto& ntype = *GET(type, NUMBER);
-            prog::numeric_binary_operation_instr::kind_t op_kind;
+            prog::binary_operation_instr::kind_t op_kind;
 
             using num = prog::number_type;
 
@@ -474,14 +474,14 @@ namespace sg {
                 case num::U16:
                 case num::U32:
                 case num::U64:
-                    op_kind = prog::numeric_binary_operation_instr::UNSIGNED;
+                    op_kind = prog::binary_operation_instr::UNSIGNED;
                     break;
 
                 case num::I8:
                 case num::I16:
                 case num::I32:
                 case num::I64:
-                    op_kind = prog::numeric_binary_operation_instr::SIGNED;
+                    op_kind = prog::binary_operation_instr::SIGNED;
                     break;
 
                 case num::F32:
@@ -506,10 +506,10 @@ namespace sg {
                 auto cond = fclr.new_reg();
 
                 if (incr) {
-                    auto compare_instr = prog::numeric_binary_operation_instr { { value, end_value, cond }, op_kind };
+                    auto compare_instr = prog::binary_operation_instr { value, end_value, cond, op_kind };
                     fclr.add_instr(VARIANT(prog::instr, LS, into_ptr(compare_instr)));
                 } else {
-                    auto compare_instr = prog::numeric_binary_operation_instr { { value, begin_value, cond }, op_kind };
+                    auto compare_instr = prog::binary_operation_instr { value, begin_value, cond, op_kind };
                     fclr.add_instr(VARIANT(prog::instr, GT, into_ptr(compare_instr)));
                 }
 

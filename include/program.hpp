@@ -62,7 +62,6 @@ namespace sg::prog {
     struct ptr_conversion_instr;
     struct unary_operation_instr;
     struct binary_operation_instr;
-    struct numeric_binary_operation_instr;
     struct make_joint_inner_ptr_instr;
     struct make_joint_func_ptr_instr;
     struct test_optional_instr;
@@ -422,20 +421,20 @@ namespace sg::prog {
             ptr<unary_operation_instr>, // DECR
             ptr<binary_operation_instr>, // EQ
             ptr<binary_operation_instr>, // NEQ
-            ptr<numeric_binary_operation_instr>, // ADD
-            ptr<numeric_binary_operation_instr>, // SUB
-            ptr<numeric_binary_operation_instr>, // MUL
-            ptr<numeric_binary_operation_instr>, // DIV
-            ptr<numeric_binary_operation_instr>, // MOD
-            ptr<numeric_binary_operation_instr>, // BIT_AND
-            ptr<numeric_binary_operation_instr>, // BIT_OR
-            ptr<numeric_binary_operation_instr>, // BIT_XOR
-            ptr<numeric_binary_operation_instr>, // BIT_LSH
-            ptr<numeric_binary_operation_instr>, // BIT_RSH
-            ptr<numeric_binary_operation_instr>, // LS
-            ptr<numeric_binary_operation_instr>, // LSEQ
-            ptr<numeric_binary_operation_instr>, // GT
-            ptr<numeric_binary_operation_instr>, // GTEQ
+            ptr<binary_operation_instr>, // ADD
+            ptr<binary_operation_instr>, // SUB
+            ptr<binary_operation_instr>, // MUL
+            ptr<binary_operation_instr>, // DIV
+            ptr<binary_operation_instr>, // MOD
+            ptr<binary_operation_instr>, // BIT_AND
+            ptr<binary_operation_instr>, // BIT_OR
+            ptr<binary_operation_instr>, // BIT_XOR
+            ptr<binary_operation_instr>, // BIT_LSH
+            ptr<binary_operation_instr>, // BIT_RSH
+            ptr<binary_operation_instr>, // LS
+            ptr<binary_operation_instr>, // LSEQ
+            ptr<binary_operation_instr>, // GT
+            ptr<binary_operation_instr>, // GTEQ
 
             ptr<numeric_conversion_instr>, // TRUNC
             ptr<numeric_conversion_instr>, // ZERO_EXT
@@ -570,9 +569,7 @@ namespace sg::prog {
         reg_index left;
         reg_index right;
         reg_index result;
-    };
 
-    struct numeric_binary_operation_instr : binary_operation_instr {
         enum kind_t {
             UNSIGNED,
             SIGNED,

@@ -19,8 +19,7 @@ void test() {
 ```
 
 The `print` function takes a pointer to an integer and prints its value.
-We cannot however deduce from its signature alone
-that this the only thing it does with the pointer.
+We cannot however deduce from its signature alone that this the only thing it does with the pointer.
 It could as well have been implemented in this unexpected way:
 
 ```C++
@@ -32,16 +31,12 @@ void print(int* p) {
 }
 ```
 
-In this case, the value of `p` (which is a memory address) *leaks* out of scope of `print`
-by being written to the global variable `g`.
-This causes the variable to hold an invalid value when the `test` function ends,
-and any attempt to dereference it may lead to undefined behavior.
+In this case, the value of `p` (which is a memory address) *leaks* out of scope of `print` by being written to the global variable `g`.
+This causes the variable to hold an invalid value when the `test` function ends, and any attempt to dereference it may lead to undefined behavior.
 
-One completely unfeasible way to prevent these kinds of problems
-is to only use C++'s shared and unique pointers instead of raw pointers and references.
+One rather cumbersome way to prevent these kinds of problems is to only use C++'s shared and unique pointers and completely avoid raw pointers and references.
 
-With shared pointers, the memory is deallocated only when the last reference to it is removed,
-which is convenient, but comes with some run-time overhead:
+With shared pointers, the memory is deallocated only when the last reference to it is removed, which is convenient, but comes with some run-time overhead:
 
 ```C++
 void print(shared_ptr<int> p) {
@@ -72,47 +67,27 @@ void test() {
 }
 ```
 
-Since shared and unique pointers are not interchangeable,
-should we provide both versions of the `print` function?
-It would be very inconvenient to make multiple versions of the same function
-just to accomodate different kinds of pointers.
-The first version of the `print` function with a raw pointer as an argument
-clearly does not leak the pointer out of its scope,
+Since shared and unique pointers are not interchangeable, should we provide both versions of the `print` function?
+It would be very inconvenient to make multiple versions of the same function just to accomodate different kinds of pointers.
+The first version of the `print` function with a raw pointer as an argument clearly does not leak the pointer out of its scope,
 so it is reasonably the most convenient implementation.
 We can just explicitly state in its documentation that the pointer is not leaked,
-and then the callers of this function who use either shared or unique pointers
-can pass the underlying raw pointers without breaking
-the respective invariants about the number of references.
+and then the callers of this function who use either shared or unique pointers can pass
+the underlying raw pointers without breaking the respective invariants about the number of references.
 
-This assertion, that a given value does not leak outside of its scope
-is precisely what this language allows to express at the *type level*.
-It allows the function-local variables (in particular the arguments)
-to be marked as *confined*, which inhibits copying them out of their scope,
-but also relaxes their invariants about copying within this scope.
-In particular, confined unique pointers can be safely copied inside their scope,
-and the reference counters of confined shared pointers can be safely ignored.
+This assertion, that a given value does not leak outside of its scope, is exactly what this language allows to express at the *type level*.
+It allows the function-local variables (in particular the arguments) to be marked as *confined*,
+which inhibits copying them out of their scopes, but also relaxes the rules for copying them within these scopes.
+In particular, confined unique pointers can be safely copied inside their scopes, and the reference counters of confined shared pointers can be safely ignored.
+The idea is that we consider this copying as an implementation detail which does not violate the invariants of unique and shared pointers.
 
 Note that this particular problem with memory safety has already been solved differently
 by the [Rust](https://www.rust-lang.org/) language with its notions of *borrows* and *lifetimes*.
-This language is somewhat inspired by Rust, but takes a simpler
-(and probably less convenient) approach to pointers at the type level.
-It is by no means a full general-purpose language,
-but merely a demonstration of a concept.
-And we had quite a lot of fun implementing it. :)
+This language is somewhat inspired by Rust, but takes a simpler (and probably less convenient) approach to pointers at the type level.
+It is by no means a full general-purpose language, but merely a demonstration of a concept,
+and mostly just a fun exercise in programming language design and implementation.
 
-## Language characteristics
-
-- Statically and strongly typed,
-- safe (as we believe),
-- compiled to LLVM IR,
-- with affine types,
-- with built-in smart pointers,
-- without garbage collection,
-- lacking module system,
-- lacking type inference,
-- lacking polymorphism.
-
-## Example
+## Example program
 
 ```
 struct S {
@@ -194,16 +169,16 @@ Prerequisites:
 - [LLVM](https://llvm.org/), min. version 12.
 
 Use Make to build the project.
-The resulting binary is `build/snowglobe`.
+The resulting program is `build/snowglobe`.
 
 ## Project status
 
-More examples are yet to be written.
+Tests and more examples are yet to be written.
 
 Some cases for the type checker and the LLVM code generator are not yet implemented.
 
 The source code needs some refactoring and tidying up.
 
-Although we believe that this type system guarantees memory safety (and we have no proof of that),
+Although we believe that this type system guarantees memory safety (but we have no proof of that),
 this implementation is almost certainly not free of bugs,
-and so unfortunately it may be possible to compile a program which runs into undefined behavior.
+and so it may be possible to compile a program which runs into undefined behavior.

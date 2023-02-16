@@ -484,7 +484,10 @@ namespace sg {
         return { };
     }
 
-    optional<prog::reg_index> conversion_generator::try_convert_ptr_target(prog::reg_index value, const prog::type_pointed& type, const prog::type_pointed& new_type) {
+    optional<prog::reg_index> conversion_generator::try_convert_ptr_target(
+            prog::reg_index value,
+            const prog::type_pointed& type,
+            const prog::type_pointed& new_type) {
         if (type.slice == new_type.slice && types_equal(*type.tp, *new_type.tp))
             return { value };
 

@@ -205,7 +205,8 @@ namespace sg::diags {
     }
 
     void int_overflow::write(ostream& stream) const {
-        stream << "The number '" << (negative ? "-" : "") << value << "' does not fit in " << (signed_type ? "signed" : "unsigned") << " " << bits << "-bit integer type" << endl;
+        stream << "The number '" << (negative ? "-" : "") << value << "' does not fit in ";
+        stream << (signed_type ? "signed" : "unsigned") << " " << bits << "-bit integer type" << endl;
     }
 
     void invalid_unary_operation::write(ostream& stream) const {

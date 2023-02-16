@@ -61,7 +61,8 @@ namespace sg::diags {
             type2 name2; \
             type3 name3; \
             type4 name4; \
-            name(type1 name1, type2 name2, type3 name3, type4 name4, location loc) : base(loc), name1(move(name1)), name2(move(name2)), name3(move(name3)), name4(move(name4)) { } \
+            name(type1 name1, type2 name2, type3 name3, type4 name4, location loc) \
+                    : base(loc), name1(move(name1)), name2(move(name2)), name3(move(name3)), name4(move(name4)) { } \
             void write(ostream& stream) const override; \
         }
 
@@ -129,7 +130,20 @@ namespace sg::diags {
     DIAG3(invalid_type, error, const prog::program&, prog, prog::type, type, type_kind, expected);
     DIAG4(int_overflow, error, unsigned long long, value, bool, negative, bool, signed_type, size_t, bits);
     DIAG3(invalid_unary_operation, error, const prog::program&, prog, ast::unary_operation_expr::operation_t, operation, prog::type, type);
-    DIAG4(invalid_binary_operation, error, const prog::program&, prog, ast::binary_operation_expr::operation_t, operation, prog::type, left_type, prog::type, right_type);
+
+    DIAG4(
+        invalid_binary_operation,
+        error,
+        const prog::program&,
+        prog,
+        ast::binary_operation_expr::operation_t,
+        operation,
+        prog::type,
+        left_type,
+        prog::type,
+        right_type
+    );
+
     DIAG2(invalid_tuple_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_array_size, error, size_t, size, size_t, expected);
     DIAG2(invalid_struct, error, const prog::struct_type&, st, const prog::struct_type&, expected);
@@ -168,7 +182,7 @@ namespace sg::diags {
     DIAG0(missing_return, error);
     DIAG0(unreachable_code, warning);
 
-    DIAG1(code_generator_fail, error, string, text); // TODO remove this
+    DIAG1(code_generator_fail, error, string, text); // TODO the code generator should not report any diagnostics
 }
 
 #endif

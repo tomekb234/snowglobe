@@ -280,7 +280,10 @@ namespace sg {
         return { result, move(type) };
     }
 
-    pair<prog::reg_index, prog::type_local> expression_compiler::compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, location loc) {
+    pair<prog::reg_index, prog::type_local> expression_compiler::compile_application(
+            const ast::expr& receiver_ast,
+            vector<cref<ast::expr_marked>> arg_asts,
+            location loc) {
         auto[receiver, receiver_type_local] = expression_compiler(fclr, true).compile(receiver_ast);
         auto& receiver_type = *receiver_type_local.tp;
 
@@ -521,26 +524,7 @@ namespace sg {
             } break;
 
             case binop::EQ:
-            case binop::NEQ: {
-                auto [left_value, left_type] = expression_compiler(fclr, true).compile(*ast.left);
-                auto [right_value, right_type] = expression_compiler(fclr, true).compile(*ast.right);
-
-                auto common_type = compiler_utils(clr).common_supertype(*left_type.tp, *right_type.tp, ast.loc);
-
-                left_value = conversion_generator(fclr, left_value, common_type).convert_from(*left_type.tp, ast.left->loc);
-                right_value = conversion_generator(fclr, right_value, common_type).convert_from(*right_type.tp, ast.right->loc);
-
-                auto result = fclr.new_reg();
-                auto instr = prog::binary_operation_instr { left_value, right_value, result };
-
-                if (ast.operation == binop::EQ)
-                    fclr.add_instr(VARIANT(prog::instr, EQ, into_ptr(instr)));
-                else if (ast.operation == binop::NEQ)
-                    fclr.add_instr(VARIANT(prog::instr, NEQ, into_ptr(instr)));
-
-                return { result, copy_type_local(prog::BOOL_TYPE_LOCAL) };
-            } break;
-
+            case binop::NEQ:
             case binop::LS:
             case binop::LSEQ:
             case binop::GT:
@@ -563,24 +547,29 @@ namespace sg {
                 left_value = conversion_generator(fclr, left_value, common_type).convert_from(*left_type.tp, ast.left->loc);
                 right_value = conversion_generator(fclr, right_value, common_type).convert_from(*right_type.tp, ast.right->loc);
                 auto result = fclr.new_reg();
-                prog::numeric_binary_operation_instr::kind_t kind;
+                prog::binary_operation_instr::kind_t kind;
                 auto& ntype = *GET(common_type, NUMBER);
 
                 if (is_uint(ntype))
-                    kind = prog::numeric_binary_operation_instr::UNSIGNED;
+                    kind = prog::binary_operation_instr::UNSIGNED;
                 else if (is_sint(ntype))
-                    kind = prog::numeric_binary_operation_instr::SIGNED;
+                    kind = prog::binary_operation_instr::SIGNED;
                 else if (is_float(ntype))
-                    kind = prog::numeric_binary_operation_instr::FLOAT;
+                    kind = prog::binary_operation_instr::FLOAT;
                 else
                     INVALID_BINARY_OP;
 
-                auto op_instr = make_ptr(prog::numeric_binary_operation_instr{ { left_value, right_value, result }, kind });
+                auto op_instr = make_ptr(prog::binary_operation_instr{ left_value, right_value, result, kind });
                 bool bool_result_type = false;
 
                 switch (ast.operation) {
-                    case binop::LS: {
-                        fclr.add_instr(VARIANT(prog::instr, LS, move(op_instr)));
+                    case binop::EQ: {
+                        fclr.add_instr(VARIANT(prog::instr, EQ, move(op_instr)));
+                        bool_result_type = true;
+                    } break;
+
+                    case binop::NEQ: {
+                        fclr.add_instr(VARIANT(prog::instr, NEQ, move(op_instr)));
                         bool_result_type = true;
                     } break;
 
@@ -656,17 +645,17 @@ namespace sg {
                     INVALID_BINARY_OP;
 
                 auto result = fclr.new_reg();
-                prog::numeric_binary_operation_instr::kind_t kind;
+                prog::binary_operation_instr::kind_t kind;
                 auto& left_ntype = *GET(*left_type.tp, NUMBER);
 
                 if (is_uint(left_ntype))
-                    kind = prog::numeric_binary_operation_instr::UNSIGNED;
+                    kind = prog::binary_operation_instr::UNSIGNED;
                 else if (is_sint(left_ntype))
-                    kind = prog::numeric_binary_operation_instr::SIGNED;
+                    kind = prog::binary_operation_instr::SIGNED;
                 else
                     INVALID_BINARY_OP;
 
-                auto op_instr = make_ptr(prog::numeric_binary_operation_instr{ {left_value, right_value, result }, kind });
+                auto op_instr = make_ptr(prog::binary_operation_instr{ left_value, right_value, result, kind });
 
                 if (ast.operation == binop::BIT_LSH)
                     fclr.add_instr(VARIANT(prog::instr, BIT_LSH, move(op_instr)));
@@ -695,7 +684,7 @@ namespace sg {
         auto& new_ntype = *GET(*new_type.tp, NUMBER);
 
         #define PASS { \
-            return { value, move(type) }; \
+            return { value, move(new_type) }; \
         }
 
         #define CAST(instr_name) { \

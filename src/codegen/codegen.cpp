@@ -2,6 +2,7 @@
 #include "utils.hpp"
 #include "diags.hpp"
 
+#include <llvm/Pass.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_os_ostream.h>
@@ -216,14 +217,23 @@ namespace sg {
                 return make_pointer_value(pointer_type, global_var.value, { }, { }, builder);
             }
 
-            default:
+            case prog::constant::GLOBAL_VAR_SLICE:
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+            case prog::constant::GLOBAL_FUNC_PTR:
+                error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+            case prog::constant::GLOBAL_FUNC_WRAPPER_PTR:
                 error(diags::not_implemented(DUMMY_LOCATION)); // TODO
         }
 
         UNREACHABLE;
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_struct_value(prog::global_index struct_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
+    code_generator::typed_llvm_value<> code_generator::make_struct_value(
+            prog::global_index struct_index,
+            vector<typed_llvm_value<>> fields,
+            llvm::IRBuilderBase& builder) {
         auto struct_type = struct_types[struct_index];
         llvm::Value* struct_value = llvm::UndefValue::get(struct_type->get_type());
         for (size_t i = 0; i < fields.size(); i++)
@@ -231,7 +241,11 @@ namespace sg {
         return { struct_value, struct_type };
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_enum_variant_value(prog::global_index enum_index, prog::variant_index variant_index, vector<typed_llvm_value<>> fields, llvm::IRBuilderBase& builder) {
+    code_generator::typed_llvm_value<> code_generator::make_enum_variant_value(
+            prog::global_index enum_index,
+            prog::variant_index variant_index,
+            vector<typed_llvm_value<>> fields,
+            llvm::IRBuilderBase& builder) {
         // make variant
         auto variant_type = variant_types[enum_index][variant_index];
         llvm::Value* variant_value = llvm::UndefValue::get(variant_type->get_type());
@@ -283,7 +297,12 @@ namespace sg {
         return { optional_value, optional_type };
     }
 
-    code_generator::typed_llvm_value<> code_generator::make_pointer_value(ll_type* type, llvm::Value* data_ptr, optional<llvm::Value*> ref_cnts_ptr, optional<llvm::Value*> slice_size, llvm::IRBuilderBase& builder) {
+    code_generator::typed_llvm_value<> code_generator::make_pointer_value(
+            ll_type* type,
+            llvm::Value* data_ptr,
+            optional<llvm::Value*> ref_cnts_ptr,
+            optional<llvm::Value*> slice_size,
+            llvm::IRBuilderBase& builder) {
         llvm::Value* value = llvm::UndefValue::get(type->get_type());
         unsigned index = 0;
         value = builder.CreateInsertValue(value, data_ptr, {index++});
@@ -403,7 +422,12 @@ namespace sg {
         gen.llvm_verify([&](llvm::raw_ostream* stream){ return llvm::verifyFunction(*llvm_function, stream); });
     }
 
-    llvm::BasicBlock* function_code_generator::process_instr_block(const vector<prog::ptr<prog::instr>>& instrs, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block, llvm::BasicBlock* loop_block, llvm::BasicBlock* after_loop_block) {
+    llvm::BasicBlock* function_code_generator::process_instr_block(
+            const vector<prog::ptr<prog::instr>>& instrs,
+            llvm::BasicBlock* init_block,
+            llvm::BasicBlock* after_block,
+            llvm::BasicBlock* loop_block,
+            llvm::BasicBlock* after_loop_block) {
         llvm::IRBuilder<> builder(init_block);
         bool terminated = false;
 
@@ -446,6 +470,9 @@ namespace sg {
                         args.push_back(regs[arg].value);
                     regs[fc_instr.result] = { builder.CreateCall(callee, args), typed_func.type };
                 } break;
+
+                case prog::instr::FUNC_PTR_CALL:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
 
                 case prog::instr::MAKE_UNIT: {
                     auto reg = GET(*instr, MAKE_UNIT);
@@ -500,6 +527,12 @@ namespace sg {
                     regs[mev_instr.result] = gen.make_enum_variant_value(mev_instr.en, mev_instr.variant, fields, builder);
                 } break;
 
+                case prog::instr::MAKE_JOINT_INNER_PTR:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+                case prog::instr::MAKE_JOINT_FUNC_PTR:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
                 case prog::instr::FROM_NEVER: {
                     auto& fn_instr = *GET(*instr, FROM_NEVER);
                     auto type = gen.get_type_from_prog(*fn_instr.tp);
@@ -552,6 +585,18 @@ namespace sg {
                     auto field_value = builder.CreateExtractValue(value_casted, {(unsigned)evf_instr.field+1});
                     regs[evf_instr.result] = { field_value, variant_type.fields[evf_instr.field] };
                 } break;
+
+                case prog::instr::EXTRACT_INNER_PTR:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+                case prog::instr::EXTRACT_OUTER_PTR:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+                case prog::instr::EXTRACT_FUNC_PTR:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+                case prog::instr::EXTRACT_VALUE_PTR:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
 
                 case prog::instr::CHECK_ARRAY_PTR_INDEX: {
                     auto& ci_instr = *GET(*instr, CHECK_ARRAY_PTR_INDEX);
@@ -617,11 +662,25 @@ namespace sg {
                     regs[uo_instr.result] = { builder.CreateSub(reg.value, llvm::ConstantInt::get(reg.type->get_type(), 1)), reg.type };
                 } break;
 
+                case prog::instr::EQ: {
+                    auto& nbo_instr = *GET(*instr, EQ);
+                    auto& lreg = regs[nbo_instr.left];
+                    auto& rreg = regs[nbo_instr.right];
+                    regs[nbo_instr.result] = { builder.CreateICmpEQ(lreg.value, rreg.value), gen.get_bool_type() };
+                } break;
+
+                case prog::instr::NEQ: {
+                    auto& nbo_instr = *GET(*instr, NEQ);
+                    auto& lreg = regs[nbo_instr.left];
+                    auto& rreg = regs[nbo_instr.right];
+                    regs[nbo_instr.result] = { builder.CreateICmpNE(lreg.value, rreg.value), gen.get_bool_type() };
+                } break;
+
                 case prog::instr::ADD: {
                     auto& nbo_instr = *GET(*instr, ADD);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
+                    if (nbo_instr.kind == prog::binary_operation_instr::FLOAT)
                         regs[nbo_instr.result] = { builder.CreateFAdd(lreg.value, rreg.value), lreg.type };
                     else
                         regs[nbo_instr.result] = { builder.CreateAdd(lreg.value, rreg.value), lreg.type };
@@ -631,7 +690,7 @@ namespace sg {
                     auto& nbo_instr = *GET(*instr, SUB);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
+                    if (nbo_instr.kind == prog::binary_operation_instr::FLOAT)
                         regs[nbo_instr.result] = { builder.CreateFSub(lreg.value, rreg.value), lreg.type };
                     else
                         regs[nbo_instr.result] = { builder.CreateSub(lreg.value, rreg.value), lreg.type };
@@ -641,7 +700,7 @@ namespace sg {
                     auto& nbo_instr = *GET(*instr, MUL);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::FLOAT)
+                    if (nbo_instr.kind == prog::binary_operation_instr::FLOAT)
                         regs[nbo_instr.result] = { builder.CreateFMul(lreg.value, rreg.value), lreg.type };
                     else
                         regs[nbo_instr.result] = { builder.CreateMul(lreg.value, rreg.value), lreg.type };
@@ -651,9 +710,9 @@ namespace sg {
                     auto& nbo_instr = *GET(*instr, DIV);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                    if (nbo_instr.kind == prog::binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = { builder.CreateUDiv(lreg.value, rreg.value), lreg.type };
-                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                    else if (nbo_instr.kind == prog::binary_operation_instr::SIGNED)
                         regs[nbo_instr.result] = { builder.CreateSDiv(lreg.value, rreg.value), lreg.type };
                     else
                         regs[nbo_instr.result] = { builder.CreateFDiv(lreg.value, rreg.value), lreg.type };
@@ -663,9 +722,9 @@ namespace sg {
                     auto& nbo_instr = *GET(*instr, MOD);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                    if (nbo_instr.kind == prog::binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = { builder.CreateURem(lreg.value, rreg.value), lreg.type };
-                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                    else if (nbo_instr.kind == prog::binary_operation_instr::SIGNED)
                         regs[nbo_instr.result] = { builder.CreateSRem(lreg.value, rreg.value), lreg.type };
                     else
                         regs[nbo_instr.result] = { builder.CreateFRem(lreg.value, rreg.value), lreg.type };
@@ -700,9 +759,9 @@ namespace sg {
                     auto& nbo_instr = *GET(*instr, LS);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                    if (nbo_instr.kind == prog::binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = { builder.CreateICmpULT(lreg.value, rreg.value), gen.get_bool_type() };
-                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                    else if (nbo_instr.kind == prog::binary_operation_instr::SIGNED)
                         regs[nbo_instr.result] = { builder.CreateICmpSLT(lreg.value, rreg.value), gen.get_bool_type() };
                     else
                         regs[nbo_instr.result] = { builder.CreateFCmpULT(lreg.value, rreg.value), gen.get_bool_type() };
@@ -712,9 +771,9 @@ namespace sg {
                     auto& nbo_instr = *GET(*instr, LSEQ);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                    if (nbo_instr.kind == prog::binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = { builder.CreateICmpULE(lreg.value, rreg.value), gen.get_bool_type() };
-                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                    else if (nbo_instr.kind == prog::binary_operation_instr::SIGNED)
                         regs[nbo_instr.result] = { builder.CreateICmpSLE(lreg.value, rreg.value), gen.get_bool_type() };
                     else
                         regs[nbo_instr.result] = { builder.CreateFCmpULE(lreg.value, rreg.value), gen.get_bool_type() };
@@ -724,9 +783,9 @@ namespace sg {
                     auto& nbo_instr = *GET(*instr, GT);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                    if (nbo_instr.kind == prog::binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = { builder.CreateICmpUGT(lreg.value, rreg.value), gen.get_bool_type() };
-                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                    else if (nbo_instr.kind == prog::binary_operation_instr::SIGNED)
                         regs[nbo_instr.result] = { builder.CreateICmpSGT(lreg.value, rreg.value), gen.get_bool_type() };
                     else
                         regs[nbo_instr.result] = { builder.CreateFCmpUGT(lreg.value, rreg.value), gen.get_bool_type() };
@@ -736,9 +795,9 @@ namespace sg {
                     auto& nbo_instr = *GET(*instr, GTEQ);
                     auto& lreg = regs[nbo_instr.left];
                     auto& rreg = regs[nbo_instr.right];
-                    if (nbo_instr.kind == prog::numeric_binary_operation_instr::UNSIGNED)
+                    if (nbo_instr.kind == prog::binary_operation_instr::UNSIGNED)
                         regs[nbo_instr.result] = { builder.CreateICmpUGE(lreg.value, rreg.value), gen.get_bool_type() };
-                    else if (nbo_instr.kind == prog::numeric_binary_operation_instr::SIGNED)
+                    else if (nbo_instr.kind == prog::binary_operation_instr::SIGNED)
                         regs[nbo_instr.result] = { builder.CreateICmpSGE(lreg.value, rreg.value), gen.get_bool_type() };
                     else
                         regs[nbo_instr.result] = { builder.CreateFCmpUGE(lreg.value, rreg.value), gen.get_bool_type() };
@@ -798,6 +857,12 @@ namespace sg {
                     regs[nc_instr.result] = { builder.CreateFPToSI(regs[nc_instr.value].value, type->get_type()), type };
                 } break;
 
+                case prog::instr::TRANSFORM_ARRAY:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
+                case prog::instr::TRANSFORM_OPTIONAL:
+                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
+
                 case prog::instr::ALLOC: {
                     auto& a_instr = *GET(*instr, ALLOC);
                     auto& value = regs[a_instr.value];
@@ -839,7 +904,13 @@ namespace sg {
                     auto& old_array_type = GET(*old_ptr_type.target, ARRAY);
                     auto data_ptr_casted = builder.CreateBitCast(data_ptr, llvm::PointerType::getUnqual(old_array_type.value->get_type()));
                     auto new_ptr_type = gen.get_pointer_type(old_array_type.value, old_ptr_type.ref_cnt, true);
-                    regs[pc_instr.result] = gen.make_pointer_value(new_ptr_type, data_ptr_casted, { ref_cnts_ptr }, { builder.getInt64(old_array_type.size) }, builder);
+                    regs[pc_instr.result] = gen.make_pointer_value(
+                        new_ptr_type,
+                        data_ptr_casted,
+                        { ref_cnts_ptr },
+                        { builder.getInt64(old_array_type.size) },
+                        builder
+                    );
                 } break;
 
                 case prog::instr::GET_SLICE_LENGTH: {
@@ -851,7 +922,9 @@ namespace sg {
                     auto& gfp_instr = *GET(*instr, GET_FIELD_PTR);
 
                     auto& ptr_type = GET(*regs[gfp_instr.ptr].type, POINTER);
-                    ll_type* target_type = INDEX_EQ(*ptr_type.target, STRUCT) ? GET(*ptr_type.target, STRUCT).fields[gfp_instr.field] : GET(*ptr_type.target, TUPLE).fields[gfp_instr.field];
+                    ll_type* target_type = INDEX_EQ(*ptr_type.target, STRUCT)
+                        ? GET(*ptr_type.target, STRUCT).fields[gfp_instr.field]
+                        : GET(*ptr_type.target, TUPLE).fields[gfp_instr.field];
 
                     auto data_ptr = gen.extract_data_ptr_from_pointer(regs[gfp_instr.ptr], builder);
                     auto field_ptr = builder.CreateGEP(ptr_type.target->get_type(), data_ptr, {builder.getInt64(0), builder.getInt64(gfp_instr.field)});
@@ -865,7 +938,11 @@ namespace sg {
                     auto& ptr_type = GET(*regs[gip_instr.ptr].type, POINTER);
                     auto data_ptr = gen.extract_data_ptr_from_pointer(regs[gip_instr.ptr], builder);
                     auto index_value = regs[gip_instr.index].value;
-                    auto item_ptr = builder.CreateGEP(ptr_type.target->get_type(), data_ptr, ptr_type.slice ? vector<llvm::Value*>{index_value} : vector<llvm::Value*>{builder.getInt64(0), index_value});
+                    auto item_ptr = builder.CreateGEP(
+                        ptr_type.target->get_type(),
+                        data_ptr,
+                        ptr_type.slice ? vector<llvm::Value*>{index_value} : vector<llvm::Value*>{builder.getInt64(0), index_value}
+                    );
 
                     auto target_type = ptr_type.slice ? ptr_type.target : GET(*ptr_type.target, ARRAY).value;
                     auto new_ptr_type = gen.get_pointer_type(target_type, false, false);
@@ -879,7 +956,11 @@ namespace sg {
                     auto data_ptr = gen.extract_data_ptr_from_pointer(regs[girs_instr.ptr], builder);
                     auto begin = regs[girs_instr.begin].value;
                     auto end = regs[girs_instr.end].value;
-                    auto data_ptr_begin = builder.CreateGEP(ptr_type.target->get_type(), data_ptr, ptr_type.slice ? vector<llvm::Value*>{begin} : vector<llvm::Value*>{builder.getInt64(0), begin});
+                    auto data_ptr_begin = builder.CreateGEP(
+                        ptr_type.target->get_type(),
+                        data_ptr,
+                        ptr_type.slice ? vector<llvm::Value*>{begin} : vector<llvm::Value*>{builder.getInt64(0), begin}
+                    );
                     auto slice_len = builder.CreateSub(end, begin);
 
                     auto target_type = ptr_type.slice ? ptr_type.target : GET(*ptr_type.target, ARRAY).value;
@@ -996,9 +1077,22 @@ namespace sg {
                     auto continuation_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
 
                     auto true_init_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    auto true_return_block = process_instr_block(b_instr.true_block->instrs, true_init_block, continuation_block, loop_block, after_loop_block);
+                    auto true_return_block = process_instr_block(
+                        b_instr.true_block->instrs,
+                        true_init_block,
+                        continuation_block,
+                        loop_block,
+                        after_loop_block
+                    );
+
                     auto false_init_block = llvm::BasicBlock::Create(gen.ctx, "", llvm_function);
-                    auto false_return_block = process_instr_block(b_instr.false_block->instrs, false_init_block, continuation_block, loop_block, after_loop_block);
+                    auto false_return_block = process_instr_block(
+                        b_instr.false_block->instrs,
+                        false_init_block,
+                        continuation_block,
+                        loop_block,
+                        after_loop_block
+                    );
 
                     builder.CreateCondBr(regs[b_instr.cond].value, true_init_block, false_init_block);
                     builder.SetInsertPoint(continuation_block);
@@ -1008,8 +1102,14 @@ namespace sg {
                         auto& type = regs[vb_instr.true_value].type ? regs[vb_instr.true_value].type : regs[vb_instr.false_value].type;
                         if (type) {
                             auto phi_node = llvm::PHINode::Create(type->get_type(), 2, "", continuation_block);
-                            phi_node->addIncoming(regs[vb_instr.true_value].value ? regs[vb_instr.true_value].value : llvm::UndefValue::get(type->get_type()), true_return_block);
-                            phi_node->addIncoming(regs[vb_instr.false_value].value ? regs[vb_instr.false_value].value : llvm::UndefValue::get(type->get_type()), false_return_block);
+                            phi_node->addIncoming(
+                                regs[vb_instr.true_value].value ? regs[vb_instr.true_value].value : llvm::UndefValue::get(type->get_type()),
+                                true_return_block
+                            );
+                            phi_node->addIncoming(
+                                regs[vb_instr.false_value].value ? regs[vb_instr.false_value].value : llvm::UndefValue::get(type->get_type()),
+                                false_return_block
+                            );
                             regs[vb_instr.result] = { phi_node, type };
                         }
                         else
@@ -1051,10 +1151,8 @@ namespace sg {
                     gen.make_external_printf_call("ERROR: Runtime error\n", { }, builder);
                     gen.make_external_exit_call(builder.getInt32(1), builder);
                 } break;
-
-                default:
-                    gen.error(diags::not_implemented(DUMMY_LOCATION)); // TODO
             }
+
             if (terminated)
                 break;
         }
@@ -1065,7 +1163,12 @@ namespace sg {
         return builder.GetInsertBlock();
     }
 
-    void function_code_generator::make_repeat(code_generator::typed_llvm_value<> count, optional<prog::reg_index> index, function<void(llvm::BasicBlock*,llvm::BasicBlock*,llvm::Value*)> loop_body, llvm::BasicBlock* init_block, llvm::BasicBlock* after_block) {
+    void function_code_generator::make_repeat(
+            code_generator::typed_llvm_value<> count,
+            optional<prog::reg_index> index,
+            function<void(llvm::BasicBlock*,llvm::BasicBlock*,llvm::Value*)> loop_body,
+            llvm::BasicBlock* init_block,
+            llvm::BasicBlock* after_block) {
         llvm::IRBuilder<> builder(init_block);
         auto counter_var = builder.CreateAlloca(count.type->get_type());
         builder.CreateStore(llvm::ConstantInt::get(count.type->get_type(), 0), counter_var);

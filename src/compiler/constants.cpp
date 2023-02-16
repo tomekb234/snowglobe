@@ -198,7 +198,10 @@ namespace sg {
         return { move(value), move(type) };
     }
 
-    pair<prog::constant, prog::type> constant_compiler::compile_application(const ast::expr& receiver_ast, vector<cref<ast::expr_marked>> arg_asts, location loc) {
+    pair<prog::constant, prog::type> constant_compiler::compile_application(
+            const ast::expr& receiver_ast,
+            vector<cref<ast::expr_marked>> arg_asts,
+            location loc) {
         auto receiver_type = constant_compiler(clr).compile(receiver_ast).second;
 
         switch (INDEX(receiver_type)) {
